@@ -1,0 +1,94 @@
+# ─── Rust ────────────────────────────────────────────────────────────────
+target/
+**/target/
+*.rs.bk
+*.toml.bk
+*.profraw
+tarpaulin-report.html
+cobertura.xml
+
+# ─── Foundry / Solidity (examples/, vergilbench/) ────────────────────────
+out/
+**/out/
+cache/
+**/cache/
+broadcast/
+**/broadcast/
+lib/
+**/lib/
+**/foundry.toml.local
+
+# ─── Python (Halmos and Slither subprocess artifacts) ───────────────────
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Vergil runtime artifacts ───────────────────────────────────────────
+vergil-out/
+**/vergil-out/
+.vergil-cache/
+**/.vergil-cache/
+trace/
+**/trace/
+*.vergil.tmp
+
+# ─── Secrets — no exceptions ────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+api-keys.toml
+*.local.toml
+*.secret
+
+# ─── Working databases (shipped corpus lives elsewhere) ─────────────────
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ─── Documentation build output ─────────────────────────────────────────
+docs/book/book/
+
+# ─── OS ─────────────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── IDE / editors ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.fleet/
+.zed/
+
+# ─── Logs and tmp ───────────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+
+# ─── Distribution build artifacts ───────────────────────────────────────
+dist/
+*.tar.gz
+*.zip
+
+# ─── Internal markdown — only README.md is tracked at the repo root ─────
+# Working specs, founder docs, research notes, agent transcripts stay local.
+# Subdirectory .md files (docs/, examples/, crates/) are NOT affected.
+/*.md
+!/README.md
+
+# ─── Internal planning — tasks/ stays local ─────────────────────────────
+tasks/
