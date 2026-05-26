@@ -11,3 +11,5 @@ name = "vergil"
 path = "src/main.rs"
 
 [dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
