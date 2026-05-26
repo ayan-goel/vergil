@@ -1,0 +1,16 @@
+No files changed, compilation skipped
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   ╭▸ test/Properties.t.sol:29:9
+   │
+29 │         token.transferFrom(address(this), to, amount);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+
+
+Running 1 tests for test/Properties.t.sol:Properties
+[31mCounterexample: 
+    p_amount_uint256_7aeee90_00 = 0x80000000000000000000
+    p_to_address_731c17d_00 = 0x8000000000000000000000000000000000000000[0m
+[31m[FAIL][0m check_transferFrom_blocks_unauthorized(address,uint256) (paths: 7, time: 0.13s, bounds: [])
+Symbolic test result: 0 passed; 1 failed; time: 0.14s

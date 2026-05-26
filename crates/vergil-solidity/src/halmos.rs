@@ -407,6 +407,8 @@ mod tests {
     const TIMEOUT: &str = include_str!("../tests/fixtures/halmos/timeout.txt");
     const UNKNOWN: &str = include_str!("../tests/fixtures/halmos/unknown.txt");
     const ERROR_SYNTAX: &str = include_str!("../tests/fixtures/halmos/error-syntax.txt");
+    const CEX_ALLOWANCE: &str =
+        include_str!("../tests/fixtures/halmos/counterexample-allowance.txt");
 
     #[test]
     fn verified_parses() {
@@ -441,6 +443,23 @@ mod tests {
                 for input in &trace.inputs {
                     assert!(input.hex_value.starts_with("0x"));
                 }
+            }
+            other => panic!("expected Counterexample, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn counterexample_allowance_parses() {
+        let r = parse(CEX_ALLOWANCE);
+        match r {
+            HalmosResult::Counterexample { trace, .. } => {
+                assert!(trace
+                    .property
+                    .starts_with("check_transferFrom_blocks_unauthorized"));
+                assert_eq!(trace.inputs.len(), 2);
+                let names: Vec<&str> = trace.inputs.iter().map(|i| i.name.as_str()).collect();
+                assert!(names.contains(&"amount"), "names = {names:?}");
+                assert!(names.contains(&"to"), "names = {names:?}");
             }
             other => panic!("expected Counterexample, got {other:?}"),
         }
