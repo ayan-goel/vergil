@@ -128,8 +128,7 @@ pub fn parse_standard_json(json: &str) -> SmtCheckerResult {
     // Reporting Verified here would be a lie — return Unknown so callers know.
     if chc_diag_count == 0 {
         return SmtCheckerResult::Unknown {
-            reason: "solc emitted no CHC diagnostics (model checker did not engage)"
-                .to_string(),
+            reason: "solc emitted no CHC diagnostics (model checker did not engage)".to_string(),
             wall_clock_ms: 0,
         };
     }
