@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Install Vergil's external toolchain dependencies.
 #
-# Required by `vergil verify`:
+# Phase 1 (verification) requires:
 #   - Foundry  — Solidity dev framework (forge/cast/anvil)
-#   - Halmos   — symbolic executor for EVM bytecode
-#   - Slither  — Solidity static analyzer
-#   - Gambit   — Solidity mutation tester
+#   - Halmos   — symbolic executor for EVM bytecode (pinned)
+#   - Slither  — Solidity static analyzer (pinned)
 #   - Z3       — SMT solver (primary)
 #   - cvc5     — SMT solver (portfolio)
 #   - solc     — Solidity compiler (storage layout + SMTChecker CHC)
+#
+# Phase 3 (mutation testing) additionally requires:
+#   - Gambit   — Solidity mutation tester
 #
 # Detects macOS vs Linux and uses the appropriate package manager.
 
@@ -46,38 +48,33 @@ else
     log "Foundry already installed: $(forge --version | head -1)"
 fi
 
-# 2. Halmos — symbolic executor
+# uv is required for isolated Python tool installs (Halmos, Slither).
+# Falls back to pip if uv is missing, but uv is strongly recommended:
+# system Python (e.g. Anaconda 3.9) often has broken setuptools that breaks slither's deps.
+require uv "Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh"
+
+# 2. Halmos — symbolic executor (pinned for fixture stability)
+HALMOS_VERSION="${HALMOS_VERSION:-0.3.3}"
 if ! command -v halmos >/dev/null 2>&1; then
-    log "Installing Halmos"
-    if command -v uv >/dev/null 2>&1; then
-        uv tool install halmos
-    else
-        pip install --user halmos
-    fi
+    log "Installing Halmos $HALMOS_VERSION"
+    uv tool install "halmos==$HALMOS_VERSION"
 else
     log "Halmos already installed: $(halmos --version 2>&1 | head -1)"
 fi
 
-# 3. Slither — Solidity static analyzer
+# 3. Slither — Solidity static analyzer (pinned for fixture stability)
+SLITHER_VERSION="${SLITHER_VERSION:-0.11.0}"
 if ! command -v slither >/dev/null 2>&1; then
-    log "Installing Slither"
-    pip install --user slither-analyzer
+    log "Installing Slither $SLITHER_VERSION"
+    uv tool install "slither-analyzer==$SLITHER_VERSION"
 else
     log "Slither already installed: $(slither --version 2>&1 | head -1)"
 fi
 
-# 4. Gambit — Solidity mutation tester
-if ! command -v gambit >/dev/null 2>&1; then
-    log "Installing Gambit"
-    cargo install --git https://github.com/Certora/gambit
-else
-    log "Gambit already installed: $(gambit --version 2>&1 | head -1)"
-fi
-
-# 5. Z3 and cvc5
+# 4. Z3, cvc5, solc (system solvers + Solidity compiler)
 case "$OS" in
     Darwin)
-        for pkg in z3 cvc5 solidity; do
+        for pkg in z3 solidity; do
             if ! brew list "$pkg" >/dev/null 2>&1; then
                 log "Installing $pkg via brew"
                 brew install "$pkg"
@@ -85,6 +82,14 @@ case "$OS" in
                 log "$pkg already installed"
             fi
         done
+        # cvc5 ships as a Homebrew cask, not a formula
+        if ! command -v cvc5 >/dev/null 2>&1; then
+            log "Installing cvc5 via brew cask (cvc5/cvc5/cvc5)"
+            brew tap cvc5/cvc5 >/dev/null 2>&1 || true
+            brew install --cask cvc5/cvc5/cvc5
+        else
+            log "cvc5 already installed: $(cvc5 --version | head -1)"
+        fi
         ;;
     Linux)
         log "Installing z3, cvc5, solc via apt-get (requires sudo)"
@@ -93,4 +98,17 @@ case "$OS" in
         ;;
 esac
 
-log "All dependencies installed. Run 'vergil doctor' once that's implemented to verify."
+# 5. Gambit — Phase 3 (mutation testing). Skipped unless --with-gambit is passed,
+# since cargo-install of a third-party git repo can fail in restricted environments.
+if [[ "${1:-}" == "--with-gambit" ]]; then
+    if ! command -v gambit >/dev/null 2>&1; then
+        log "Installing Gambit (Phase 3 mutation testing)"
+        cargo install --git https://github.com/Certora/gambit
+    else
+        log "Gambit already installed: $(gambit --version 2>&1 | head -1)"
+    fi
+else
+    log "Skipping Gambit (Phase 3 dep). Pass --with-gambit to install."
+fi
+
+log "All Phase-1 dependencies installed. Run 'vergil doctor' to verify."
