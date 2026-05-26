@@ -1,0 +1,11 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_transferFrom_blocks_unauthorized
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/TokenBroken.sol

@@ -1,0 +1,16 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_transfer_preserves_total_supply
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/SafeMath.sol
+  - name: check_approve_idempotent
+    params:
+      - { name: spender, type: address }
+      - { name: value, type: uint256 }
+    smtchecker_source: src/SafeMath.sol
