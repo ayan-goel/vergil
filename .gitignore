@@ -38,6 +38,8 @@ vergil-out/
 trace/
 **/trace/
 *.vergil.tmp
+# Generated forge test files for replaying Halmos counterexamples.
+**/test/Cex_*.t.sol
 
 # ─── Secrets — no exceptions ────────────────────────────────────────────
 .env
