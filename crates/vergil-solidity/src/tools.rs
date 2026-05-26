@@ -161,8 +161,14 @@ fn parse_z3(out: &str) -> Option<String> {
 
 fn parse_cvc5(out: &str) -> Option<String> {
     let line = out.lines().next()?.trim();
-    let v = line.strip_prefix("cvc5")?.trim();
-    Some(v.split_whitespace().next()?.to_string())
+    // cvc5 has at least two version-line shapes:
+    //   "cvc5 1.3.4 [git ...]"                       (older builds, brew on macOS)
+    //   "This is cvc5 version 1.3.0 [git tag ...]"   (1.3.0 Linux static release)
+    let after = line
+        .strip_prefix("This is cvc5 version")
+        .or_else(|| line.strip_prefix("cvc5"))?
+        .trim();
+    Some(after.split_whitespace().next()?.to_string())
 }
 
 fn parse_solc(out: &str) -> Option<String> {
@@ -244,12 +250,22 @@ mod tests {
     }
 
     #[test]
-    fn cvc5_version_parses() {
+    fn cvc5_version_parses_old_format() {
         let out = indoc! {"
             cvc5 1.3.4 [git f3b21c4 on branch HEAD]
             compiled with GCC version Apple LLVM 17.0.0 on May  7 2026
         "};
         assert_eq!(parse_cvc5(out), Some("1.3.4".to_string()));
+    }
+
+    #[test]
+    fn cvc5_version_parses_new_format() {
+        // Linux static release of cvc5 1.3.0 emits this longer header.
+        let out = indoc! {"
+            This is cvc5 version 1.3.0 [git tag 1.3.0 branch HEAD]
+            compiled with GCC version 11.4.0
+        "};
+        assert_eq!(parse_cvc5(out), Some("1.3.0".to_string()));
     }
 
     #[test]
