@@ -7,3 +7,10 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+vergil-solidity = { path = "../vergil-solidity" }
+
+[features]
+integration = ["vergil-solidity/integration"]

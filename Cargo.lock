@@ -460,6 +460,12 @@ dependencies = [
 [[package]]
 name = "vergil-core"
 version = "0.0.1"
+dependencies = [
+ "serde",
+ "tokio",
+ "tracing",
+ "vergil-solidity",
+]
 
 [[package]]
 name = "vergil-llm"
