@@ -5,6 +5,11 @@
 //! Phase 1; synthetic variants (timeout, unknown) are modeled on the same format.
 
 use std::fmt;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use tokio::process::Command;
+use tokio::time::timeout;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HalmosResult {
@@ -134,6 +139,88 @@ pub fn parse(raw: &str) -> HalmosResult {
         stage: ErrorStage::Runtime,
         message: format!("unrecognized halmos output:\n{}", text.trim()),
     }
+}
+
+/// Configuration for a Halmos subprocess invocation.
+#[derive(Debug, Clone)]
+pub struct HalmosRun {
+    /// Foundry project directory (the dir containing `foundry.toml`).
+    pub project: PathBuf,
+    /// `check_*` function name to verify.
+    pub check_fn: String,
+    /// Wall-clock budget for the entire halmos invocation.
+    pub wall_clock_budget: Duration,
+    /// Solver budget per assertion, milliseconds. Forwarded as
+    /// `--solver-timeout-assertion <ms>`.
+    pub solver_timeout_ms: u64,
+}
+
+impl HalmosRun {
+    pub fn new(project: impl Into<PathBuf>, check_fn: impl Into<String>) -> Self {
+        Self {
+            project: project.into(),
+            check_fn: check_fn.into(),
+            wall_clock_budget: Duration::from_secs(120),
+            solver_timeout_ms: 30_000,
+        }
+    }
+
+    pub fn with_wall_clock(mut self, budget: Duration) -> Self {
+        self.wall_clock_budget = budget;
+        self
+    }
+
+    pub fn with_solver_timeout_ms(mut self, ms: u64) -> Self {
+        self.solver_timeout_ms = ms;
+        self
+    }
+}
+
+/// Spawn Halmos as a subprocess in the given Foundry project, parse its output.
+///
+/// On wall-clock budget exhaustion the child process is killed and a
+/// [`HalmosResult::Timeout`] is returned. Solver-side timeouts (individual
+/// assertions) surface from Halmos itself in the parsed output.
+pub async fn run(cfg: &HalmosRun) -> HalmosResult {
+    if !cfg.project.join("foundry.toml").is_file() {
+        return HalmosResult::Error {
+            stage: ErrorStage::Runtime,
+            message: format!("no foundry.toml in project dir: {}", cfg.project.display()),
+        };
+    }
+
+    let mut cmd = Command::new("halmos");
+    cmd.arg("--function")
+        .arg(&cfg.check_fn)
+        .arg("--solver-timeout-assertion")
+        .arg(cfg.solver_timeout_ms.to_string())
+        .current_dir(&cfg.project)
+        .env("HALMOS_ALLOW_DOWNLOAD", "1")
+        .kill_on_drop(true);
+
+    let result = timeout(cfg.wall_clock_budget, cmd.output()).await;
+    match result {
+        Ok(Ok(output)) => {
+            let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
+            combined.push_str(&String::from_utf8_lossy(&output.stderr));
+            parse(&combined)
+        }
+        Ok(Err(io_err)) => HalmosResult::Error {
+            stage: ErrorStage::Runtime,
+            message: format!("failed to spawn halmos: {io_err}"),
+        },
+        Err(_elapsed) => HalmosResult::Timeout {
+            property: cfg.check_fn.clone(),
+            wall_clock_ms: cfg.wall_clock_budget.as_millis() as u64,
+        },
+    }
+}
+
+/// Convenience wrapper preserving the function signature called out in
+/// `tasks/plan.md`: `async fn run(project, check_fn, budget)`.
+pub async fn run_simple(project: &Path, check_fn: &str, budget: Duration) -> HalmosResult {
+    let cfg = HalmosRun::new(project.to_path_buf(), check_fn.to_string()).with_wall_clock(budget);
+    run(&cfg).await
 }
 
 fn strip_ansi(input: &str) -> String {
