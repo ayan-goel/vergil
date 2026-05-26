@@ -1,0 +1,11 @@
+Compiling 2 files with Solc 0.8.35
+Solc 0.8.35 finished in 3.87ms
+Error: Compiler run failed:
+Error (2314): Expected ',' but got '{'
+ --> src/Broken.sol:5:51:
+  |
+5 |     function foo() external pure returns (uint256 {
+  |                                                   ^
+ERROR    Build failed: ['forge', 'build', '--ast', '--root',                    
+         '/private/tmp/halmos-fixtures-bad', '--extra-output', 'storageLayout', 
+         'metadata']                                                            

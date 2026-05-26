@@ -1,0 +1,5 @@
+No files changed, compilation skipped
+
+Running 1 tests for test/AddProp.t.sol:AddProp
+[32m[PASS][0m check_commutative(uint256,uint256) (paths: 1, time: 0.00s, bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.01s

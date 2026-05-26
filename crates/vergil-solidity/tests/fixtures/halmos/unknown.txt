@@ -1,0 +1,6 @@
+No files changed, compilation skipped
+
+Running 1 tests for test/UnboundedProp.t.sol:UnboundedProp
+WARNING  Z3 returned 'unknown' for check_unbounded - try increasing depth/loop bounds
+[33m[UNKNOWN][0m check_unbounded(uint256) (paths: 4, time: 12.34s, bounds: [])
+Symbolic test result: 0 passed; 1 failed; time: 12.35s

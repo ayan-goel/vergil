@@ -1,0 +1,8 @@
+No files changed, compilation skipped
+
+Running 1 tests for test/AddProp.t.sol:AddProp
+[31mCounterexample: 
+    p_a_uint256_9ce4ac8_00 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffe0000000000003
+    p_b_uint256_77de62a_00 = 0x3ffffffffffff9[0m
+[31m[FAIL][0m check_overflow_bug(uint256,uint256) (paths: 2, time: 0.12s, bounds: [])
+Symbolic test result: 0 passed; 1 failed; time: 0.13s

@@ -1,0 +1,5 @@
+No files changed, compilation skipped
+
+Running 1 tests for test/HardProp.t.sol:HardProp
+[33m[TIMEOUT][0m check_hard_invariant(uint256,uint256) (paths: 1, time: 30.05s, bounds: [])
+Symbolic test result: 0 passed; 1 failed; time: 30.06s
