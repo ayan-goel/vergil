@@ -1,0 +1,18 @@
+[package]
+name = "vergilbench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "vergilbench-calibration"
+path = "src/calibration.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+vergil-core = { path = "../crates/vergil-core" }
+vergil-solidity = { path = "../crates/vergil-solidity" }

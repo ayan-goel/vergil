@@ -547,6 +547,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "vergilbench"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "tokio",
+ "vergil-core",
+ "vergil-solidity",
+]
+
+[[package]]
 name = "wasi"
 version = "0.11.1+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
