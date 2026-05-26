@@ -1,0 +1,101 @@
+name: integration
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HALMOS_VERSION: "0.3.3"
+      SLITHER_VERSION: "0.11.0"
+      HALMOS_ALLOW_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Solidity compiler — pin to a recent 0.8.x so SMTChecker fixtures match.
+      - name: Install solc 0.8.20
+        run: |
+          curl -sSL -o /usr/local/bin/solc https://github.com/ethereum/solidity/releases/download/v0.8.20/solc-static-linux
+          chmod +x /usr/local/bin/solc
+          solc --version
+
+      # Z3 + cvc5
+      - name: Install Z3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y z3
+          z3 --version
+
+      - name: Install cvc5
+        run: |
+          curl -sSL -o /usr/local/bin/cvc5 https://github.com/cvc5/cvc5/releases/download/cvc5-1.3.0/cvc5-Linux-x86_64-static
+          chmod +x /usr/local/bin/cvc5
+          cvc5 --version
+
+      # Foundry
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      # Python tools via uv (avoids broken system setuptools)
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install Halmos (pinned)
+        run: |
+          $HOME/.local/bin/uv tool install "halmos==${HALMOS_VERSION}"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          $HOME/.local/bin/halmos --version
+
+      - name: Install Slither (pinned)
+        run: |
+          $HOME/.local/bin/uv tool install "slither-analyzer==${SLITHER_VERSION}"
+          $HOME/.local/bin/slither --version
+
+      - name: vergil doctor
+        run: |
+          cargo build --release -p vergil-cli
+          ./target/release/vergil doctor
+
+      - name: Unit tests (no integration)
+        run: cargo test --workspace
+
+      - name: Integration tests
+        run: cargo test --workspace --features integration
+
+      - name: Phase 1 exit test (verified)
+        run: |
+          ./target/release/vergil verify examples/erc20 \
+              --properties examples/erc20/properties.yaml
+
+      - name: Phase 1 exit test (counterexample)
+        run: |
+          set +e
+          ./target/release/vergil verify examples/erc20-broken \
+              --properties examples/erc20-broken/properties.yaml
+          code=$?
+          if [ $code -ne 1 ]; then
+            echo "expected exit 1 (counterexample), got $code"
+            exit 1
+          fi
+
+      - name: Forge test reproduces counterexample
+        run: |
+          set +e
+          ( cd examples/erc20-broken && forge test --match-test Cex_ )
+          code=$?
+          if [ $code -eq 0 ]; then
+            echo "expected forge test to fail (cex reproduces), got 0"
+            exit 1
+          fi
