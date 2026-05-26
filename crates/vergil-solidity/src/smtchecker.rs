@@ -108,10 +108,12 @@ pub fn parse_standard_json(json: &str) -> SmtCheckerResult {
     //  - "X check is safe!" (per-target, emitted when showProvedSafe=true) → count each
     let mut aggregated = 0u32;
     let mut individual = 0u32;
+    let mut chc_diag_count = 0;
     for diag in &output.errors {
         if !is_chc_message(&diag.message) {
             continue;
         }
+        chc_diag_count += 1;
         if diag.message.contains("proved safe") {
             if let Some(n) = parse_count_from_message(&diag.message) {
                 aggregated = aggregated.max(n);
@@ -120,8 +122,19 @@ pub fn parse_standard_json(json: &str) -> SmtCheckerResult {
             individual += 1;
         }
     }
-    let proved_safe = aggregated.max(individual);
 
+    // If solc emitted zero CHC messages, the model checker didn't actually
+    // engage (e.g., no solver linked into solc and no external solver found).
+    // Reporting Verified here would be a lie — return Unknown so callers know.
+    if chc_diag_count == 0 {
+        return SmtCheckerResult::Unknown {
+            reason: "solc emitted no CHC diagnostics (model checker did not engage)"
+                .to_string(),
+            wall_clock_ms: 0,
+        };
+    }
+
+    let proved_safe = aggregated.max(individual);
     SmtCheckerResult::Verified {
         proved_safe_count: proved_safe,
         wall_clock_ms: 0,
@@ -223,6 +236,10 @@ pub async fn run(cfg: &SmtCheckerRun) -> SmtCheckerResult {
                 "targets": ["assert", "overflow", "underflow", "divByZero", "outOfBounds"],
                 "timeout": cfg.solver_timeout_ms,
                 "showProvedSafe": true,
+                // Use both built-in (if solc was linked with z3) and external z3 (via
+                // smtlib2). On some Linux solc binaries z3 isn't linked in; falling
+                // back to smtlib2 finds the z3 binary on PATH.
+                "solvers": ["z3", "smtlib2"],
             },
             "outputSelection": { "*": { "*": ["abi"] } }
         }
