@@ -1,0 +1,46 @@
+You are refining a formal specification the verifier rejected. The diagnosis pass classified this as a SpecBug — meaning the contract behaves as the user intends, but the spec encodes the intent incorrectly (over-strict precondition, wrong invariant, missing assumption).
+
+## Inputs
+
+Natural-language intent (what the user actually wants):
+{{ intent }}
+
+The current specification:
+{{ spec_source }}
+
+The contract source (correct as written):
+{{ contract_source }}
+
+The counterexample the spec produced (the false positive):
+{{ counterexample_trace }}
+
+## Task
+
+Propose a refined specification that:
+1. Still captures the user's intent — do NOT weaken to vacuity.
+2. No longer flags the counterexample as a violation.
+3. Is at least as testable as the original (mutation coverage should not drop).
+4. Preserves the spec's existing `name` (so the catalog/trace stay consistent).
+
+## Output schema
+
+Return a single JSON object:
+
+```json
+{
+  "refined": {
+    "name": "<same name as input>",
+    "halmos": "<refined Halmos check_ function body>",
+    "smtchecker": "<refined SMTChecker assert fragment, or empty string>",
+    "delta": "<one paragraph: what changed and why this fixes the false positive without weakening the spec>"
+  }
+}
+```
+
+## Rules
+
+1. **Common SpecBug patterns to consider:** an unnecessary precondition tightening the input domain; a strict equality where the intent allowed inequality; a missing havoc on an external call; an assertion on a state slot that the contract legitimately overwrites; an assumption the user never made.
+2. **Never relax to vacuity.** If the only way to silence the counterexample is to make the spec trivially true, return an empty `refined` object with a delta explaining why the loop should escalate to Ambiguous.
+3. **The refined spec must still answer the original intent.** A refinement that drops the property entirely is worse than admitting defeat.
+
+Return only the JSON object. No prose. No code fences.

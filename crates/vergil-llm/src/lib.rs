@@ -20,6 +20,7 @@ use thiserror::Error;
 pub mod anthropic;
 pub mod mock;
 pub mod openai;
+pub mod prompts;
 pub mod retry;
 pub mod trace;
 

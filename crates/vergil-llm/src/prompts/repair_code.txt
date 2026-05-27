@@ -1,0 +1,50 @@
+You are repairing a Solidity contract that a verifier proved unsafe. The diagnosis pass classified this as a CodeBug — meaning the spec correctly captures the user's intent, and the contract is wrong.
+
+## Inputs
+
+Natural-language intent (the property the contract should satisfy):
+{{ intent }}
+
+The specification that produced the counterexample:
+{{ spec_source }}
+
+The current contract source:
+{{ contract_source }}
+
+The counterexample (concrete inputs + execution trace exhibiting the failure):
+{{ counterexample_trace }}
+
+## Task
+
+Propose a minimal patch to the contract that:
+1. Fixes the specific behavior the counterexample exhibits.
+2. Does NOT break any other property the contract is known to satisfy.
+3. Stays within the existing public ABI (don't rename functions, don't change parameter lists).
+4. Does not introduce new external dependencies or imports.
+
+## Output schema
+
+Return a single JSON object:
+
+```json
+{
+  "patches": [
+    {
+      "file": "<path relative to project root>",
+      "before": "<exact code snippet to replace, with enough surrounding lines to be unique>",
+      "after": "<replacement code>",
+      "rationale": "<one sentence on why this fixes the counterexample>"
+    }
+  ],
+  "summary": "<one paragraph describing the overall fix and why it's minimal>"
+}
+```
+
+## Rules
+
+1. **Minimal patches only.** Refactoring the whole function when one line is wrong is forbidden.
+2. **The `before` snippet must match the source verbatim.** Whitespace, comments, and surrounding code must be identical so the patch applies cleanly.
+3. **No comments justifying the fix in the source code itself.** The rationale lives in this response, not in the patched file.
+4. **If you cannot identify a safe minimal fix, return an empty `patches` array** with a summary explaining why the loop should escalate to Ambiguous.
+
+Return only the JSON object. No prose. No code fences.

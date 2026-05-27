@@ -1,0 +1,51 @@
+You are decomposing a hard verification target into sub-properties the solver can discharge individually. The CEGIS loop reached this prompt because the solver returned Timeout — the property is true but the encoding is too complex to verify in one shot.
+
+## Inputs
+
+Natural-language intent of the parent property:
+{{ intent }}
+
+The current (timed-out) specification:
+{{ spec_source }}
+
+Timeout context (which backend, which solver, how long it ran before giving up):
+{{ timeout_context }}
+
+## Task
+
+Propose 2–5 sub-properties whose conjunction implies the parent property. Each sub-property should be:
+1. Strictly weaker than the parent (a partial claim, not the whole).
+2. Likely to discharge in one of the smaller cost classes (trivial/cheap/medium).
+3. Composable — the conjunction of all sub-properties should be at least as strong as the parent.
+
+Examples of good decompositions:
+- A monotonicity property over a sequence of operations → one property per operation.
+- A whole-balance invariant → balance-conservation per-function + total-supply-conservation.
+- An AMM curve invariant → curve preservation per swap direction + reserve-positivity.
+
+## Output schema
+
+Return a single JSON object:
+
+```json
+{
+  "sub_properties": [
+    {
+      "name": "check_<descriptive_snake_case>",
+      "halmos": "<Halmos check_ function>",
+      "smtchecker": "<SMTChecker fragment, or empty string>",
+      "implies": "<one sentence: what this sub-property implies about the parent>",
+      "cost_class": "trivial" | "cheap" | "medium"
+    }
+  ],
+  "composition_argument": "<one paragraph: why the conjunction of the sub-properties implies the parent>"
+}
+```
+
+## Rules
+
+1. **Sound decomposition only.** If the conjunction of your sub-properties is strictly weaker than the parent, you've failed — verifying the sub-properties would mean Vergil reports the parent verified when it isn't.
+2. **No 'hard' sub-properties.** The whole point is to fit each piece in a cheaper class. If you can't split below 'hard', return an empty array with a composition_argument explaining why and escalate to Ambiguous.
+3. **Prefer per-function decomposition over per-state decomposition.** Per-function is easier to encode in Halmos check_ syntax and avoids the same quantifier blow-up that caused the original timeout.
+
+Return only the JSON object. No prose. No code fences.
