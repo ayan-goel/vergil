@@ -58,6 +58,7 @@ enum CorpusAction {
 pub enum OutputFormat {
     Text,
     Markdown,
+    Json,
 }
 
 fn main() -> ExitCode {
@@ -67,7 +68,7 @@ fn main() -> ExitCode {
             path,
             properties,
             format,
-            intent: _,
+            intent,
         } => {
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -79,10 +80,10 @@ fn main() -> ExitCode {
                     return ExitCode::from(3);
                 }
             };
-            rt.block_on(commands::verify::run(path, properties, format))
+            rt.block_on(commands::verify::run(path, properties, format, intent))
         }
         Command::Init => commands::init::run(),
-        Command::Prove { .. } => commands::prove::run(),
+        Command::Prove { artifact } => commands::prove::run(artifact),
         Command::Bench => commands::bench::run(),
         Command::Corpus { .. } => commands::corpus::run(),
         Command::Doctor => commands::doctor::run(),

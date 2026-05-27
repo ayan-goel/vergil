@@ -33,7 +33,17 @@ pub async fn run(
     project: PathBuf,
     properties: Option<PathBuf>,
     format: OutputFormat,
+    intent: Option<String>,
 ) -> Result<(), u8> {
+    if intent.is_some() {
+        eprintln!(
+            "vergil verify --intent is wired through the CEGIS loop (Slice 13). End-to-end \
+             integration with the existing portfolio dispatcher lands in the next iteration; \
+             for Phase 2 verification, continue using --properties for now. The CEGIS loop \
+             can be exercised directly via `cargo test -p vergil-core --features llm-live`."
+        );
+        return Err(99);
+    }
     let project = match project.canonicalize() {
         Ok(p) => p,
         Err(e) => {
@@ -80,6 +90,10 @@ pub async fn run(
                 return Err(3);
             }
             println!("wrote {}", out_file.display());
+        }
+        OutputFormat::Json => {
+            let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+            println!("{json}");
         }
     }
 

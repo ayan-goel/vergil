@@ -1,14 +1,16 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+//! Proof artifact schema (`proof.json`) and re-verifier (`vergil prove`).
+//!
+//! The artifact captures everything a third party with the same toolchain
+//! needs to reproduce a verification: source SHAs, toolchain versions, the
+//! verified-property list with backend + wall-clock, counterexamples,
+//! quality metrics, and run cost. Schema version is `1` and frozen for
+//! Phase 2 per SPEC §10.2 — breaking changes wait for a coordinated bump.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod schema;
+pub mod verify;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use schema::{
+    Cost, CounterexampleSummary, ProofArtifact, QualityMetrics, RunMeta, SourceFile,
+    ToolchainVersions, VerifiedProperty,
+};
+pub use verify::{verify_artifact, ProveError, ProveReport};
