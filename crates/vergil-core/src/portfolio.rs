@@ -129,12 +129,20 @@ pub async fn dispatch(cfg: PortfolioConfig) -> PortfolioResult {
 
     let smt_source = cfg.smtchecker_source.clone();
     let smt_budget = cfg.budget;
+    let smt_capture = cfg.capture_smt_queries;
     let smt_task: JoinHandle<SmtCheckerResult> = tokio::spawn(async move {
         let dummy_project = smt_source
             .parent()
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|| Path::new(".").to_path_buf());
-        smtchecker::run_simple(&dummy_project, &smt_source, smt_budget).await
+        if smt_capture {
+            let cfg = smtchecker::SmtCheckerRun::new(dummy_project, smt_source)
+                .with_wall_clock(smt_budget)
+                .with_print_query(true);
+            smtchecker::run(&cfg).await
+        } else {
+            smtchecker::run_simple(&dummy_project, &smt_source, smt_budget).await
+        }
     });
 
     let mut halmos_outcome: Option<BackendOutcome> = None;

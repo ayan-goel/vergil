@@ -8,8 +8,13 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use tokio::process::Command;
 use tokio::time::timeout;
+
+/// Prefix solc uses for the printed CHC query when
+/// `settings.modelChecker.printQuery = true`.
+const QUERY_PREFIX: &str = "CHC: Requested query:";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SmtCheckerResult {
@@ -188,6 +193,11 @@ pub struct SmtCheckerRun {
     pub wall_clock_budget: Duration,
     /// Per-query SMT timeout (ms). Forwarded to the model checker config.
     pub solver_timeout_ms: u64,
+    /// Whether to set `settings.modelChecker.printQuery = true`, which causes
+    /// solc to emit the raw SMTLIB2 query as an `info` diagnostic. The parser
+    /// extracts those query bodies, concatenates them in emission order,
+    /// SHA-256-digests, and stores in [`SmtCheckerResult::Verified::smt_query_sha256`].
+    pub print_query: bool,
 }
 
 impl SmtCheckerRun {
@@ -197,6 +207,7 @@ impl SmtCheckerRun {
             source: source.into(),
             wall_clock_budget: Duration::from_secs(120),
             solver_timeout_ms: 30_000,
+            print_query: false,
         }
     }
 
@@ -207,6 +218,11 @@ impl SmtCheckerRun {
 
     pub fn with_solver_timeout_ms(mut self, ms: u64) -> Self {
         self.solver_timeout_ms = ms;
+        self
+    }
+
+    pub fn with_print_query(mut self, enabled: bool) -> Self {
+        self.print_query = enabled;
         self
     }
 }
@@ -245,6 +261,7 @@ pub async fn run(cfg: &SmtCheckerRun) -> SmtCheckerResult {
                 // smtlib2). On some Linux solc binaries z3 isn't linked in; falling
                 // back to smtlib2 finds the z3 binary on PATH.
                 "solvers": ["z3", "smtlib2"],
+                "printQuery": cfg.print_query,
             },
             "outputSelection": { "*": { "*": ["abi"] } }
         }
@@ -300,7 +317,51 @@ pub async fn run(cfg: &SmtCheckerRun) -> SmtCheckerResult {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut parsed = parse_standard_json(&stdout);
     annotate_wall_clock(&mut parsed, elapsed_ms);
+    if cfg.print_query {
+        if let SmtCheckerResult::Verified {
+            smt_query_sha256, ..
+        } = &mut parsed
+        {
+            *smt_query_sha256 = extract_query_hash(&stdout);
+        }
+    }
     parsed
+}
+
+/// Extract every CHC query body from a solc standard-json output, concatenate
+/// in emission order, and SHA-256 the result. Returns `None` when no such
+/// diagnostic exists (printQuery was not honored, or solc didn't emit any).
+fn extract_query_hash(stdout: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(stdout).ok()?;
+    let errors = parsed.get("errors")?.as_array()?;
+    let mut hasher = Sha256::new();
+    let mut found = false;
+    for e in errors {
+        let msg = e.get("message").and_then(|m| m.as_str())?;
+        let Some(body) = msg.strip_prefix(QUERY_PREFIX) else {
+            continue;
+        };
+        found = true;
+        // Trim leading whitespace/newlines but keep trailing structure intact.
+        let body = body.trim_start();
+        hasher.update(body.as_bytes());
+        hasher.update(b"\0");
+    }
+    if !found {
+        return None;
+    }
+    let digest: [u8; 32] = hasher.finalize().into();
+    Some(hex_lower_smt(&digest))
+}
+
+fn hex_lower_smt(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push(HEX[(b >> 4) as usize] as char);
+        s.push(HEX[(b & 0x0F) as usize] as char);
+    }
+    s
 }
 
 /// Convenience wrapper preserving the `(project, source, budget)` shape.
@@ -400,5 +461,53 @@ mod tests {
         );
         assert_eq!(parse_count_from_message("CHC: 12 things"), Some(12));
         assert_eq!(parse_count_from_message("not chc"), None);
+    }
+
+    #[test]
+    fn extract_query_hash_returns_none_when_no_query_diagnostic() {
+        let stdout = serde_json::json!({
+            "errors": [
+                {"severity": "warning", "message": "CHC: 1 verification condition(s) proved safe!"}
+            ]
+        })
+        .to_string();
+        assert!(extract_query_hash(&stdout).is_none());
+    }
+
+    #[test]
+    fn extract_query_hash_returns_some_when_printquery_emitted_a_diagnostic() {
+        let stdout = serde_json::json!({
+            "errors": [
+                {"severity": "info", "message": "CHC: Requested query:\n(set-logic HORN)\n(check-sat)\n"},
+                {"severity": "warning", "message": "CHC: 1 verification condition(s) proved safe!"}
+            ]
+        })
+        .to_string();
+        let h = extract_query_hash(&stdout).expect("expected Some hash");
+        assert_eq!(h.len(), 64, "SHA-256 hex should be 64 chars");
+
+        // Hand-computed expectation: the body the function digests is the
+        // trimmed query body + a single null byte separator.
+        let mut hasher = Sha256::new();
+        hasher.update(b"(set-logic HORN)\n(check-sat)\n");
+        hasher.update(b"\0");
+        let expected = hex_lower_smt(&<[u8; 32]>::from(hasher.finalize()));
+        assert_eq!(h, expected);
+    }
+
+    #[test]
+    fn extract_query_hash_is_stable_and_concatenates_multiple_queries() {
+        let stdout = serde_json::json!({
+            "errors": [
+                {"severity": "info", "message": "CHC: Requested query:\n(query-1)\n"},
+                {"severity": "info", "message": "CHC: Requested query:\n(query-2)\n"},
+            ]
+        })
+        .to_string();
+        let h = extract_query_hash(&stdout).unwrap();
+        assert_eq!(h.len(), 64);
+        // Stability: same input → same hash.
+        let h2 = extract_query_hash(&stdout).unwrap();
+        assert_eq!(h, h2);
     }
 }

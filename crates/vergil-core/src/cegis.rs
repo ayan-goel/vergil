@@ -76,6 +76,9 @@ pub struct CandidateOutcome {
 pub enum VerifierVerdict {
     NotRun,
     Verified {
+        /// Which backend produced the verdict. Lowercase, stable identifier.
+        #[serde(default = "default_backend_label")]
+        backend: String,
         /// SHA-256 of the SMT-LIB query captured from the winning backend
         /// (Halmos `--dump-smt-queries` / SMTChecker `--model-checker-print-query`).
         /// `None` when SMT capture wasn't enabled or the backend didn't dump.
@@ -87,11 +90,16 @@ pub enum VerifierVerdict {
     Error(String),
 }
 
+fn default_backend_label() -> String {
+    "halmos".to_string()
+}
+
 impl VerifierVerdict {
     /// Convenience constructor for the common "verified without SMT capture"
     /// case. Tests use this; production code paths thread the hash through.
     pub fn verified() -> Self {
         VerifierVerdict::Verified {
+            backend: default_backend_label(),
             smt_query_sha256: None,
         }
     }

@@ -210,8 +210,13 @@ impl VerifierDispatcher for HalmosDispatcher {
         let result = dispatch(cfg).await;
         match result.verdict {
             Verdict::Verified {
-                smt_query_sha256, ..
-            } => VerifierVerdict::Verified { smt_query_sha256 },
+                backend,
+                smt_query_sha256,
+                ..
+            } => VerifierVerdict::Verified {
+                backend: backend_label(backend),
+                smt_query_sha256,
+            },
             Verdict::Counterexample {
                 property, message, ..
             } => VerifierVerdict::Counterexample(format!("{property}: {message}")),
@@ -229,6 +234,13 @@ fn summarize_backends(backends: &[vergil_core::portfolio::BackendOutcome]) -> St
         .map(|b| format!("{:?}={}", b.backend, b.detail))
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+fn backend_label(b: vergil_core::portfolio::Backend) -> String {
+    match b {
+        vergil_core::portfolio::Backend::Halmos => "halmos".to_string(),
+        vergil_core::portfolio::Backend::SmtChecker => "smtchecker".to_string(),
+    }
 }
 
 /// Inputs to [`run_intent`] — split out so call sites stay readable.
@@ -450,9 +462,12 @@ fn build_proof_artifact(
         .outcomes
         .iter()
         .filter_map(|o| match &o.verifier_verdict {
-            VerifierVerdict::Verified { smt_query_sha256 } => Some(VerifiedProperty {
+            VerifierVerdict::Verified {
+                backend,
+                smt_query_sha256,
+            } => Some(VerifiedProperty {
                 name: o.candidate.name.clone(),
-                backend: "halmos".to_string(),
+                backend: backend.clone(),
                 spec_sha256: sha256_hex(o.candidate.halmos.as_bytes()),
                 template_ref: o.candidate.template_ref.clone(),
                 wall_clock_ms: total_wall_clock(&run.iterations),
