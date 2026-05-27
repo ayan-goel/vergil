@@ -17,12 +17,14 @@ sha2 = "0.10"
 futures = "0.3"
 hex = "0.4"
 anthropic-ai-sdk = "0.2.27"
+async-openai = { version = "0.40", features = ["chat-completion", "embedding"] }
 rand = "0.8"
 
 [dev-dependencies]
 dotenvy = "0.15"
 tempfile = "3"
 wiremock = "0.6"
+reqwest = { version = "0.12", default-features = false }
 
 [features]
 integration = []
