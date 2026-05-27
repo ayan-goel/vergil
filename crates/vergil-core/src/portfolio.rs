@@ -29,6 +29,14 @@ pub enum Verdict {
     Verified {
         backend: Backend,
         wall_clock_ms: u64,
+        /// SHA-256 of the SMT-LIB query dumped by the verifier when query
+        /// capture is enabled (Halmos `--dump-smt-queries`, SMTChecker
+        /// `--model-checker-print-query`). `None` when the backend was run
+        /// without query capture, or when the backend resolved the property
+        /// without needing solver invocation. Phase 4 uses this for SMT
+        /// re-dispatch.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        smt_query_sha256: Option<String>,
     },
     Counterexample {
         backend: Backend,
@@ -50,6 +58,11 @@ pub struct BackendOutcome {
     pub state: BackendState,
     pub detail: String,
     pub wall_clock_ms: u64,
+    /// Populated when the backend dumped its SMT-LIB query and the hasher
+    /// produced a digest. Threaded into [`Verdict::Verified::smt_query_sha256`]
+    /// for the winning Verified outcome.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub smt_query_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -79,6 +92,20 @@ pub struct PortfolioConfig {
     pub smtchecker_source: PathBuf,
     /// Per-backend wall-clock budget.
     pub budget: Duration,
+    /// When `true`, enable Halmos `--dump-smt-queries` and (Slice 3)
+    /// SMTChecker `--model-checker-print-query` so the winning Verdict
+    /// carries `smt_query_sha256`. Off by default for backward compat;
+    /// the `vergil verify --intent` path turns it on.
+    pub capture_smt_queries: bool,
+}
+
+impl PortfolioConfig {
+    /// Convenience constructor: enable SMT query capture, matching what
+    /// the intent flow needs for `proof.json` population.
+    pub fn with_smt_capture(mut self) -> Self {
+        self.capture_smt_queries = true;
+        self
+    }
 }
 
 /// Dispatch Halmos and SMTChecker concurrently; first definitive verdict wins.
@@ -88,8 +115,16 @@ pub async fn dispatch(cfg: PortfolioConfig) -> PortfolioResult {
     let halmos_project = cfg.project.clone();
     let halmos_property = cfg.property.clone();
     let halmos_budget = cfg.budget;
+    let halmos_capture = cfg.capture_smt_queries;
     let halmos_task: JoinHandle<HalmosResult> = tokio::spawn(async move {
-        halmos::run_simple(&halmos_project, &halmos_property, halmos_budget).await
+        if halmos_capture {
+            let cfg = halmos::HalmosRun::new(halmos_project, halmos_property)
+                .with_wall_clock(halmos_budget)
+                .with_dump_smt2(true);
+            halmos::run(&cfg).await
+        } else {
+            halmos::run_simple(&halmos_project, &halmos_property, halmos_budget).await
+        }
     });
 
     let smt_source = cfg.smtchecker_source.clone();
@@ -179,6 +214,7 @@ fn halmos_to_outcome(join_result: Result<HalmosResult, tokio::task::JoinError>) 
                 state: BackendState::Error,
                 detail: format!("halmos task panic: {e}"),
                 wall_clock_ms: 0,
+                smt_query_sha256: None,
             };
         }
     };
@@ -187,11 +223,13 @@ fn halmos_to_outcome(join_result: Result<HalmosResult, tokio::task::JoinError>) 
             property: _,
             paths: _,
             wall_clock_ms,
+            smt_query_sha256,
         } => BackendOutcome {
             backend: Backend::Halmos,
             state: BackendState::Verified,
             detail: "verified".to_string(),
             wall_clock_ms,
+            smt_query_sha256,
         },
         HalmosResult::Counterexample {
             trace,
@@ -201,6 +239,7 @@ fn halmos_to_outcome(join_result: Result<HalmosResult, tokio::task::JoinError>) 
             state: BackendState::Counterexample,
             detail: format!("counterexample with {} inputs", trace.inputs.len()),
             wall_clock_ms,
+            smt_query_sha256: None,
         },
         HalmosResult::Unknown {
             reason,
@@ -211,6 +250,7 @@ fn halmos_to_outcome(join_result: Result<HalmosResult, tokio::task::JoinError>) 
             state: BackendState::Unknown,
             detail: reason,
             wall_clock_ms,
+            smt_query_sha256: None,
         },
         HalmosResult::Timeout {
             property: _,
@@ -220,12 +260,14 @@ fn halmos_to_outcome(join_result: Result<HalmosResult, tokio::task::JoinError>) 
             state: BackendState::Timeout,
             detail: "wall-clock timeout".to_string(),
             wall_clock_ms,
+            smt_query_sha256: None,
         },
         HalmosResult::Error { stage, message } => BackendOutcome {
             backend: Backend::Halmos,
             state: BackendState::Error,
             detail: format!("{stage} error: {message}"),
             wall_clock_ms: 0,
+            smt_query_sha256: None,
         },
     }
 }
@@ -239,6 +281,7 @@ fn smt_to_outcome(join_result: Result<SmtCheckerResult, tokio::task::JoinError>)
                 state: BackendState::Error,
                 detail: format!("smtchecker task panic: {e}"),
                 wall_clock_ms: 0,
+                smt_query_sha256: None,
             };
         }
     };
@@ -246,11 +289,13 @@ fn smt_to_outcome(join_result: Result<SmtCheckerResult, tokio::task::JoinError>)
         SmtCheckerResult::Verified {
             proved_safe_count,
             wall_clock_ms,
+            smt_query_sha256,
         } => BackendOutcome {
             backend: Backend::SmtChecker,
             state: BackendState::Verified,
             detail: format!("{proved_safe_count} target(s) proved safe"),
             wall_clock_ms,
+            smt_query_sha256,
         },
         SmtCheckerResult::Violation {
             message,
@@ -261,6 +306,7 @@ fn smt_to_outcome(join_result: Result<SmtCheckerResult, tokio::task::JoinError>)
             state: BackendState::Counterexample,
             detail: message,
             wall_clock_ms,
+            smt_query_sha256: None,
         },
         SmtCheckerResult::Unknown {
             reason,
@@ -270,12 +316,14 @@ fn smt_to_outcome(join_result: Result<SmtCheckerResult, tokio::task::JoinError>)
             state: BackendState::Unknown,
             detail: reason,
             wall_clock_ms,
+            smt_query_sha256: None,
         },
         SmtCheckerResult::Error { message } => BackendOutcome {
             backend: Backend::SmtChecker,
             state: BackendState::Error,
             detail: message,
             wall_clock_ms: 0,
+            smt_query_sha256: None,
         },
     }
 }
@@ -286,6 +334,7 @@ impl BackendOutcome {
             BackendState::Verified => Some(Verdict::Verified {
                 backend: self.backend,
                 wall_clock_ms: self.wall_clock_ms,
+                smt_query_sha256: self.smt_query_sha256.clone(),
             }),
             BackendState::Counterexample => Some(Verdict::Counterexample {
                 backend: self.backend,
@@ -309,9 +358,28 @@ mod tests {
             state: BackendState::Verified,
             detail: String::new(),
             wall_clock_ms: 100,
+            smt_query_sha256: None,
         };
         match o.try_definitive("p") {
             Some(Verdict::Verified { backend, .. }) => assert_eq!(backend, Backend::Halmos),
+            other => panic!("expected Verified, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn verified_threads_smt_query_sha_into_verdict() {
+        let h = "a".repeat(64);
+        let o = BackendOutcome {
+            backend: Backend::Halmos,
+            state: BackendState::Verified,
+            detail: String::new(),
+            wall_clock_ms: 1,
+            smt_query_sha256: Some(h.clone()),
+        };
+        match o.try_definitive("p").unwrap() {
+            Verdict::Verified {
+                smt_query_sha256, ..
+            } => assert_eq!(smt_query_sha256, Some(h)),
             other => panic!("expected Verified, got {other:?}"),
         }
     }
@@ -323,6 +391,7 @@ mod tests {
             state: BackendState::Counterexample,
             detail: "boom".into(),
             wall_clock_ms: 50,
+            smt_query_sha256: None,
         };
         match o.try_definitive("check_x") {
             Some(Verdict::Counterexample {
@@ -351,6 +420,7 @@ mod tests {
                 state,
                 detail: String::new(),
                 wall_clock_ms: 0,
+                smt_query_sha256: None,
             };
             assert!(o.try_definitive("p").is_none(), "{state:?}");
         }

@@ -72,13 +72,29 @@ pub struct CandidateOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum VerifierVerdict {
     NotRun,
-    Verified,
+    Verified {
+        /// SHA-256 of the SMT-LIB query captured from the winning backend
+        /// (Halmos `--dump-smt-queries` / SMTChecker `--model-checker-print-query`).
+        /// `None` when SMT capture wasn't enabled or the backend didn't dump.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        smt_query_sha256: Option<String>,
+    },
     Counterexample(String),
     Unknown(String),
     Error(String),
+}
+
+impl VerifierVerdict {
+    /// Convenience constructor for the common "verified without SMT capture"
+    /// case. Tests use this; production code paths thread the hash through.
+    pub fn verified() -> Self {
+        VerifierVerdict::Verified {
+            smt_query_sha256: None,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -151,6 +167,22 @@ impl CegisLoop {
         retrieved: &[RetrievedHint],
         contract_source: &str,
     ) -> Result<CegisRun, CegisError> {
+        self.run_with_description(intent, None, sa, retrieved, contract_source)
+            .await
+    }
+
+    /// CEGIS loop variant where the caller passes a property-specific
+    /// `description` (in addition to the broader `intent`) — used by the
+    /// kill-criterion runner so the critic scores each candidate against the
+    /// one ground-truth property the iteration is targeting.
+    pub async fn run_with_description(
+        &self,
+        intent: &str,
+        description: Option<&str>,
+        sa: &StaticAnalysisSummary,
+        retrieved: &[RetrievedHint],
+        contract_source: &str,
+    ) -> Result<CegisRun, CegisError> {
         let mut run = CegisRun::default();
         let mut iteration = 0usize;
 
@@ -181,7 +213,10 @@ impl CegisLoop {
             }
 
             // 2. Critique each.
-            let critiques = self.critic.critique_all(&synth.candidates, intent).await;
+            let critiques = self
+                .critic
+                .critique_all(&synth.candidates, intent, description)
+                .await;
             let critique_outcome = self.critic.filter_accepted(synth.candidates, critiques);
             stats.dropped_critique = critique_outcome.dropped.len();
 
@@ -212,7 +247,7 @@ impl CegisLoop {
             for (c, r, cov) in survivors {
                 let verdict = self.dispatcher.dispatch(&c).await;
                 match &verdict {
-                    VerifierVerdict::Verified => stats.verified += 1,
+                    VerifierVerdict::Verified { .. } => stats.verified += 1,
                     VerifierVerdict::Counterexample(_) => stats.counterexamples += 1,
                     _ => {}
                 }
@@ -233,7 +268,7 @@ impl CegisLoop {
             if run
                 .outcomes
                 .iter()
-                .any(|o| matches!(o.verifier_verdict, VerifierVerdict::Verified))
+                .any(|o| matches!(o.verifier_verdict, VerifierVerdict::Verified { .. }))
             {
                 run.stop_reason = Some("verified".to_string());
                 break;

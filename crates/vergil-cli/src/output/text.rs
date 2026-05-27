@@ -40,6 +40,7 @@ fn render_one(p: &super::PropertyOutcome) -> String {
         Verdict::Verified {
             backend,
             wall_clock_ms,
+            ..
         } => format!(
             "  {GREEN}✓{RESET} {} — verified by {} in {}ms\n",
             p.name,

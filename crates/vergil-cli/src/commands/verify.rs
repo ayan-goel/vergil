@@ -119,6 +119,7 @@ async fn run_all_properties(project: &Path, props: &PropertiesFile) -> Vec<Prope
             property: entry.name.clone(),
             smtchecker_source: smt_source,
             budget: Duration::from_secs(DEFAULT_BUDGET_SECS),
+            capture_smt_queries: false,
         };
         let result = dispatch(cfg).await;
         outcomes.push(PropertyOutcome {
@@ -265,9 +266,11 @@ async fn run_with_intent(project: PathBuf, intent: String, format: OutputFormat)
     let spec = IntentRun {
         project: project.clone(),
         intent: intent.clone(),
+        description: None,
         scaffold: default_scaffold_for_erc20(),
         catalog,
         cegis: cegis_cfg,
+        min_critique_axis: None,
         mutation_min: 0.4,
         budget_per_property: Duration::from_secs(DEFAULT_BUDGET_SECS),
     };
@@ -283,7 +286,7 @@ async fn run_with_intent(project: PathBuf, intent: String, format: OutputFormat)
     let verified: Vec<&_> = run
         .outcomes
         .iter()
-        .filter(|o| matches!(o.verifier_verdict, VerifierVerdict::Verified))
+        .filter(|o| matches!(o.verifier_verdict, VerifierVerdict::Verified { .. }))
         .collect();
     match format {
         OutputFormat::Text => {

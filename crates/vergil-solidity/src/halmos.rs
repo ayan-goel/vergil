@@ -8,6 +8,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use sha2::{Digest, Sha256};
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -18,6 +19,14 @@ pub enum HalmosResult {
         property: String,
         paths: u32,
         wall_clock_ms: u64,
+        /// SHA-256 of the SMT-LIB queries Halmos dumped (when `--dump-smt-queries`
+        /// is enabled via [`HalmosRun::dump_smt2`]). Halmos only writes `.smt2`
+        /// files for paths the solver was actually invoked on; cleanly verified
+        /// properties whose paths Halmos resolved without a solver call legitimately
+        /// produce no dump, leaving this `None`. Phase 4's `vergil prove` uses the
+        /// hash (when present) to skip re-running Halmos and re-dispatch the query
+        /// directly to a solver.
+        smt_query_sha256: Option<String>,
     },
     /// Concrete inputs that falsify the property.
     Counterexample { trace: Trace, wall_clock_ms: u64 },
@@ -95,6 +104,7 @@ pub fn parse(raw: &str) -> HalmosResult {
             property,
             paths,
             wall_clock_ms,
+            smt_query_sha256: None,
         };
     }
 
@@ -153,6 +163,15 @@ pub struct HalmosRun {
     /// Solver budget per assertion, milliseconds. Forwarded as
     /// `--solver-timeout-assertion <ms>`.
     pub solver_timeout_ms: u64,
+    /// Whether to enable Halmos's `--dump-smt-queries` flag. When `true`,
+    /// the runner allocates a temp directory (unless `dump_smt_directory`
+    /// is set), invokes Halmos with `--dump-smt-queries --dump-smt-directory <path>`,
+    /// then hashes the dumped `.smt2` files into [`HalmosResult::Verified::smt_query_sha256`].
+    pub dump_smt2: bool,
+    /// Explicit directory for SMT dumps. When `None` and `dump_smt2` is `true`,
+    /// the runner creates a per-invocation temp directory under the system
+    /// temp dir. Caller-owned cleanup; we don't delete anything.
+    pub dump_smt_directory: Option<PathBuf>,
 }
 
 impl HalmosRun {
@@ -162,6 +181,8 @@ impl HalmosRun {
             check_fn: check_fn.into(),
             wall_clock_budget: Duration::from_secs(120),
             solver_timeout_ms: 30_000,
+            dump_smt2: false,
+            dump_smt_directory: None,
         }
     }
 
@@ -172,6 +193,17 @@ impl HalmosRun {
 
     pub fn with_solver_timeout_ms(mut self, ms: u64) -> Self {
         self.solver_timeout_ms = ms;
+        self
+    }
+
+    pub fn with_dump_smt2(mut self, enabled: bool) -> Self {
+        self.dump_smt2 = enabled;
+        self
+    }
+
+    pub fn with_dump_smt_directory(mut self, dir: PathBuf) -> Self {
+        self.dump_smt_directory = Some(dir);
+        self.dump_smt2 = true;
         self
     }
 }
@@ -189,6 +221,12 @@ pub async fn run(cfg: &HalmosRun) -> HalmosResult {
         };
     }
 
+    let dump_dir = if cfg.dump_smt2 {
+        resolve_dump_dir(cfg).ok()
+    } else {
+        None
+    };
+
     let mut cmd = Command::new("halmos");
     cmd.arg("--function")
         .arg(&cfg.check_fn)
@@ -198,12 +236,29 @@ pub async fn run(cfg: &HalmosRun) -> HalmosResult {
         .env("HALMOS_ALLOW_DOWNLOAD", "1")
         .kill_on_drop(true);
 
+    if let Some(ref dir) = dump_dir {
+        cmd.arg("--dump-smt-queries")
+            .arg("--dump-smt-directory")
+            .arg(dir);
+    }
+
     let result = timeout(cfg.wall_clock_budget, cmd.output()).await;
     match result {
         Ok(Ok(output)) => {
             let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
             combined.push_str(&String::from_utf8_lossy(&output.stderr));
-            parse(&combined)
+            let mut parsed = parse(&combined);
+            if let (Some(dir), HalmosResult::Verified { .. }) = (&dump_dir, &parsed) {
+                if let Some(hash) = hash_smt_dump(dir).ok().flatten() {
+                    if let HalmosResult::Verified {
+                        smt_query_sha256, ..
+                    } = &mut parsed
+                    {
+                        *smt_query_sha256 = Some(hash);
+                    }
+                }
+            }
+            parsed
         }
         Ok(Err(io_err)) => HalmosResult::Error {
             stage: ErrorStage::Runtime,
@@ -214,6 +269,89 @@ pub async fn run(cfg: &HalmosRun) -> HalmosResult {
             wall_clock_ms: cfg.wall_clock_budget.as_millis() as u64,
         },
     }
+}
+
+fn resolve_dump_dir(cfg: &HalmosRun) -> Result<PathBuf, std::io::Error> {
+    if let Some(p) = &cfg.dump_smt_directory {
+        std::fs::create_dir_all(p)?;
+        return Ok(p.clone());
+    }
+    let base = std::env::temp_dir().join(format!(
+        "vergil-halmos-smt-{}-{}",
+        sanitize_for_path(&cfg.check_fn),
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&base)?;
+    Ok(base)
+}
+
+fn sanitize_for_path(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+/// Walk `dir` recursively, collect every `.smt2` file (skipping `.smt2.out`
+/// solver-response files), sort by relative path, and return a SHA-256
+/// digest over the concatenated bytes (with each file's relative path
+/// prefixed for stability across reordering).
+///
+/// Returns `Ok(None)` when the directory exists but contains no `.smt2`
+/// files (verified properties whose paths Halmos resolved without invoking
+/// the solver — see [`HalmosResult::Verified::smt_query_sha256`]).
+pub fn hash_smt_dump(dir: &Path) -> Result<Option<String>, std::io::Error> {
+    let mut entries: Vec<(String, PathBuf)> = Vec::new();
+    collect_smt_files(dir, dir, &mut entries)?;
+    if entries.is_empty() {
+        return Ok(None);
+    }
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let mut hasher = Sha256::new();
+    for (rel, path) in &entries {
+        hasher.update(rel.as_bytes());
+        hasher.update(b"\0");
+        let bytes = std::fs::read(path)?;
+        hasher.update(&bytes);
+        hasher.update(b"\0");
+    }
+    let digest: [u8; 32] = hasher.finalize().into();
+    Ok(Some(hex_lower(&digest)))
+}
+
+fn collect_smt_files(
+    root: &Path,
+    cur: &Path,
+    out: &mut Vec<(String, PathBuf)>,
+) -> Result<(), std::io::Error> {
+    for entry in std::fs::read_dir(cur)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_smt_files(root, &path, out)?;
+            continue;
+        }
+        if !path.extension().map(|e| e == "smt2").unwrap_or(false) {
+            continue;
+        }
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .display()
+            .to_string();
+        out.push((rel, path));
+    }
+    Ok(())
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push(HEX[(b >> 4) as usize] as char);
+        s.push(HEX[(b & 0x0F) as usize] as char);
+    }
+    s
 }
 
 /// Convenience wrapper preserving the function signature called out in
@@ -418,6 +556,7 @@ mod tests {
                 property,
                 paths,
                 wall_clock_ms,
+                smt_query_sha256,
             } => {
                 assert!(
                     property.starts_with("check_commutative"),
@@ -425,6 +564,9 @@ mod tests {
                 );
                 assert_eq!(paths, 1);
                 assert!(wall_clock_ms > 0);
+                // The parser alone never fills the SMT hash; that happens in
+                // `run()` post-process from the dump directory.
+                assert!(smt_query_sha256.is_none());
             }
             other => panic!("expected Verified, got {other:?}"),
         }
@@ -522,5 +664,60 @@ mod tests {
         assert_eq!(recover_logical_name("p_a_uint256_9ce4ac8_00"), "a");
         assert_eq!(recover_logical_name("p_owner_address_abc123_00"), "owner");
         assert_eq!(recover_logical_name("p_x_bool_ff_00"), "x");
+    }
+
+    #[test]
+    fn hash_smt_dump_returns_none_for_empty_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hash = hash_smt_dump(tmp.path()).unwrap();
+        assert!(hash.is_none(), "expected None for empty dir, got {hash:?}");
+    }
+
+    #[test]
+    fn hash_smt_dump_is_stable_and_matches_handcomputed_sha256() {
+        let tmp = tempfile::tempdir().unwrap();
+        let sub = tmp.path().join("check_x");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("0.smt2"), b"(assert true)").unwrap();
+        std::fs::write(sub.join("1.smt2"), b"(check-sat)").unwrap();
+        // .smt2.out files are solver responses, not queries, and must be skipped.
+        std::fs::write(sub.join("0.smt2.out"), b"sat").unwrap();
+
+        let h1 = hash_smt_dump(tmp.path()).unwrap().unwrap();
+        let h2 = hash_smt_dump(tmp.path()).unwrap().unwrap();
+        assert_eq!(h1, h2, "hash should be stable across calls");
+        assert_eq!(h1.len(), 64, "hash should be 64 hex chars");
+
+        // Hand-computed equivalent: rebuild the input the function digested.
+        let mut hasher = Sha256::new();
+        for (rel, content) in [
+            ("check_x/0.smt2", &b"(assert true)"[..]),
+            ("check_x/1.smt2", &b"(check-sat)"[..]),
+        ] {
+            hasher.update(rel.as_bytes());
+            hasher.update(b"\0");
+            hasher.update(content);
+            hasher.update(b"\0");
+        }
+        let expected = hex_lower(&<[u8; 32]>::from(hasher.finalize()));
+        assert_eq!(h1, expected, "hash should match hand-computed SHA-256");
+    }
+
+    #[test]
+    fn hash_smt_dump_is_order_independent() {
+        let tmp_a = tempfile::tempdir().unwrap();
+        let tmp_b = tempfile::tempdir().unwrap();
+        for tmp in [&tmp_a, &tmp_b] {
+            let sub = tmp.path().join("check_y");
+            std::fs::create_dir_all(&sub).unwrap();
+            std::fs::write(sub.join("9.smt2"), b"nine").unwrap();
+            std::fs::write(sub.join("2.smt2"), b"two").unwrap();
+            std::fs::write(sub.join("11.smt2"), b"eleven").unwrap();
+        }
+        // The two dirs are identical in content; their hashes must agree even
+        // though `read_dir` may yield entries in different orders.
+        let h1 = hash_smt_dump(tmp_a.path()).unwrap().unwrap();
+        let h2 = hash_smt_dump(tmp_b.path()).unwrap().unwrap();
+        assert_eq!(h1, h2);
     }
 }

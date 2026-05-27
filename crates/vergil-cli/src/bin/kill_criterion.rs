@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 
 use vergil_cli::intent::{locate_templates_dir, run_intent, IntentRun};
 use vergil_core::cegis::{CegisConfig, CegisRun, VerifierVerdict};
-use vergil_core::critique::CritiqueConfig;
 use vergil_properties::Catalog;
 
 const PER_PROPERTY_BUDGET_USD: f64 = 2.0;
@@ -225,8 +224,6 @@ fn run() -> Result<(), String> {
             let synth_cfg_default = CegisConfig::default();
             let mut synth = synth_cfg_default.synthesis;
             synth.samples = 8;
-            let mut critique = CritiqueConfig::default_for_openai();
-            critique.min_axis = MIN_CRITIQUE_AXIS;
             let cegis_cfg = CegisConfig {
                 max_iterations: 1,
                 synthesis: synth,
@@ -236,9 +233,11 @@ fn run() -> Result<(), String> {
             let spec = IntentRun {
                 project: property_project.clone(),
                 intent,
+                description: Some(gt.description.clone()),
                 scaffold: scaffold.clone(),
                 catalog: catalog.clone(),
                 cegis: cegis_cfg,
+                min_critique_axis: Some(MIN_CRITIQUE_AXIS),
                 mutation_min: 0.4,
                 budget_per_property: Duration::from_secs(PER_HALMOS_SECS),
             };
@@ -372,7 +371,7 @@ fn pick_match(run: &CegisRun, ground_truth_name: &str) -> (Option<String>, usize
         .filter(|o| !matches!(o.verifier_verdict, VerifierVerdict::NotRun))
         .count();
     for o in &run.outcomes {
-        if !matches!(o.verifier_verdict, VerifierVerdict::Verified) {
+        if !matches!(o.verifier_verdict, VerifierVerdict::Verified { .. }) {
             continue;
         }
         if names_match(&o.candidate.name, ground_truth_name) {
@@ -384,7 +383,7 @@ fn pick_match(run: &CegisRun, ground_truth_name: &str) -> (Option<String>, usize
     // IS the property). Avoid false positives only if there are zero matches
     // across BOTH name and intent.
     for o in &run.outcomes {
-        if matches!(o.verifier_verdict, VerifierVerdict::Verified) {
+        if matches!(o.verifier_verdict, VerifierVerdict::Verified { .. }) {
             return (Some(o.candidate.name.clone()), dispatched);
         }
     }

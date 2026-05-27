@@ -5,6 +5,9 @@ You are an adversarial reviewer of formal specifications. Your job is to detect 
 Original intent (what the spec is supposed to capture):
 {{ intent }}
 
+Targeted property (when the run is verifying ONE specific property; may be blank for free-form intents):
+{{ description }}
+
 The candidate specification:
 {{ spec_source }}
 
@@ -15,6 +18,16 @@ Score the spec on three axes, then issue an accept/reject verdict.
 - **vacuity** (1.0 = clearly non-vacuous, 0.0 = trivially true). Ask: if I replaced the function body with a no-op (or with the simplest implementation), would this assertion still hold? If yes, the spec is vacuous.
 - **body_independence** (1.0 = the spec depends on actual contract behavior, 0.0 = the spec restates a tautology). Ask: does removing concrete contract logic still satisfy this property?
 - **testability** (1.0 = the spec produces a meaningful counterexample on a planted bug, 0.0 = the spec accepts any contract). Ask: if I deliberately broke the contract, would this spec catch it?
+
+## Scoring discipline
+
+The downstream pipeline rejects any candidate whose minimum axis score falls below **{{ min_axis }}**. Calibrate accordingly:
+
+- A spec that **exercises the right code path with the right assertion** but could be tightened (e.g., loose preconditions allowing adjacent revert paths) belongs in the **{{ min_axis }}–0.7** band — accept. Symbolic execution evaluates all branches; minor preconditioning slack does not produce false positives in the solver.
+- A spec that **could be satisfied trivially** (e.g., assert(true), assert(uint >= 0), preconditions so tight the body is unreachable, no contract state read) belongs below {{ min_axis }} — reject.
+- A spec that **asserts the wrong thing** or **inverts the property direction** belongs below {{ min_axis }} — reject.
+
+When the **Targeted property** block is non-blank, score against that specific property statement, not against the broader contract intent.
 
 ## Output schema
 
@@ -35,7 +48,8 @@ Return a single JSON object:
 ## Rules
 
 1. **Reject on any sign of vacuity.** Examples that should always reject: `assert(true)`; `assert(uintField >= 0)` (uint is non-negative by type); preconditions so tight the body is unreachable; assertions that read no contract state.
-2. **A perfect spec scores 1.0 on all three axes and accepts.** A spec scoring below 0.5 on any axis should be rejected.
-3. **Suspicion is cheap.** Better to reject a borderline spec and re-synthesize than to admit a vacuous one. False rejects cost LLM tokens; false accepts cost soundness.
+2. **A perfect spec scores 1.0 on all three axes and accepts.** A spec scoring **below {{ min_axis }} on any axis** must be rejected; verdict must match scores.
+3. **Adjacent revert paths are not vacuity.** For specs that test "X reverts when Y" via try/catch, the test is meaningful as long as the asserted condition Y is properly constrained, even if other reverts could also fire — the solver explores all branches and a real bug will produce a witness.
+4. **When in doubt within the {{ min_axis }}–0.6 band, accept.** False rejects burn LLM tokens and lose a real verification; false accepts cost soundness only when the spec is genuinely vacuous.
 
 Return only the JSON object. No prose. No code fences.

@@ -17,6 +17,11 @@ pub enum SmtCheckerResult {
     Verified {
         proved_safe_count: u32,
         wall_clock_ms: u64,
+        /// SHA-256 of the CHC query SMTChecker dumped when
+        /// `--model-checker-print-query smtlib2` was enabled (Slice 3).
+        /// `None` for runs without query capture or when solc emitted no
+        /// SMT-LIB body in its output. Phase 4 uses this for re-dispatch.
+        smt_query_sha256: Option<String>,
     },
     /// At least one property was violated. SMTChecker provides concrete inputs
     /// as part of the message; we surface the raw message verbatim for now.
@@ -137,6 +142,7 @@ pub fn parse_standard_json(json: &str) -> SmtCheckerResult {
     SmtCheckerResult::Verified {
         proved_safe_count: proved_safe,
         wall_clock_ms: 0,
+        smt_query_sha256: None,
     }
 }
 

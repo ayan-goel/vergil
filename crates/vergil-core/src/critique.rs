@@ -120,14 +120,20 @@ impl Critic {
     /// Critique every candidate in parallel and return per-candidate results
     /// in input order. Candidates whose critique call errored receive a
     /// reject verdict with the error in the rationale.
+    ///
+    /// `description` is the property-specific statement when one is being
+    /// targeted (kill criterion / batched runs); the critic uses it as the
+    /// scoring anchor instead of the broader contract-level intent. Pass
+    /// `None` for free-form `vergil verify --intent` runs.
     pub async fn critique_all(
         &self,
         candidates: &[SpecCandidate],
         intent: &str,
+        description: Option<&str>,
     ) -> Vec<CritiqueResult> {
         let tasks: Vec<_> = candidates
             .iter()
-            .map(|c| self.critique_one(c, intent))
+            .map(|c| self.critique_one(c, intent, description))
             .collect();
         join_all(tasks).await
     }
@@ -159,8 +165,13 @@ impl Critic {
             && s.testability >= self.cfg.min_axis
     }
 
-    async fn critique_one(&self, candidate: &SpecCandidate, intent: &str) -> CritiqueResult {
-        let prompt = match render(intent, candidate) {
+    async fn critique_one(
+        &self,
+        candidate: &SpecCandidate,
+        intent: &str,
+        description: Option<&str>,
+    ) -> CritiqueResult {
+        let prompt = match render(intent, candidate, description, self.cfg.min_axis) {
             Ok(p) => p,
             Err(e) => return reject_with(format!("prompt render failed: {e}")),
         };
@@ -205,6 +216,8 @@ impl Critic {
 fn render(
     intent: &str,
     candidate: &SpecCandidate,
+    description: Option<&str>,
+    min_axis: f32,
 ) -> Result<String, vergil_llm::prompts::PromptError> {
     let mut spec_source =
         String::with_capacity(candidate.halmos.len() + candidate.smtchecker.len() + 64);
@@ -214,9 +227,16 @@ fn render(
         spec_source.push_str("\n\n// SMTChecker fragment\n");
         spec_source.push_str(&candidate.smtchecker);
     }
+    let desc = description
+        .map(|d| d.trim())
+        .filter(|d| !d.is_empty())
+        .unwrap_or("(none — score against the broader intent)");
+    let threshold = format!("{min_axis:.2}");
     let mut vars: BTreeMap<&str, &str> = BTreeMap::new();
     vars.insert("intent", intent);
+    vars.insert("description", desc);
     vars.insert("spec_source", &spec_source);
+    vars.insert("min_axis", threshold.as_str());
     CRITIQUE.render(&vars)
 }
 
@@ -364,10 +384,28 @@ mod tests {
     #[test]
     fn render_inlines_intent_and_spec() {
         let c = sample_candidate();
-        let out = render("verify totalSupply preserved", &c).unwrap();
+        let out = render("verify totalSupply preserved", &c, None, 0.4).unwrap();
         assert!(out.contains("verify totalSupply preserved"));
         assert!(out.contains("check_transfer_preserves_supply"));
         assert!(!out.contains("{{"));
+        // min_axis threading
+        assert!(out.contains("0.40"));
+        // description block falls back to a non-empty default
+        assert!(out.contains("(none — score against the broader intent)"));
+    }
+
+    #[test]
+    fn render_passes_description_through() {
+        let c = sample_candidate();
+        let out = render(
+            "ERC-20 conformance",
+            &c,
+            Some("totalSupply must not change across any transfer"),
+            0.4,
+        )
+        .unwrap();
+        assert!(out.contains("totalSupply must not change across any transfer"));
+        assert!(!out.contains("(none — score against the broader intent)"));
     }
 
     #[test]

@@ -205,10 +205,13 @@ impl VerifierDispatcher for HalmosDispatcher {
             property: spec.name.clone(),
             smtchecker_source: self.default_smtchecker_source(),
             budget: self.budget,
+            capture_smt_queries: true,
         };
         let result = dispatch(cfg).await;
         match result.verdict {
-            Verdict::Verified { .. } => VerifierVerdict::Verified,
+            Verdict::Verified {
+                smt_query_sha256, ..
+            } => VerifierVerdict::Verified { smt_query_sha256 },
             Verdict::Counterexample {
                 property, message, ..
             } => VerifierVerdict::Counterexample(format!("{property}: {message}")),
@@ -232,9 +235,18 @@ fn summarize_backends(backends: &[vergil_core::portfolio::BackendOutcome]) -> St
 pub struct IntentRun {
     pub project: PathBuf,
     pub intent: String,
+    /// Property-specific statement (kill criterion / batched per-property
+    /// runs). When set, the critic scores against this narrower target
+    /// instead of the contract-level intent. `None` for free-form
+    /// `vergil verify --intent` invocations.
+    pub description: Option<String>,
     pub scaffold: String,
     pub catalog: Catalog,
     pub cegis: CegisConfig,
+    /// Override for the critic's per-axis minimum score. Defaults to the
+    /// `CritiqueConfig` default when `None`. Kill criterion passes a
+    /// looser 0.4 here so the prompt and runner stay in sync.
+    pub min_critique_axis: Option<f32>,
     pub mutation_min: f64,
     pub budget_per_property: Duration,
 }
@@ -284,10 +296,14 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
         .collect();
 
     // Build the CEGIS loop.
+    let mut critique_cfg = CritiqueConfig::default_for_openai();
+    if let Some(min_axis) = spec.min_critique_axis {
+        critique_cfg.min_axis = min_axis;
+    }
     let critic = Critic::new(
         providers.critic.clone(),
         providers.synth_provider_id,
-        CritiqueConfig::default_for_openai(),
+        critique_cfg,
     );
     let diagnostician = Diagnostician::new(
         providers.diagnostician.clone(),
@@ -315,7 +331,13 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
 
     let started = std::time::Instant::now();
     let run = cegis
-        .run(&spec.intent, &sa_summary, &retrieved, &contract_source)
+        .run_with_description(
+            &spec.intent,
+            spec.description.as_deref(),
+            &sa_summary,
+            &retrieved,
+            &contract_source,
+        )
         .await
         .map_err(|e| IntentError::Cegis(format!("{e}")))?;
     let wall_clock_ms = started.elapsed().as_millis() as u64;
@@ -427,20 +449,22 @@ fn build_proof_artifact(
     let verified_properties: Vec<VerifiedProperty> = run
         .outcomes
         .iter()
-        .filter(|o| matches!(o.verifier_verdict, VerifierVerdict::Verified))
-        .map(|o| VerifiedProperty {
-            name: o.candidate.name.clone(),
-            backend: "halmos".to_string(),
-            spec_sha256: sha256_hex(o.candidate.halmos.as_bytes()),
-            template_ref: o.candidate.template_ref.clone(),
-            wall_clock_ms: total_wall_clock(&run.iterations),
-            smt_query_sha256: None,
-            manifest_validation: ManifestValidationStatus {
-                storage_ok: true,
-                modifiers_ok: true,
-                external_calls_ok: true,
-                warnings: o.manifest_warnings.clone(),
-            },
+        .filter_map(|o| match &o.verifier_verdict {
+            VerifierVerdict::Verified { smt_query_sha256 } => Some(VerifiedProperty {
+                name: o.candidate.name.clone(),
+                backend: "halmos".to_string(),
+                spec_sha256: sha256_hex(o.candidate.halmos.as_bytes()),
+                template_ref: o.candidate.template_ref.clone(),
+                wall_clock_ms: total_wall_clock(&run.iterations),
+                smt_query_sha256: smt_query_sha256.clone(),
+                manifest_validation: ManifestValidationStatus {
+                    storage_ok: true,
+                    modifiers_ok: true,
+                    external_calls_ok: true,
+                    warnings: o.manifest_warnings.clone(),
+                },
+            }),
+            _ => None,
         })
         .collect();
 

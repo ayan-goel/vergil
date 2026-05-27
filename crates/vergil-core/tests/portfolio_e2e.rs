@@ -27,6 +27,7 @@ async fn portfolio_verifies_safemath_via_winner() {
         property: "check_transfer_preserves_total_supply".to_string(),
         smtchecker_source: smt_source,
         budget: Duration::from_secs(120),
+        capture_smt_queries: false,
     };
 
     let result = dispatch(cfg).await;
@@ -34,6 +35,7 @@ async fn portfolio_verifies_safemath_via_winner() {
         Verdict::Verified {
             backend,
             wall_clock_ms,
+            ..
         } => {
             assert!(
                 wall_clock_ms < 120_000,

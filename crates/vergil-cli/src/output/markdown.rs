@@ -18,6 +18,7 @@ pub fn render(report: &VerifyReport) -> String {
             Verdict::Verified {
                 backend,
                 wall_clock_ms,
+                ..
             } => ("✓ verified", backend_name(*backend), *wall_clock_ms as i64),
             Verdict::Counterexample {
                 backend,
@@ -56,11 +57,18 @@ fn detail_block(v: &Verdict) -> String {
         Verdict::Verified {
             backend,
             wall_clock_ms,
-        } => format!(
-            "Verified by {} in {} ms.\n",
-            backend_name(*backend),
-            wall_clock_ms
-        ),
+            smt_query_sha256,
+        } => {
+            let mut s = format!(
+                "Verified by {} in {} ms.\n",
+                backend_name(*backend),
+                wall_clock_ms
+            );
+            if let Some(h) = smt_query_sha256 {
+                s.push_str(&format!("\nSMT query SHA-256: `{h}`\n"));
+            }
+            s
+        }
         Verdict::Counterexample {
             backend,
             property,
