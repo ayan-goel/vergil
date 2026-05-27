@@ -448,6 +448,7 @@ async fn run_with_intent(
         .iter()
         .filter(|o| matches!(o.verifier_verdict, VerifierVerdict::Verified { .. }))
         .collect();
+    let quality = compute_quality_stats(&run);
     match format {
         OutputFormat::Text => {
             println!("intent: {intent}");
@@ -472,9 +473,23 @@ async fn run_with_intent(
             if let Some(reason) = &run.stop_reason {
                 println!("stop_reason: {reason}");
             }
+            println!();
+            println!("quality:");
+            println!(
+                "  critique pass-rate: {:.0}% ({} accepted / {} synthesized)",
+                quality.critique_pass_rate * 100.0,
+                quality.critique_accepted,
+                quality.critique_total,
+            );
+            println!(
+                "  vacuity score (min/avg/max): {}",
+                quality.format_vacuity()
+            );
+            println!("  mutation coverage: {}", quality.format_mutation());
+            println!("  spec-doc consistency: {}", quality.format_spec_doc());
         }
         OutputFormat::Markdown => {
-            let body = format!(
+            let mut body = format!(
                 "# Vergil intent run\n\n- intent: `{}`\n- iterations: {}\n- verified: {} / {}\n- cost: ${:.4}\n- proof: `{}`\n",
                 intent,
                 run.iterations.len(),
@@ -483,6 +498,25 @@ async fn run_with_intent(
                 run.total_cost_usd,
                 proof_path.display()
             );
+            body.push_str("\n## Quality\n\n");
+            body.push_str(&format!(
+                "- **Critique pass-rate:** {:.0}% ({} accepted / {} synthesized)\n",
+                quality.critique_pass_rate * 100.0,
+                quality.critique_accepted,
+                quality.critique_total,
+            ));
+            body.push_str(&format!(
+                "- **Vacuity score (min / avg / max):** {}\n",
+                quality.format_vacuity()
+            ));
+            body.push_str(&format!(
+                "- **Mutation coverage:** {}\n",
+                quality.format_mutation()
+            ));
+            body.push_str(&format!(
+                "- **Spec-doc consistency:** {}\n",
+                quality.format_spec_doc()
+            ));
             let out = project.join("vergil-out").join("report.md");
             if let Err(e) = std::fs::write(&out, &body) {
                 eprintln!("write {}: {e}", out.display());
@@ -499,6 +533,17 @@ async fn run_with_intent(
                 "cost_usd": run.total_cost_usd,
                 "proof_path": proof_path.display().to_string(),
                 "stop_reason": run.stop_reason,
+                "quality": {
+                    "critique_pass_rate": quality.critique_pass_rate,
+                    "critique_accepted": quality.critique_accepted,
+                    "critique_total": quality.critique_total,
+                    "vacuity_min": quality.vacuity_min,
+                    "vacuity_avg": quality.vacuity_avg,
+                    "vacuity_max": quality.vacuity_max,
+                    "mutation_coverage_avg": quality.mutation_coverage_avg,
+                    "mutation_testing_enabled": quality.mutation_testing_enabled,
+                    "spec_doc_consistency": quality.spec_doc_consistency,
+                }
             });
             println!(
                 "{}",
@@ -519,6 +564,110 @@ fn total_tokens(run: &vergil_core::cegis::CegisRun, is_in: bool) -> u32 {
         run.iterations.iter().map(|i| i.tokens_in).sum()
     } else {
         run.iterations.iter().map(|i| i.tokens_out).sum()
+    }
+}
+
+/// Per-run quality metrics surfaced in `report.md` and `--format json`.
+///
+/// SPEC §11.3 step 9 lists three quality metrics that must appear in the
+/// report. This struct computes them off the live `CegisRun` so the
+/// renderer doesn't need to know about the loop internals.
+#[derive(Debug, Clone, PartialEq)]
+pub struct QualityStats {
+    pub critique_total: usize,
+    pub critique_accepted: usize,
+    pub critique_pass_rate: f32,
+    pub vacuity_min: Option<f32>,
+    pub vacuity_avg: Option<f32>,
+    pub vacuity_max: Option<f32>,
+    pub mutation_coverage_avg: Option<f64>,
+    pub mutation_testing_enabled: bool,
+    /// LLM-graded NatSpec ↔ verified-spec consistency. Off by default —
+    /// surfaces as `None`. Phase 4 wires the actual grading call.
+    pub spec_doc_consistency: Option<f32>,
+}
+
+impl QualityStats {
+    pub fn format_vacuity(&self) -> String {
+        match (self.vacuity_min, self.vacuity_avg, self.vacuity_max) {
+            (Some(lo), Some(avg), Some(hi)) => format!("{lo:.2} / {avg:.2} / {hi:.2}"),
+            _ => "no critique data (degraded mode)".to_string(),
+        }
+    }
+    pub fn format_mutation(&self) -> String {
+        if !self.mutation_testing_enabled {
+            return "disabled (CLI default — opt in with --mutation-test in Phase 4)".to_string();
+        }
+        match self.mutation_coverage_avg {
+            Some(v) => format!("{:.0}% (avg across verified)", v * 100.0),
+            None => "enabled but no coverage recorded".to_string(),
+        }
+    }
+    pub fn format_spec_doc(&self) -> String {
+        match self.spec_doc_consistency {
+            Some(v) => format!("{:.0}%", v * 100.0),
+            None => "disabled (LLM-graded check is opt-in, ~$0.02/property)".to_string(),
+        }
+    }
+}
+
+pub fn compute_quality_stats(run: &vergil_core::cegis::CegisRun) -> QualityStats {
+    use vergil_core::critique::Verdict as CritiqueVerdict;
+    let critiques: Vec<&vergil_core::critique::CritiqueResult> = run
+        .outcomes
+        .iter()
+        .filter_map(|o| o.critique.as_ref())
+        .collect();
+    let critique_total = critiques.len();
+    let critique_accepted = critiques
+        .iter()
+        .filter(|c| matches!(c.verdict, CritiqueVerdict::Accept))
+        .count();
+    let critique_pass_rate = if critique_total == 0 {
+        0.0
+    } else {
+        critique_accepted as f32 / critique_total as f32
+    };
+    let vacuity_vals: Vec<f32> = critiques.iter().map(|c| c.scores.vacuity).collect();
+    let (vacuity_min, vacuity_avg, vacuity_max) = if vacuity_vals.is_empty() {
+        (None, None, None)
+    } else {
+        let mut lo = f32::INFINITY;
+        let mut hi = f32::NEG_INFINITY;
+        let mut sum = 0.0;
+        for v in &vacuity_vals {
+            if *v < lo {
+                lo = *v;
+            }
+            if *v > hi {
+                hi = *v;
+            }
+            sum += v;
+        }
+        let avg = sum / vacuity_vals.len() as f32;
+        (Some(lo), Some(avg), Some(hi))
+    };
+    let mutation_vals: Vec<f64> = run
+        .outcomes
+        .iter()
+        .filter_map(|o| o.mutation_coverage)
+        .collect();
+    let mutation_testing_enabled = !mutation_vals.is_empty();
+    let mutation_coverage_avg = if mutation_vals.is_empty() {
+        None
+    } else {
+        Some(mutation_vals.iter().sum::<f64>() / mutation_vals.len() as f64)
+    };
+    QualityStats {
+        critique_total,
+        critique_accepted,
+        critique_pass_rate,
+        vacuity_min,
+        vacuity_avg,
+        vacuity_max,
+        mutation_coverage_avg,
+        mutation_testing_enabled,
+        spec_doc_consistency: None,
     }
 }
 
@@ -699,5 +848,73 @@ mod tests {
         std::fs::write(&path, "no placeholder here").unwrap();
         let err = resolve_scaffold(tmp.path(), Some(&path)).unwrap_err();
         assert!(err.contains("{{CHECK_FN}}"));
+    }
+
+    fn fixture_run_with_critiques(pairs: &[(bool, f32)]) -> vergil_core::cegis::CegisRun {
+        use vergil_core::cegis::{CandidateOutcome, CegisRun, VerifierVerdict};
+        use vergil_core::critique::{CritiqueResult, CritiqueScores, Verdict};
+        use vergil_core::synthesis::SpecCandidate;
+
+        let mut outcomes = Vec::new();
+        for (accept, vac) in pairs {
+            outcomes.push(CandidateOutcome {
+                candidate: SpecCandidate {
+                    name: "check_x".to_string(),
+                    halmos: "function check_x() public {}".to_string(),
+                    smtchecker: String::new(),
+                    template_ref: None,
+                    intent_satisfied: true,
+                },
+                critique: Some(CritiqueResult {
+                    verdict: if *accept {
+                        Verdict::Accept
+                    } else {
+                        Verdict::Reject
+                    },
+                    scores: CritiqueScores {
+                        vacuity: *vac,
+                        body_independence: 0.5,
+                        testability: 0.5,
+                    },
+                    rationale: String::new(),
+                }),
+                mutation_coverage: None,
+                manifest_warnings: Vec::new(),
+                verifier_verdict: VerifierVerdict::NotRun,
+            });
+        }
+        CegisRun {
+            outcomes,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn compute_quality_stats_reflects_critique_pass_rate() {
+        let run = fixture_run_with_critiques(&[(true, 0.8), (true, 0.6), (false, 0.3)]);
+        let q = compute_quality_stats(&run);
+        assert_eq!(q.critique_total, 3);
+        assert_eq!(q.critique_accepted, 2);
+        assert!((q.critique_pass_rate - (2.0 / 3.0)).abs() < 1e-6);
+        // vacuity min = 0.3, max = 0.8, avg = (0.8 + 0.6 + 0.3) / 3 = 0.566...
+        assert!((q.vacuity_min.unwrap() - 0.3).abs() < 1e-6);
+        assert!((q.vacuity_max.unwrap() - 0.8).abs() < 1e-6);
+        assert!((q.vacuity_avg.unwrap() - 0.566_666_7).abs() < 1e-5);
+        // No mutation_coverage on any outcome → mutation testing disabled.
+        assert!(!q.mutation_testing_enabled);
+        assert!(q.mutation_coverage_avg.is_none());
+        assert!(q.spec_doc_consistency.is_none());
+    }
+
+    #[test]
+    fn compute_quality_stats_handles_empty_run() {
+        let run = vergil_core::cegis::CegisRun::default();
+        let q = compute_quality_stats(&run);
+        assert_eq!(q.critique_total, 0);
+        assert_eq!(q.critique_pass_rate, 0.0);
+        assert!(q.vacuity_min.is_none());
+        assert!(q.format_vacuity().contains("degraded mode"));
+        assert!(q.format_mutation().contains("disabled"));
+        assert!(q.format_spec_doc().contains("opt-in"));
     }
 }
