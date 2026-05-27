@@ -1,0 +1,16 @@
+id: arith-rounding-direction-down
+description: A mulDiv(a, b, c) computation that floors (rounds toward zero) returns at most a*b/c rounded down — never up
+cost_class: cheap
+applies_to:
+  interfaces: [Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OpenZeppelin Math.mulDiv rounding modes
+  license: Apache-2.0

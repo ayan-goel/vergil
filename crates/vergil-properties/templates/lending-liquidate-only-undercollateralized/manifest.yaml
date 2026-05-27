@@ -1,0 +1,20 @@
+id: lending-liquidate-only-undercollateralized
+description: liquidate(account) reverts when the account's collateral capacity is greater than or equal to its debt (i.e., it's still solvent)
+cost_class: cheap
+applies_to:
+  interfaces: [CompoundLike, LendingMarket]
+requires:
+  storage_slots:
+    - name: collateral
+      type: mapping(address => uint256)
+    - name: debt
+      type: mapping(address => uint256)
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: Compound v2 liquidation semantics
+  license: Apache-2.0

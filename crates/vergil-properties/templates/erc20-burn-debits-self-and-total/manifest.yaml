@@ -1,0 +1,20 @@
+id: erc20-burn-debits-self-and-total
+description: A successful burn(amount) decreases both msg.sender's balance and totalSupply by exactly amount
+cost_class: cheap
+applies_to:
+  interfaces: [ERC20Burnable]
+requires:
+  storage_slots:
+    - name: _balances
+      type: mapping(address => uint256)
+    - name: _totalSupply
+      type: uint256
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-20 burn extension / kill criterion
+  license: Apache-2.0

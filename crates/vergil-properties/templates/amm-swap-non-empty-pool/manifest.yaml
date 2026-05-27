@@ -1,0 +1,20 @@
+id: amm-swap-non-empty-pool
+description: A successful single-direction swap on a constant-product AMM leaves the output-side reserve strictly above zero
+cost_class: cheap
+applies_to:
+  interfaces: [UniswapV2Pair, ConstantProductPair]
+requires:
+  storage_slots:
+    - name: reserveX
+      type: uint256
+    - name: reserveY
+      type: uint256
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: Uniswap V2 pair semantics
+  license: Apache-2.0

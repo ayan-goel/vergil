@@ -1,0 +1,20 @@
+id: erc4626-deposit-redeem-no-inflation
+description: A deposit immediately followed by redeem of the resulting shares yields at most the originally deposited assets
+cost_class: cheap
+applies_to:
+  interfaces: [ERC4626]
+requires:
+  storage_slots:
+    - name: totalAssets
+      type: uint256
+    - name: totalSupply
+      type: uint256
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-4626 EIP / kill criterion
+  license: Apache-2.0

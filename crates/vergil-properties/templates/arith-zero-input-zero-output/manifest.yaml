@@ -1,0 +1,16 @@
+id: arith-zero-input-zero-output
+description: For arithmetic functions where zero is the natural identity (multiplication, division of zero), a zero input produces a zero output without reverting
+cost_class: cheap
+applies_to:
+  interfaces: [Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: identity element invariants
+  license: Apache-2.0

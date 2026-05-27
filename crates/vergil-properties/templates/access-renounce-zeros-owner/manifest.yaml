@@ -1,0 +1,18 @@
+id: access-renounce-zeros-owner
+description: renounceOwnership() zeros the owner field; subsequent onlyOwner-gated calls must revert
+cost_class: cheap
+applies_to:
+  interfaces: [Ownable]
+requires:
+  storage_slots:
+    - name: _owner
+      type: address
+  modifiers: [onlyOwner]
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OpenZeppelin Ownable
+  license: Apache-2.0

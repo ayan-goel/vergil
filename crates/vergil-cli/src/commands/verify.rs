@@ -264,8 +264,8 @@ fn emit_phase1_proof(project: &Path, intent: &str, report: &VerifyReport) -> Res
     let out_dir = project.join("vergil-out");
     std::fs::create_dir_all(&out_dir).map_err(|e| format!("mkdir vergil-out: {e}"))?;
     let out = out_dir.join("proof.json");
-    let body = serde_json::to_string_pretty(&proof)
-        .map_err(|e| format!("serialize proof.json: {e}"))?;
+    let body =
+        serde_json::to_string_pretty(&proof).map_err(|e| format!("serialize proof.json: {e}"))?;
     std::fs::write(&out, body).map_err(|e| format!("write {}: {e}", out.display()))?;
     Ok(())
 }
@@ -557,12 +557,10 @@ fn resolve_scaffold(project: &Path, override_path: Option<&Path>) -> Result<Stri
 /// Returns `None` if no .sol file or no contract identifier found.
 fn autodetect_scaffold(project: &Path) -> Option<String> {
     let src_dir = project.join("src");
-    let first_sol = std::fs::read_dir(&src_dir).ok()?.flatten().find(|e| {
-        e.path()
-            .extension()
-            .map(|x| x == "sol")
-            .unwrap_or(false)
-    })?;
+    let first_sol = std::fs::read_dir(&src_dir)
+        .ok()?
+        .flatten()
+        .find(|e| e.path().extension().map(|x| x == "sol").unwrap_or(false))?;
     let path = first_sol.path();
     let filename = path.file_name()?.to_string_lossy().into_owned();
     let body = std::fs::read_to_string(&path).ok()?;
@@ -582,9 +580,7 @@ contract CegisProperties {{
 
     {{{{CHECK_FN}}}}
 }}
-"#,
-        ident = ident,
-        filename = filename,
+"#
     );
     Some(scaffold)
 }
@@ -602,11 +598,7 @@ fn extract_contract_name(source: &str) -> Option<String> {
                 .find(|c: char| c.is_whitespace() || c == '{')
                 .unwrap_or(rest.len());
             let name = rest[..end].trim();
-            if !name.is_empty()
-                && name
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '_')
-            {
+            if !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
                 return Some(name.to_string());
             }
         }
@@ -690,8 +682,11 @@ mod tests {
     fn resolve_scaffold_respects_explicit_override_file() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("custom.sol");
-        std::fs::write(&path, "pragma solidity ^0.8.20;\ncontract X { {{CHECK_FN}} }\n")
-            .unwrap();
+        std::fs::write(
+            &path,
+            "pragma solidity ^0.8.20;\ncontract X { {{CHECK_FN}} }\n",
+        )
+        .unwrap();
         let s = resolve_scaffold(tmp.path(), Some(&path)).expect("ok");
         assert!(s.contains("contract X"));
         assert!(s.contains("{{CHECK_FN}}"));

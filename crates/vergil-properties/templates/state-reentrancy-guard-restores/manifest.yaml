@@ -1,0 +1,18 @@
+id: state-reentrancy-guard-restores
+description: A nonReentrant-gated function leaves the reentrancy-status slot back at NOT_ENTERED after the call completes, whether the body succeeded or reverted
+cost_class: cheap
+applies_to:
+  interfaces: [ReentrancyGuard]
+requires:
+  storage_slots:
+    - name: _status
+      type: uint256
+  modifiers: [nonReentrant]
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OpenZeppelin ReentrancyGuard
+  license: Apache-2.0

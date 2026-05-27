@@ -1,0 +1,20 @@
+id: lending-borrow-requires-collateral
+description: borrow(amount) reverts when collateral capacity (collateral * LTV / 100) is less than current debt plus amount
+cost_class: cheap
+applies_to:
+  interfaces: [CompoundLike, LendingMarket]
+requires:
+  storage_slots:
+    - name: collateral
+      type: mapping(address => uint256)
+    - name: debt
+      type: mapping(address => uint256)
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: Compound v2 / generic LTV-gated borrow
+  license: Apache-2.0
