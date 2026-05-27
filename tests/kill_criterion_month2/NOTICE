@@ -1,0 +1,25 @@
+Vergil — kill criterion test set (tests/kill_criterion_month2/)
+===============================================================
+
+The Solidity contracts under `project/src/` are Vergil-original
+reference implementations of the ERC-20, ERC-721, and ERC-4626 token
+standards. They follow the same on-chain semantics as the OpenZeppelin
+contracts of the same name (most recently
+https://github.com/OpenZeppelin/openzeppelin-contracts v5.x, MIT
+licensed) for the properties the Phase 2 kill criterion verifies, but
+they are not literal copies of upstream OZ source. We chose this
+single-file approach so Halmos can compile each target without a deep
+import graph, and so the contracts ship under the project's Apache-2.0
+license without dual-licensing concerns.
+
+Behavioural notes:
+  * ERC4626.sol inlines the underlying asset accounting as a uint256
+    mapping rather than wrapping an external ERC-20 — this isolates the
+    monotonicity / round-trip properties from any reentrancy concerns
+    on an untrusted asset contract.
+  * ERC721.sol does not implement IERC165 or `safeTransferFrom`'s
+    IERC721Receiver callback — neither is part of the Phase 2 property
+    set.
+  * ERC20Pausable.sol's pauser is a single address set at deploy time;
+    OZ's AccessControl + roles is out of scope for the Vergil kill
+    criterion.
