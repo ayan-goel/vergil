@@ -1,0 +1,23 @@
+VergilBench corpus — provenance + licenses
+
+All 7 contracts in the Phase 3 seed corpus are Vergil-authored, Apache-2.0
+single-file simplifications conformant with their reference standards.
+No external code is vendored at this point.
+
+Sources:
+* erc20 → examples/erc20 (Vergil-authored, Apache-2.0)
+* erc20-burnable, erc20-pausable → tests/kill_criterion_month2/project/src
+  (Vergil-authored, Apache-2.0; semantically conformant with OpenZeppelin
+  ERC20Burnable / ERC20Pausable for the verified properties)
+* erc721 → examples/erc721 (Vergil-authored, Apache-2.0)
+* vault-4626 → examples/vault-4626 (Vergil-authored, Apache-2.0)
+* amm-constant-product → examples/amm-constant-product
+  (Vergil-authored, Apache-2.0; semantically a Uniswap-V2-style pair with
+  inlined accounting; not derived from Uniswap source)
+* lending → examples/lending (Vergil-authored, Apache-2.0; Compound-style
+  surface, simplified semantics)
+
+Phase 4 will vendor or re-author external contracts (OpenZeppelin MIT,
+Certora examples, Code4rena/Sherlock public sources). All external
+vendoring goes through a license-diligence pass; nothing GPL / AGPL /
+BUSL lands in `vergilbench/contracts/`.

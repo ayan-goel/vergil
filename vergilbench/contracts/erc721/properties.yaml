@@ -1,0 +1,19 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_owner_is_nonzero_for_existing_token
+    params:
+      - { name: tokenId, type: uint256 }
+  - name: check_balance_of_zero_reverts
+    params: []
+  - name: check_mint_sets_owner_and_increments_balance
+    params:
+      - { name: to, type: address }
+      - { name: tokenId, type: uint256 }
+  - name: check_setApprovalForAll_records_the_flag
+    params:
+      - { name: operator, type: address }
+      - { name: approved, type: bool }

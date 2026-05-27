@@ -1,0 +1,21 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_convertToShares_is_monotone
+    params:
+      - { name: a1, type: uint256 }
+      - { name: a2, type: uint256 }
+  - name: check_convertToAssets_is_monotone
+    params:
+      - { name: s1, type: uint256 }
+      - { name: s2, type: uint256 }
+  - name: check_roundtrip_assets_does_not_inflate
+    params:
+      - { name: assets, type: uint256 }
+  - name: check_deposit_increases_totalAssets_by_at_least_paid
+    params:
+      - { name: assets, type: uint256 }
+      - { name: receiver, type: address }

@@ -1,0 +1,21 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_swap_does_not_drain_pool
+    params:
+      - { name: amountIn, type: uint256 }
+  - name: check_mint_increases_totalSupply
+    params:
+      - { name: depositX, type: uint256 }
+      - { name: depositY, type: uint256 }
+      - { name: to, type: address }
+  - name: check_burn_reduces_totalSupply
+    params:
+      - { name: shares, type: uint256 }
+      - { name: to, type: address }
+  - name: check_swap_preserves_k_invariant
+    params:
+      - { name: amountIn, type: uint256 }

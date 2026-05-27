@@ -1,0 +1,46 @@
+{
+  "started_at": "2026-05-27T23:36:17.071280+00:00",
+  "finished_at": "2026-05-27T23:36:53.329943+00:00",
+  "per_contract": [
+    {
+      "contract": "amm-constant-product",
+      "verified": 3,
+      "total": 4,
+      "wall_clock_ms": 31832,
+      "exit_code": 2
+    },
+    {
+      "contract": "erc20",
+      "verified": 2,
+      "total": 2,
+      "wall_clock_ms": 897,
+      "exit_code": 0
+    },
+    {
+      "contract": "erc721",
+      "verified": 4,
+      "total": 4,
+      "wall_clock_ms": 1237,
+      "exit_code": 0
+    },
+    {
+      "contract": "lending",
+      "verified": 3,
+      "total": 3,
+      "wall_clock_ms": 958,
+      "exit_code": 0
+    },
+    {
+      "contract": "vault-4626",
+      "verified": 4,
+      "total": 4,
+      "wall_clock_ms": 1331,
+      "exit_code": 0
+    }
+  ],
+  "verified_total": 16,
+  "property_total": 17,
+  "pass_rate": 0.9411764705882353,
+  "total_wall_clock_ms": 36258,
+  "aborted_on_budget": false
+}

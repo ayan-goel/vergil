@@ -10,9 +10,16 @@ rust-version.workspace = true
 name = "vergilbench-calibration"
 path = "src/calibration.rs"
 
+[[bin]]
+name = "vergilbench"
+path = "src/runner.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 vergil-core = { path = "../crates/vergil-core" }
 vergil-solidity = { path = "../crates/vergil-solidity" }
