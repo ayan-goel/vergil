@@ -16,8 +16,10 @@
 //!   - manifests whose declared file paths escape the template directory.
 
 pub mod catalog;
+pub mod manifest;
 
 pub use catalog::{
     Catalog, CostClass, EncodingPaths, PropertyManifest, PropertyTemplate, Provenance,
     StorageSlotReq, TemplateError, Tier,
 };
+pub use manifest::{validate, ManifestError, ValidationReport};
