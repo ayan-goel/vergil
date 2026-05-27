@@ -1,0 +1,13 @@
+[book]
+title = "Vergil"
+description = "LLM-guided formal verification for Solidity smart contracts."
+authors = ["Vergil Contributors"]
+src = "src"
+language = "en"
+
+[output.html]
+default-theme = "ayu"
+preferred-dark-theme = "ayu"
+git-repository-url = ""
+git-repository-icon = ""
+no-section-label = true
