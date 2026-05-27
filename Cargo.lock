@@ -2728,7 +2728,10 @@ name = "vergilbench"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
+ "serde",
+ "serde_json",
  "tokio",
  "vergil-core",
  "vergil-solidity",
