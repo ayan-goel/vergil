@@ -17,7 +17,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub mod anthropic;
 pub mod mock;
+pub mod retry;
 pub mod trace;
 
 #[async_trait::async_trait]
