@@ -1,0 +1,80 @@
+{
+  "vergil_version": "0.0.1",
+  "schema_version": 1,
+  "run": {
+    "run_id": "20260527T232334Z",
+    "intent": "properties.yaml: /Users/ayangoel/Desktop/Projects/Vergil/examples/amm-constant-product/properties.yaml",
+    "project_root": "/Users/ayangoel/Desktop/Projects/Vergil/examples/amm-constant-product",
+    "started_at": "2026-05-27T23:23:34.926354+00:00"
+  },
+  "toolchain": {
+    "solc": "0.8.20",
+    "halmos": "0.3.3",
+    "slither": "0.11.0",
+    "z3": "4.15.4",
+    "cvc5": "1.3.0",
+    "gambit": "0.2.1"
+  },
+  "source_files": [
+    {
+      "path": "src/AMM.sol",
+      "sha256": "cf4e6f20516e84fc9a9fe10a9a417021bd1a47b337abcdcf82784cfa24729b73"
+    }
+  ],
+  "verified_properties": [
+    {
+      "name": "check_swap_does_not_drain_pool",
+      "backend": "halmos",
+      "spec_sha256": "59c5988dc6162c73e4c4b3b8a37c4a3290b76013e9c6316c3fd11d2c184ff345",
+      "template_ref": null,
+      "wall_clock_ms": 40,
+      "smt_query_sha256": null,
+      "manifest_validation": {
+        "storage_ok": true,
+        "modifiers_ok": true,
+        "external_calls_ok": true,
+        "warnings": []
+      }
+    },
+    {
+      "name": "check_mint_increases_totalSupply",
+      "backend": "halmos",
+      "spec_sha256": "1e708d31bf976d6433d77f904e4c5f9ae0085f4a5d9b50d84dc84af383dba23a",
+      "template_ref": null,
+      "wall_clock_ms": 160,
+      "smt_query_sha256": "6e7ee1795b0f448718031f0a669158a851ddc17cc729709c355eea612347b506",
+      "manifest_validation": {
+        "storage_ok": true,
+        "modifiers_ok": true,
+        "external_calls_ok": true,
+        "warnings": []
+      }
+    },
+    {
+      "name": "check_burn_reduces_totalSupply",
+      "backend": "halmos",
+      "spec_sha256": "f3adc3faedb465cc44253a272efa92f6f202b0a4496e21c311551e28317a7206",
+      "template_ref": null,
+      "wall_clock_ms": 40,
+      "smt_query_sha256": null,
+      "manifest_validation": {
+        "storage_ok": true,
+        "modifiers_ok": true,
+        "external_calls_ok": true,
+        "warnings": []
+      }
+    }
+  ],
+  "counterexamples": [],
+  "quality_metrics": {
+    "mutation_coverage_min": null,
+    "critique_pass_rate": 1.0,
+    "mutation_testing_enabled": false
+  },
+  "cost": {
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "usd_estimate": 0.0,
+    "wall_clock_ms": 240
+  }
+}

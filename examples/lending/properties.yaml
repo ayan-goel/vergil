@@ -1,0 +1,15 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_borrow_requires_collateral
+    params:
+      - { name: amount, type: uint256 }
+  - name: check_liquidate_reverts_when_solvent
+    params:
+      - { name: account, type: address }
+  - name: check_repay_reduces_total_debt
+    params:
+      - { name: amount, type: uint256 }
