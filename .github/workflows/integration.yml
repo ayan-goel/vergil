@@ -12,6 +12,8 @@ jobs:
     env:
       HALMOS_VERSION: "0.3.3"
       SLITHER_VERSION: "0.11.0"
+      # Keep in lockstep with GAMBIT_REV in scripts/install-deps.sh.
+      GAMBIT_REV: "072ff4c6"
       HALMOS_ALLOW_DOWNLOAD: "1"
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +69,11 @@ jobs:
         run: |
           $HOME/.local/bin/uv tool install "slither-analyzer==${SLITHER_VERSION}"
           $HOME/.local/bin/slither --version
+
+      - name: Install Gambit (pinned)
+        run: |
+          cargo install --git https://github.com/Certora/gambit --rev "${GAMBIT_REV}"
+          gambit --help | head -1
 
       - name: vergil doctor
         run: |
