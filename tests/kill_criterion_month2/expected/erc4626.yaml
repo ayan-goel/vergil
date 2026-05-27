@@ -1,0 +1,17 @@
+contract: contracts/ERC4626.sol
+intent: |
+  ERC-4626 tokenized vault. convertToShares / convertToAssets are monotone
+  non-decreasing. Round-trip conversions never inflate. deposit credits
+  shares only when the vault receives at least the deposited assets (no
+  free mint). Deposit-then-redeem returns at most the original assets.
+ground_truth:
+  - name: convertToShares_is_monotone
+    expected: verified
+  - name: convertToAssets_is_monotone
+    expected: verified
+  - name: roundtrip_assets_does_not_inflate
+    expected: verified
+  - name: deposit_increases_totalAssets_by_at_least_paid
+    expected: verified
+  - name: deposit_then_redeem_does_not_inflate
+    expected: verified

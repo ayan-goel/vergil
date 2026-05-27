@@ -1,0 +1,17 @@
+contract: contracts/ERC721.sol
+intent: |
+  Standard ERC-721 conformance. Every existing token has a non-zero owner
+  reachable via ownerOf. transferFrom clears the per-token approval.
+  approve(spender, tokenId) only succeeds for the owner or an operator
+  approved for all. balanceOf(address(0)) reverts.
+ground_truth:
+  - name: owner_is_nonzero_for_existing_token
+    expected: verified
+  - name: transferFrom_clears_per_token_approval
+    expected: verified
+  - name: unauthorized_approve_reverts
+    expected: verified
+  - name: balance_of_zero_reverts
+    expected: verified
+  - name: mint_sets_owner_and_increments_balance
+    expected: verified

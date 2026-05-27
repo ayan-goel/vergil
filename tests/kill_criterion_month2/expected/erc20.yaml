@@ -1,0 +1,19 @@
+contract: contracts/ERC20.sol
+intent: |
+  Standard ERC-20 conformance. Transfers move value without creating or
+  destroying it. totalSupply changes only via mint or burn. Allowances
+  bound what transferFrom can spend (modulo type(uint256).max as infinite).
+  Transfers to address(0) revert.
+ground_truth:
+  - name: transfer_credits_recipient_exactly
+    expected: verified
+  - name: transferFrom_blocks_unauthorized
+    expected: verified
+  - name: approve_sets_exact_allowance
+    expected: verified
+  - name: transfer_preserves_total_supply
+    expected: verified
+  - name: transferFrom_decrements_finite_allowance
+    expected: verified
+  - name: transfer_to_zero_reverts
+    expected: verified

@@ -1,0 +1,12 @@
+contract: contracts/ERC20Pausable.sol
+intent: |
+  ERC-20 with pausable extension. When paused() is true, transfer and
+  transferFrom must revert. unpause() restores normal semantics. The
+  paused state only flips back via unpause.
+ground_truth:
+  - name: paused_blocks_transfer
+    expected: verified
+  - name: paused_blocks_transferFrom
+    expected: verified
+  - name: only_unpause_clears_paused
+    expected: verified

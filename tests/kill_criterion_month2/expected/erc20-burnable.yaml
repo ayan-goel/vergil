@@ -1,0 +1,12 @@
+contract: contracts/ERC20Burnable.sol
+intent: |
+  ERC-20 with burnable extension. burn(amount) decreases caller's balance
+  and totalSupply by exactly amount; burnFrom(account, amount) requires
+  sufficient allowance and decrements it.
+ground_truth:
+  - name: burn_debits_self_and_total
+    expected: verified
+  - name: burnFrom_requires_allowance
+    expected: verified
+  - name: burnFrom_decrements_allowance
+    expected: verified
