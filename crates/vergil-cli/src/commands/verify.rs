@@ -1,10 +1,15 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use vergil_core::cegis::{CegisConfig, VerifierVerdict};
 use vergil_core::portfolio::{dispatch, PortfolioConfig, Verdict};
+use vergil_properties::Catalog;
 use vergil_solidity::foundry::{emit_counterexample, PropertyContext};
 use vergil_solidity::halmos::HalmosResult;
 
+use crate::commands::intent::{
+    default_scaffold_for_erc20, locate_templates_dir, run_intent, IntentRun,
+};
 use crate::config::{self, PropertiesFile};
 use crate::output::{markdown, text, PropertyOutcome, VerifyReport};
 use crate::OutputFormat;
@@ -35,14 +40,8 @@ pub async fn run(
     format: OutputFormat,
     intent: Option<String>,
 ) -> Result<(), u8> {
-    if intent.is_some() {
-        eprintln!(
-            "vergil verify --intent is wired through the CEGIS loop (Slice 13). End-to-end \
-             integration with the existing portfolio dispatcher lands in the next iteration; \
-             for Phase 2 verification, continue using --properties for now. The CEGIS loop \
-             can be exercised directly via `cargo test -p vergil-core --features llm-live`."
-        );
-        return Err(99);
+    if let Some(intent_str) = intent {
+        return run_with_intent(project, intent_str, format).await;
     }
     let project = match project.canonicalize() {
         Ok(p) => p,
@@ -216,6 +215,148 @@ fn emit_counterexample_files(
         }
     }
     Ok(())
+}
+
+/// End-to-end `vergil verify --intent` path: build env providers, run CEGIS,
+/// serialize proof.json. Exit codes:
+///   0 — at least one property verified, proof.json written
+///   1 — CEGIS finished but no property verified (counterexample or unknown)
+///   2 — pipeline failure (env, IO, retrieval, etc.)
+async fn run_with_intent(project: PathBuf, intent: String, format: OutputFormat) -> Result<(), u8> {
+    let project = match project.canonicalize() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("invalid project path {}: {e}", project.display());
+            return Err(3);
+        }
+    };
+    let templates_dir = match locate_templates_dir() {
+        Some(p) => p,
+        None => {
+            eprintln!(
+                "could not locate property templates dir. Run from the Vergil repo root, or \
+                 set CARGO_MANIFEST_DIR to a workspace member."
+            );
+            return Err(2);
+        }
+    };
+    let catalog = match Catalog::load(&templates_dir) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("templates {}: {e}", templates_dir.display());
+            return Err(2);
+        }
+    };
+
+    // CLI defaults: tighter than production. Stretching the per-contract
+    // budget to $10 caps blast radius from a single interactive run. k=4
+    // trims fan-out (the kill-criterion runner uses k=16 for the sweep).
+    // 3 iterations is enough for the typical synth → critique → verify
+    // flow before refinement diverges.
+    let mut synth = CegisConfig::default().synthesis;
+    synth.samples = 4;
+    let cegis_cfg = CegisConfig {
+        max_iterations: 3,
+        synthesis: synth,
+        cost_budget_usd: 10.0,
+        ..CegisConfig::default()
+    };
+
+    let spec = IntentRun {
+        project: project.clone(),
+        intent: intent.clone(),
+        scaffold: default_scaffold_for_erc20(),
+        catalog,
+        cegis: cegis_cfg,
+        mutation_min: 0.4,
+        budget_per_property: Duration::from_secs(DEFAULT_BUDGET_SECS),
+    };
+
+    let (run, proof_path) = match run_intent(spec).await {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("intent run failed: {e}");
+            return Err(2);
+        }
+    };
+
+    let verified: Vec<&_> = run
+        .outcomes
+        .iter()
+        .filter(|o| matches!(o.verifier_verdict, VerifierVerdict::Verified))
+        .collect();
+    match format {
+        OutputFormat::Text => {
+            println!("intent: {intent}");
+            println!("iterations: {}", run.iterations.len());
+            println!("synthesized: {} candidates", run.outcomes.len());
+            println!("verified: {}", verified.len());
+            for v in &verified {
+                println!("  ✓ {}", v.candidate.name);
+            }
+            for o in &run.outcomes {
+                if let VerifierVerdict::Counterexample(msg) = &o.verifier_verdict {
+                    println!("  ✗ {}: {msg}", o.candidate.name);
+                }
+            }
+            println!(
+                "cost: ${:.4} ({}/{} tokens)",
+                run.total_cost_usd,
+                total_tokens(&run, true),
+                total_tokens(&run, false)
+            );
+            println!("proof: {}", proof_path.display());
+            if let Some(reason) = &run.stop_reason {
+                println!("stop_reason: {reason}");
+            }
+        }
+        OutputFormat::Markdown => {
+            let body = format!(
+                "# Vergil intent run\n\n- intent: `{}`\n- iterations: {}\n- verified: {} / {}\n- cost: ${:.4}\n- proof: `{}`\n",
+                intent,
+                run.iterations.len(),
+                verified.len(),
+                run.outcomes.len(),
+                run.total_cost_usd,
+                proof_path.display()
+            );
+            let out = project.join("vergil-out").join("report.md");
+            if let Err(e) = std::fs::write(&out, &body) {
+                eprintln!("write {}: {e}", out.display());
+                return Err(3);
+            }
+            println!("wrote {}", out.display());
+        }
+        OutputFormat::Json => {
+            let value = serde_json::json!({
+                "intent": intent,
+                "iterations": run.iterations.len(),
+                "synthesized": run.outcomes.len(),
+                "verified": verified.iter().map(|o| &o.candidate.name).collect::<Vec<_>>(),
+                "cost_usd": run.total_cost_usd,
+                "proof_path": proof_path.display().to_string(),
+                "stop_reason": run.stop_reason,
+            });
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&value).unwrap_or_default()
+            );
+        }
+    }
+
+    if verified.is_empty() {
+        Err(1)
+    } else {
+        Ok(())
+    }
+}
+
+fn total_tokens(run: &vergil_core::cegis::CegisRun, is_in: bool) -> u32 {
+    if is_in {
+        run.iterations.iter().map(|i| i.tokens_in).sum()
+    } else {
+        run.iterations.iter().map(|i| i.tokens_out).sum()
+    }
 }
 
 /// Re-run Halmos in a thread-isolated tokio runtime to capture a structured
