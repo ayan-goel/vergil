@@ -2508,6 +2508,15 @@ dependencies = [
 [[package]]
 name = "vergil-mutation"
 version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "vergil-proof"
