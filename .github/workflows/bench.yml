@@ -1,0 +1,44 @@
+# VergilBench full sweep — MANUAL ONLY.
+#
+# Estimated cost: $50–$200 per run. Wall clock: ~4 hours.
+# Phase 3 ships the runner; the first full sweep is DEFERRED to Phase 4
+# launch readiness. Until then, this workflow runs against the 5-contract
+# seed corpus at zero cost in ~30s.
+#
+# NEVER add a `schedule:` trigger here — that would amortize the bench's
+# cost across runs whether anyone is reading the scoreboard or not.
+# The user controls when this runs via the GitHub UI "Run workflow"
+# button or the `make bench` Makefile target.
+name: bench
+on:
+  workflow_dispatch:
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install foundry + halmos
+        run: |
+          curl -L https://foundry.paradigm.xyz | bash
+          export PATH="$HOME/.foundry/bin:$PATH"
+          foundryup
+          pipx install halmos
+      - name: Build vergil + vergilbench
+        run: cargo build --release --bin vergil --bin vergilbench
+      - name: Run bench
+        run: ./target/release/vergilbench --corpus vergilbench
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: vergilbench-results
+          path: vergilbench/results/
+          retention-days: 90
+      - name: Upload scoreboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoreboard
+          path: benchmarks/results/README.md
+          retention-days: 90

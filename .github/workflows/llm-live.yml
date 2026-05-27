@@ -1,0 +1,23 @@
+# Live-API integration tests — MANUAL ONLY.
+#
+# Estimated cost: ~$0.05 per run. Wall clock: ~2 minutes.
+# Runs the `--features llm-live` tests against real Anthropic + OpenAI
+# endpoints to catch API-shape regressions Sonnet 4.6 / GPT-5.5 ship.
+#
+# NEVER add a `schedule:` trigger.
+name: llm-live
+on:
+  workflow_dispatch:
+jobs:
+  llm-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run LLM-live tests
+        env:
+          VERGIL_ANTHROPIC_API_KEY: ${{ secrets.VERGIL_ANTHROPIC_API_KEY }}
+          VERGIL_OPENAI_API_KEY: ${{ secrets.VERGIL_OPENAI_API_KEY }}
+        run: cargo test --workspace --features llm-live

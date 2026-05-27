@@ -1,0 +1,38 @@
+# Phase 2 kill criterion — MANUAL ONLY.
+#
+# Estimated cost: ~$12 per run. Wall clock: ~22 minutes.
+# Runs the 22-property kill-criterion sweep across the 5 reference
+# token contracts (ERC20 / ERC20Burnable / ERC20Pausable / ERC721 / ERC4626).
+# Phase 3 baseline: 20/22 = 90.9%.
+#
+# NEVER add a `schedule:` trigger.
+name: kill-criterion
+on:
+  workflow_dispatch:
+jobs:
+  kill-criterion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install foundry + halmos
+        run: |
+          curl -L https://foundry.paradigm.xyz | bash
+          export PATH="$HOME/.foundry/bin:$PATH"
+          foundryup
+          pipx install halmos
+      - name: Build kill-criterion runner
+        run: cargo build --release --bin kill-criterion
+      - name: Run kill criterion
+        env:
+          VERGIL_ANTHROPIC_API_KEY: ${{ secrets.VERGIL_ANTHROPIC_API_KEY }}
+          VERGIL_OPENAI_API_KEY: ${{ secrets.VERGIL_OPENAI_API_KEY }}
+        run: ./target/release/kill-criterion
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: kill-criterion-results
+          path: tests/kill_criterion_month2/results/
+          retention-days: 90
