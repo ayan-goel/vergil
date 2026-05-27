@@ -10,7 +10,17 @@ rust-version.workspace = true
 tokio = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = "0.1"
+futures = "0.3"
 vergil-solidity = { path = "../vergil-solidity" }
+vergil-llm = { path = "../vergil-llm" }
+vergil-properties = { path = "../vergil-properties" }
+
+[dev-dependencies]
+tempfile = "3"
 
 [features]
 integration = ["vergil-solidity/integration"]
+llm-live = ["vergil-llm/llm-live"]

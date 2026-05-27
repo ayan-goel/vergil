@@ -2470,9 +2470,16 @@ dependencies = [
 name = "vergil-core"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
+ "futures",
  "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "vergil-llm",
+ "vergil-properties",
  "vergil-solidity",
 ]
 

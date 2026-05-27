@@ -1,0 +1,8 @@
+{
+  "kind": "completion",
+  "content": "[{\"name\":\"check_transfer_preserves_total_supply\",\"halmos\":\"function check_transfer_preserves_total_supply(address to, uint256 amount) public { uint256 t0 = token.totalSupply(); try token.transfer(to, amount) {} catch {} assert(token.totalSupply() == t0); }\",\"smtchecker\":\"\",\"template_ref\":\"erc20-totalsupply-invariant\",\"intent_satisfied\":true},{\"name\":\"check_transferFrom_pair_sum_preserved\",\"halmos\":\"function check_transferFrom_pair_sum_preserved(address from, address to, uint256 amount) public { require(from != to); uint256 a0 = token.balanceOf(from); uint256 b0 = token.balanceOf(to); try token.transferFrom(from, to, amount) {} catch { return; } assert(token.balanceOf(from) + token.balanceOf(to) == a0 + b0); }\",\"smtchecker\":\"\",\"template_ref\":\"erc20-sum-of-balances\",\"intent_satisfied\":true}]",
+  "tokens_in": 2840,
+  "tokens_out": 412,
+  "latency_ms": 2150,
+  "provider_request_id": "mock-synth-erc20-v1"
+}
