@@ -6,9 +6,17 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[lib]
+name = "vergil_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "vergil"
 path = "src/main.rs"
+
+[[bin]]
+name = "kill-criterion"
+path = "src/bin/kill_criterion.rs"
 
 [dependencies]
 clap = { workspace = true }
