@@ -9,8 +9,8 @@
 #   - cvc5     — SMT solver (portfolio)
 #   - solc     — Solidity compiler (storage layout + SMTChecker CHC)
 #
-# Phase 3 (mutation testing) additionally requires:
-#   - Gambit   — Solidity mutation tester
+# Phase 2 (LLM spec synthesis) additionally requires:
+#   - Gambit   — Solidity mutation tester (pinned commit; Certora, Apache 2.0)
 #
 # Detects macOS vs Linux and uses the appropriate package manager.
 
@@ -98,17 +98,18 @@ case "$OS" in
         ;;
 esac
 
-# 5. Gambit — Phase 3 (mutation testing). Skipped unless --with-gambit is passed,
-# since cargo-install of a third-party git repo can fail in restricted environments.
-if [[ "${1:-}" == "--with-gambit" ]]; then
-    if ! command -v gambit >/dev/null 2>&1; then
-        log "Installing Gambit (Phase 3 mutation testing)"
-        cargo install --git https://github.com/Certora/gambit
-    else
-        log "Gambit already installed: $(gambit --version 2>&1 | head -1)"
-    fi
+# 5. Gambit — Phase 2 (mutation testing as a spec-quality defense).
+# Pinned to the commit verified during Phase 2 bootstrap (2026-05-26).
+# Pass --skip-gambit to install everything except Gambit (e.g. restricted
+# environments that cannot cargo-install from a third-party git URL).
+GAMBIT_REV="${GAMBIT_REV:-072ff4c6}"
+if [[ "${1:-}" == "--skip-gambit" ]]; then
+    log "Skipping Gambit at user request (--skip-gambit). Phase 2 will run in degraded mode."
+elif ! command -v gambit >/dev/null 2>&1; then
+    log "Installing Gambit (commit $GAMBIT_REV)"
+    cargo install --git https://github.com/Certora/gambit --rev "$GAMBIT_REV"
 else
-    log "Skipping Gambit (Phase 3 dep). Pass --with-gambit to install."
+    log "Gambit already installed at $(command -v gambit)"
 fi
 
-log "All Phase-1 dependencies installed. Run 'vergil doctor' to verify."
+log "All Phase-1 + Phase-2 dependencies installed. Run 'vergil doctor' to verify."

@@ -19,9 +19,8 @@ impl ToolInfo {
     }
 }
 
-/// The set of external tools Vergil requires for Phase 1 verification.
-///
-/// Gambit (mutation testing) is intentionally excluded: it's a Phase 3 dependency.
+/// The set of external tools Vergil requires across Phase 1 (verification) and
+/// Phase 2 (mutation testing as a spec-quality defense — Gambit).
 pub fn detect() -> Vec<ToolInfo> {
     vec![
         detect_one(&FORGE),
@@ -30,6 +29,7 @@ pub fn detect() -> Vec<ToolInfo> {
         detect_one(&Z3),
         detect_one(&CVC5),
         detect_one(&SOLC),
+        detect_one(&GAMBIT),
     ]
 }
 
@@ -119,6 +119,18 @@ const SOLC: ToolSpec = ToolSpec {
     install_hint: "brew install solidity   # or: apt-get install solc",
 };
 
+// Gambit has no `--version` flag — only subcommands. `--help` is the cheapest
+// liveness check; we report "installed" rather than a parsed version string.
+// Version pinning happens at install time via scripts/install-deps.sh.
+const GAMBIT: ToolSpec = ToolSpec {
+    name: "gambit",
+    display_name: "Gambit",
+    cmd: "gambit",
+    args: &["--help"],
+    parser: parse_gambit,
+    install_hint: "cargo install --git https://github.com/Certora/gambit",
+};
+
 fn parse_forge(out: &str) -> Option<String> {
     for line in out.lines() {
         let line = line.trim();
@@ -179,6 +191,14 @@ fn parse_solc(out: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn parse_gambit(out: &str) -> Option<String> {
+    if out.lines().any(|l| l.trim().starts_with("Usage: gambit")) {
+        Some("installed".to_string())
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -291,5 +311,22 @@ mod tests {
     #[test]
     fn solc_garbage_rejects() {
         assert_eq!(parse_solc("solc: command not found\n"), None);
+    }
+
+    #[test]
+    fn gambit_help_parses() {
+        let out = indoc! {"
+            Usage: gambit <COMMAND>
+
+            Commands:
+              mutate   Mutate solidity code
+        "};
+        assert_eq!(parse_gambit(out), Some("installed".to_string()));
+    }
+
+    #[test]
+    fn gambit_garbage_rejects() {
+        assert_eq!(parse_gambit("gambit: command not found\n"), None);
+        assert_eq!(parse_gambit(""), None);
     }
 }
