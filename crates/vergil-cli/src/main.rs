@@ -10,7 +10,8 @@ mod output;
 #[command(
     name = "vergil",
     version,
-    about = "Mathematically verified Solidity smart contracts"
+    about = "LLM-guided formal verification for Solidity smart contracts",
+    long_about = "Vergil verifies Solidity contracts via a portfolio of symbolic execution (Halmos) and CHC model checking (Solidity SMTChecker). The LLM proposes candidate properties from a natural-language intent; an independent critic rejects vacuous candidates; only the SMT solver decides correctness.\n\nExit codes (SPEC §3.1):\n  0  all properties verified\n  1  at least one counterexample\n  2  all resolved as unknown\n  3  pipeline error (toolchain, IO, config)"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -19,7 +20,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Verify a Solidity project against a properties.yaml file
+    /// Verify a Solidity project against a properties.yaml file or a natural-language intent
     Verify {
         /// Path to the Foundry project (the dir holding foundry.toml)
         path: PathBuf,
@@ -42,18 +43,21 @@ enum Command {
         #[arg(long)]
         scaffold: Option<PathBuf>,
     },
-    /// Scaffold a Vergil config in the current Foundry project
+    /// Scaffold a Vergil config in the current Foundry project (stub — see docs/book/src/cli-reference.md)
     Init,
-    /// Re-check an existing proof artifact without LLM or solver search
-    Prove { artifact: PathBuf },
-    /// Run benchmark suites
+    /// Re-check an existing proof.json without running Halmos again
+    Prove {
+        /// Path to a `proof.json` artifact emitted by a previous `vergil verify` run
+        artifact: PathBuf,
+    },
+    /// Run benchmark suites (stub — use the dedicated `vergilbench` binary)
     Bench,
-    /// Manage the property catalog
+    /// Manage the property catalog (stub — templates live in crates/vergil-properties/templates/)
     Corpus {
         #[command(subcommand)]
         action: CorpusAction,
     },
-    /// Check that toolchain dependencies are installed
+    /// Check that toolchain dependencies (solc, halmos, forge, z3, cvc5, slither) are installed
     Doctor,
 }
 
