@@ -1,0 +1,20 @@
+id: erc721-transferfrom-clears-approval
+description: a successful transferFrom clears the token's per-token approval to address(0)
+cost_class: cheap
+applies_to:
+  interfaces: [ERC721]
+requires:
+  storage_slots:
+    - name: _owners
+      type: mapping(uint256 => address)
+    - name: _tokenApprovals
+      type: mapping(uint256 => address)
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-721 EIP, OZ ERC721 _transfer
+  license: Apache-2.0

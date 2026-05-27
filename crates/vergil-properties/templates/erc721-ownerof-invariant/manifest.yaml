@@ -1,0 +1,18 @@
+id: erc721-ownerof-invariant
+description: ownerOf(tokenId) returns a non-zero address for every existing token and the same address for every read in a single transaction
+cost_class: trivial
+applies_to:
+  interfaces: [ERC721]
+requires:
+  storage_slots:
+    - name: _owners
+      type: mapping(uint256 => address)
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-721 EIP
+  license: Apache-2.0

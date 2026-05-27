@@ -1,0 +1,18 @@
+id: erc20-allowance-only-via-approve-or-transferfrom
+description: allowance(owner, spender) changes only via approve / increaseAllowance / decreaseAllowance / permit / transferFrom; no other function mutates it
+cost_class: cheap
+applies_to:
+  interfaces: [ERC20]
+requires:
+  storage_slots:
+    - name: _allowances
+      type: mapping(address => mapping(address => uint256))
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ ERC20 _approve callsites
+  license: Apache-2.0

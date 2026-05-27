@@ -1,0 +1,18 @@
+id: erc20-totalsupply-invariant
+description: totalSupply changes only via mint/burn and exactly by the minted/burned amount; transfers preserve it
+cost_class: cheap
+applies_to:
+  interfaces: [ERC20]
+requires:
+  storage_slots:
+    - name: _totalSupply
+      type: uint256
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-20 EIP
+  license: Apache-2.0

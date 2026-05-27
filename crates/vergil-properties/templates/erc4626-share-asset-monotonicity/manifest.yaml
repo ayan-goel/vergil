@@ -1,0 +1,18 @@
+id: erc4626-share-asset-monotonicity
+description: convertToShares and convertToAssets are monotone non-decreasing in their input; round-trip conversions never inflate
+cost_class: medium
+applies_to:
+  interfaces: [ERC4626]
+requires:
+  storage_slots:
+    - name: _totalAssets
+      type: uint256
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-4626 EIP §4 Security Considerations
+  license: Apache-2.0

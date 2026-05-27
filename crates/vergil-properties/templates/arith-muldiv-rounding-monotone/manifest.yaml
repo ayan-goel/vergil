@@ -1,0 +1,16 @@
+id: arith-muldiv-rounding-monotone
+description: mulDiv with the same rounding mode is monotone in its numerator; switching from floor to ceil never decreases the result
+cost_class: hard
+applies_to:
+  interfaces: []
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ Math.mulDiv, fixed-point libraries
+  license: Apache-2.0

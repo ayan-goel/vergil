@@ -1,0 +1,18 @@
+id: access-onlyowner-storage-guard
+description: a storage slot guarded by onlyOwner can only be mutated by the owner; non-owner callers can never change its value
+cost_class: cheap
+applies_to:
+  interfaces: [Ownable]
+requires:
+  storage_slots:
+    - name: _owner
+      type: address
+  modifiers: [onlyOwner]
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ Ownable
+  license: Apache-2.0

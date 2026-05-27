@@ -1,0 +1,16 @@
+id: generic-zero-amount-noop
+description: amount-bearing entry points (transfer, transferFrom, mint, burn, deposit, withdraw) are either no-ops on amount==0 or revert; either way they never mutate balances on the zero path
+cost_class: trivial
+applies_to:
+  interfaces: [ERC20, ERC4626]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: common audit checklist
+  license: Apache-2.0

@@ -1,0 +1,16 @@
+id: erc721-safetransferfrom-receiver-check
+description: safeTransferFrom to a contract receiver that does not implement onERC721Received must revert; transfer to an EOA always succeeds (modulo other checks)
+cost_class: cheap
+applies_to:
+  interfaces: [ERC721]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-721 EIP §safeTransferFrom
+  license: Apache-2.0

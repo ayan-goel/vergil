@@ -1,0 +1,20 @@
+id: erc20-mint-burn-accounting
+description: mint(to, n) increases balanceOf(to) and totalSupply by exactly n; burn(from, n) decreases them by exactly n; both revert on overflow
+cost_class: cheap
+applies_to:
+  interfaces: [ERC20Mintable, ERC20Burnable]
+requires:
+  storage_slots:
+    - name: _balances
+      type: mapping(address => uint256)
+    - name: _totalSupply
+      type: uint256
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ ERC20Burnable
+  license: Apache-2.0

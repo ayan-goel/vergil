@@ -1,0 +1,18 @@
+id: access-role-membership-transitions
+description: hasRole(role, account) flips false→true only via grantRole; flips true→false only via revokeRole or renounceRole
+cost_class: cheap
+applies_to:
+  interfaces: [AccessControl]
+requires:
+  storage_slots:
+    - name: _roles
+      type: mapping(bytes32 => RoleData)
+  modifiers: [onlyRole]
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ AccessControl
+  license: Apache-2.0

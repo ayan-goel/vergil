@@ -1,0 +1,18 @@
+id: erc20-approve-conformance
+description: approve sets the allowance exactly to the requested value (last-write-wins)
+cost_class: trivial
+applies_to:
+  interfaces: [ERC20]
+requires:
+  storage_slots:
+    - name: _allowances
+      type: mapping(address => mapping(address => uint256))
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-20 EIP
+  license: Apache-2.0

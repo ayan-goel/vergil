@@ -1,0 +1,16 @@
+id: arith-modulo-by-zero
+description: every modulo operation reverts cleanly when the divisor is zero
+cost_class: trivial
+applies_to:
+  interfaces: []
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: Solidity 0.8 modulo semantics
+  license: Apache-2.0

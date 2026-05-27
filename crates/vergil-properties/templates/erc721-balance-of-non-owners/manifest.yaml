@@ -1,0 +1,18 @@
+id: erc721-balance-of-non-owners
+description: balanceOf(address(0)) must revert; for any other address, balanceOf equals the count of tokens owned
+cost_class: trivial
+applies_to:
+  interfaces: [ERC721]
+requires:
+  storage_slots:
+    - name: _balances
+      type: mapping(address => uint256)
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-721 EIP
+  license: Apache-2.0

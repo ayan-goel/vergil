@@ -1,0 +1,20 @@
+id: erc20-transferfrom-conformance
+description: transferFrom requires sufficient allowance and decrements it (unless allowance is type(uint256).max)
+cost_class: cheap
+applies_to:
+  interfaces: [ERC20]
+requires:
+  storage_slots:
+    - name: _balances
+      type: mapping(address => uint256)
+    - name: _allowances
+      type: mapping(address => mapping(address => uint256))
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: ERC-20 EIP, OZ ERC20Permit allowance semantics
+  license: Apache-2.0

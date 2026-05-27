@@ -1,0 +1,18 @@
+id: erc20-pausable
+description: when paused() is true, transfer and transferFrom must revert; when unpaused, normal semantics resume
+cost_class: cheap
+applies_to:
+  interfaces: [ERC20, Pausable]
+requires:
+  storage_slots:
+    - name: _paused
+      type: bool
+  modifiers: [whenNotPaused]
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ ERC20Pausable
+  license: Apache-2.0

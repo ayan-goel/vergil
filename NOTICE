@@ -1,0 +1,32 @@
+Vergil
+Copyright 2026 Vergil contributors
+
+This product includes software developed at the Vergil project
+(https://github.com/vergil-tools/vergil).
+
+==================================================================
+Property catalog provenance (SPEC §3.9)
+==================================================================
+
+Phase 2's RAG corpus (30 templates under
+crates/vergil-properties/templates/) is entirely Vergil-original
+(Tier 2 per SPEC §3.9). No source is vendored verbatim from any
+external repository.
+
+Each template's manifest.yaml records its `provenance` block with:
+  - tier: original
+  - license: Apache-2.0
+  - inspired_by: human-readable reference to the public pattern the
+    template captures (EIP, audit checklist, OZ source file name, etc.)
+
+The "inspired by" attributions are informational pointers; the
+encodings are independent implementations of the underlying
+mathematical / behavioral property. Per SPEC §3.9, mathematical
+properties (sum-of-balances, monotonicity, conservation, etc.) are
+not copyrightable. Specific implementations are. The Tier 2
+templates implement the properties as new code.
+
+Tier 1 (vendored permissively-licensed sources) and Tier 3
+(reference-only links to GPL/AGPL/BUSL sources) are reserved for
+future catalog expansion. As of Phase 2, no Tier 1 or Tier 3
+templates are present in the corpus.

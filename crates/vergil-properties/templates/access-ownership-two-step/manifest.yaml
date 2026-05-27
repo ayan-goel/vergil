@@ -1,0 +1,20 @@
+id: access-ownership-two-step
+description: ownership transfer requires the pending owner to call acceptOwnership; transferOwnership alone does not change the active owner
+cost_class: cheap
+applies_to:
+  interfaces: [Ownable2Step]
+requires:
+  storage_slots:
+    - name: _owner
+      type: address
+    - name: _pendingOwner
+      type: address
+  modifiers: [onlyOwner]
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ Ownable2Step
+  license: Apache-2.0

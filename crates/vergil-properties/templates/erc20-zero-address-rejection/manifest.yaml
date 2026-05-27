@@ -1,0 +1,16 @@
+id: erc20-zero-address-rejection
+description: transfer/transferFrom/mint to address(0) must revert
+cost_class: trivial
+applies_to:
+  interfaces: [ERC20]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ ERC20 _update zero-address check
+  license: Apache-2.0
