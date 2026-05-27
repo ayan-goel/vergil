@@ -1,4 +1,4 @@
-contract: contracts/ERC4626.sol
+contract: ERC4626.sol
 intent: |
   ERC-4626 tokenized vault. convertToShares / convertToAssets are monotone
   non-decreasing. Round-trip conversions never inflate. deposit credits
@@ -7,11 +7,32 @@ intent: |
 ground_truth:
   - name: convertToShares_is_monotone
     expected: verified
+    description: |
+      For any non-negative a1 <= a2, token.convertToShares(a1) <=
+      token.convertToShares(a2). I.e., more assets convert to at least as
+      many shares.
   - name: convertToAssets_is_monotone
     expected: verified
+    description: |
+      For any non-negative s1 <= s2, token.convertToAssets(s1) <=
+      token.convertToAssets(s2). I.e., more shares convert to at least as
+      many assets.
   - name: roundtrip_assets_does_not_inflate
     expected: verified
+    description: |
+      For any assets value a, token.convertToAssets(token.convertToShares(a))
+      <= a. The asset → share → asset round-trip cannot produce more assets
+      than were input.
   - name: deposit_increases_totalAssets_by_at_least_paid
     expected: verified
+    description: |
+      If token.deposit(assets, receiver) succeeds, token.totalAssets() after
+      the call is at least token.totalAssets() before plus `assets`. Use a
+      try/catch and only assert when the deposit returned.
   - name: deposit_then_redeem_does_not_inflate
     expected: verified
+    description: |
+      A deposit immediately followed by redeem of the resulting shares yields
+      at most the originally deposited assets. Use try/catch on both calls;
+      if both succeed, assert the recovered assets <= the originally
+      deposited assets.

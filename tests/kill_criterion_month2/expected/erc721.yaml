@@ -1,4 +1,4 @@
-contract: contracts/ERC721.sol
+contract: ERC721.sol
 intent: |
   Standard ERC-721 conformance. Every existing token has a non-zero owner
   reachable via ownerOf. transferFrom clears the per-token approval.
@@ -7,11 +7,27 @@ intent: |
 ground_truth:
   - name: owner_is_nonzero_for_existing_token
     expected: verified
+    description: |
+      For any tokenId that token.ownerOf(tokenId) returns without reverting,
+      the returned address is non-zero (i.e., != address(0)).
   - name: transferFrom_clears_per_token_approval
     expected: verified
+    description: |
+      After a successful token.transferFrom(from, to, tokenId), the
+      token.getApproved(tokenId) call returns address(0), regardless of
+      whatever approval was set beforehand.
   - name: unauthorized_approve_reverts
     expected: verified
+    description: |
+      token.approve(spender, tokenId) called by msg.sender who is NEITHER
+      the owner NOR approvedForAll by the owner reverts.
   - name: balance_of_zero_reverts
     expected: verified
+    description: |
+      token.balanceOf(address(0)) reverts. Wrap in try/catch and assert the
+      call did NOT return.
   - name: mint_sets_owner_and_increments_balance
     expected: verified
+    description: |
+      A successful token.mint(to, tokenId) call sets token.ownerOf(tokenId)
+      to `to` and increments token.balanceOf(to) by exactly 1.

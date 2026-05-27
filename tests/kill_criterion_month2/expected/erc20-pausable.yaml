@@ -1,4 +1,4 @@
-contract: contracts/ERC20Pausable.sol
+contract: ERC20Pausable.sol
 intent: |
   ERC-20 with pausable extension. When paused() is true, transfer and
   transferFrom must revert. unpause() restores normal semantics. The
@@ -6,7 +6,20 @@ intent: |
 ground_truth:
   - name: paused_blocks_transfer
     expected: verified
+    description: |
+      After token.pause() succeeds (the test contract is the pauser),
+      a subsequent token.transfer(to, amount) call reverts. Use a try/catch
+      and assert the call did NOT succeed.
   - name: paused_blocks_transferFrom
     expected: verified
+    description: |
+      After token.pause() succeeds, a subsequent token.transferFrom(from, to,
+      amount) call reverts. Use a try/catch and assert the call did NOT
+      succeed.
   - name: only_unpause_clears_paused
     expected: verified
+    description: |
+      If token.paused() was true and no call to token.unpause() happens,
+      token.paused() remains true regardless of any other (non-pauser)
+      interaction. Equivalently: after pause, the only way for paused() to
+      become false is an unpause() call.

@@ -1,4 +1,4 @@
-contract: contracts/ERC20Burnable.sol
+contract: ERC20Burnable.sol
 intent: |
   ERC-20 with burnable extension. burn(amount) decreases caller's balance
   and totalSupply by exactly amount; burnFrom(account, amount) requires
@@ -6,7 +6,17 @@ intent: |
 ground_truth:
   - name: burn_debits_self_and_total
     expected: verified
+    description: |
+      A successful burn(amount) decreases both token.balanceOf(msg.sender)
+      and token.totalSupply() by exactly amount.
   - name: burnFrom_requires_allowance
     expected: verified
+    description: |
+      burnFrom(from, amount) called by msg.sender with
+      allowance[from][msg.sender] < amount reverts.
   - name: burnFrom_decrements_allowance
     expected: verified
+    description: |
+      A successful burnFrom(from, amount) where the prior
+      allowance[from][msg.sender] was strictly less than type(uint256).max
+      decrements that allowance by exactly amount.

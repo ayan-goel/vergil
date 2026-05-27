@@ -1,4 +1,4 @@
-contract: contracts/ERC20.sol
+contract: ERC20.sol
 intent: |
   Standard ERC-20 conformance. Transfers move value without creating or
   destroying it. totalSupply changes only via mint or burn. Allowances
@@ -7,13 +7,31 @@ intent: |
 ground_truth:
   - name: transfer_credits_recipient_exactly
     expected: verified
+    description: |
+      A successful transfer(to, amount) where `to` is distinct from msg.sender
+      increases token.balanceOf(to) by exactly amount.
   - name: transferFrom_blocks_unauthorized
     expected: verified
+    description: |
+      transferFrom(from, to, amount) called by msg.sender with
+      allowance[from][msg.sender] < amount reverts (i.e., must NOT succeed).
   - name: approve_sets_exact_allowance
     expected: verified
+    description: |
+      A successful approve(spender, value) sets token.allowance(msg.sender,
+      spender) to exactly value, regardless of prior allowance.
   - name: transfer_preserves_total_supply
     expected: verified
+    description: |
+      For any transfer(to, amount), token.totalSupply() before equals
+      token.totalSupply() after, whether the call succeeds or reverts.
   - name: transferFrom_decrements_finite_allowance
     expected: verified
+    description: |
+      A successful transferFrom(from, msg.sender, amount) where the prior
+      allowance[from][msg.sender] was strictly less than type(uint256).max
+      decrements the allowance by exactly amount.
   - name: transfer_to_zero_reverts
     expected: verified
+    description: |
+      transfer(address(0), amount) reverts for any amount.
