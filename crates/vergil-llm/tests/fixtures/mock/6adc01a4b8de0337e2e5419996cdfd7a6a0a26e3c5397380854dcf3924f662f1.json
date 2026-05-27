@@ -1,0 +1,8 @@
+{
+  "kind": "completion",
+  "content": "Here is a Halmos check_ function for balance preservation:\n\nfunction check_transfer_preserves_total_supply(\n    address to, uint256 amount\n) public {\n    uint256 t0 = token.totalSupply();\n    try token.transfer(to, amount) {} catch {}\n    assertEq(token.totalSupply(), t0);\n}",
+  "tokens_in": 1320,
+  "tokens_out": 178,
+  "latency_ms": 1840,
+  "provider_request_id": "mock-synthesize-v1"
+}
