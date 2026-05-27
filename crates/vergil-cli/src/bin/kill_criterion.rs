@@ -199,8 +199,7 @@ fn run() -> Result<(), String> {
         for (idx, gt) in expected.ground_truth.iter().enumerate() {
             if total_cost_usd >= AGGREGATE_BUDGET_USD {
                 eprintln!(
-                    "[kill-criterion] aggregate budget ${:.2} reached, aborting remaining work",
-                    AGGREGATE_BUDGET_USD
+                    "[kill-criterion] aggregate budget ${AGGREGATE_BUDGET_USD:.2} reached, aborting remaining work"
                 );
                 aborted_on_budget = true;
                 break 'outer;
@@ -332,8 +331,8 @@ fn run() -> Result<(), String> {
     };
 
     let summary_path = results_dir.join(format!("{stamp}.json"));
-    let body = serde_json::to_string_pretty(&report)
-        .map_err(|e| format!("serialize report: {e}"))?;
+    let body =
+        serde_json::to_string_pretty(&report).map_err(|e| format!("serialize report: {e}"))?;
     fs::write(&summary_path, &body).map_err(|e| format!("write report: {e}"))?;
 
     println!("kill-criterion summary: {}", summary_path.display());
@@ -475,14 +474,12 @@ fn symlink_or_copy_project(source: &Path, dest: &Path) -> Result<(), String> {
     #[cfg(unix)]
     {
         if std::os::unix::fs::symlink(&foundry, &foundry_link).is_err() {
-            fs::copy(&foundry, &foundry_link)
-                .map_err(|e| format!("copy foundry.toml: {e}"))?;
+            fs::copy(&foundry, &foundry_link).map_err(|e| format!("copy foundry.toml: {e}"))?;
         }
     }
     #[cfg(not(unix))]
     {
-        fs::copy(&foundry, &foundry_link)
-            .map_err(|e| format!("copy foundry.toml: {e}"))?;
+        fs::copy(&foundry, &foundry_link).map_err(|e| format!("copy foundry.toml: {e}"))?;
     }
 
     let src_link = dest.join("src");
