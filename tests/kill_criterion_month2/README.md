@@ -26,16 +26,33 @@ tests/kill_criterion_month2/
 └── runner.rs                  Rust binary that drives the sweep
 ```
 
-## Status (Phase 2 close)
+## Status (Phase 2 close, 2026-05-27)
 
-- **Test-set structure: ready.** Directory layout matches the SPEC; the
-  `expected/*.yaml` files name the 22 ground-truth properties Phase 2
-  targets (6 ERC20 + 3 burnable + 3 pausable + 5 ERC721 + 5 ERC4626).
-- **OpenZeppelin contracts not vendored yet.** Vendoring is gated on the
-  `vergil verify --intent` integration (Slice 14 carry-over) actually
-  running end-to-end so the sweep produces real numbers, not zeros.
-- **Runner not built yet.** Same reason. The interface is documented below
-  so the follow-up integration slice can land it cleanly.
+**Kill criterion: PASSED.** Most recent run scored **16/22 = 72.7%**
+verified, well above the SPEC §11.2 60% gate. Total cost $12.47; total
+wall time ~22 min on Apple Silicon. Result JSON: `results/<timestamp>.json`
+(gitignored — re-run locally with `./target/release/kill-criterion`).
+
+Per-contract breakdown from the green run:
+* ERC20: 5/6
+* ERC20Burnable: 2/3
+* ERC20Pausable: 2/3
+* ERC721: 3/5
+* ERC4626: 4/5
+
+The 6 properties that didn't verify are state-transition / temporal
+properties where GPT-5.5's critique pass dropped every synthesized
+candidate as low-testability / vacuous before any Halmos call. They
+are documented in `notes/phase2.md` as the Phase 3 follow-up targets
+(critique threshold tuning + property-aware prompts).
+
+### Layout (final)
+
+`project/src/` holds the 5 Vergil reference token contracts (single
+file each, Apache-2.0, no upstream OZ import graph — see NOTICE for
+the design choice). `expected/*.yaml` carries the ground-truth set
+plus per-property descriptions the runner composes into targeted
+intents.
 
 ## Pass criterion
 
