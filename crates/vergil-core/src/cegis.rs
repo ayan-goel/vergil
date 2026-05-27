@@ -85,9 +85,15 @@ pub enum VerifierVerdict {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         smt_query_sha256: Option<String>,
     },
-    Counterexample(String),
-    Unknown(String),
-    Error(String),
+    Counterexample {
+        message: String,
+    },
+    Unknown {
+        detail: String,
+    },
+    Error {
+        detail: String,
+    },
 }
 
 fn default_backend_label() -> String {
@@ -256,7 +262,7 @@ impl CegisLoop {
                 let verdict = self.dispatcher.dispatch(&c).await;
                 match &verdict {
                     VerifierVerdict::Verified { .. } => stats.verified += 1,
-                    VerifierVerdict::Counterexample(_) => stats.counterexamples += 1,
+                    VerifierVerdict::Counterexample { .. } => stats.counterexamples += 1,
                     _ => {}
                 }
                 stats.dispatched += 1;
@@ -288,8 +294,8 @@ impl CegisLoop {
                 .iter()
                 .rev()
                 .find_map(|o| match &o.verifier_verdict {
-                    VerifierVerdict::Counterexample(msg) => {
-                        Some((o.candidate.clone(), msg.clone()))
+                    VerifierVerdict::Counterexample { message } => {
+                        Some((o.candidate.clone(), message.clone()))
                     }
                     _ => None,
                 });

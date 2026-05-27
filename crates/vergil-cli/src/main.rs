@@ -32,6 +32,15 @@ enum Command {
         /// Natural-language intent (Phase 2; ignored in Phase 1)
         #[arg(long)]
         intent: Option<String>,
+        /// Override the auto-generated test scaffold with a custom Solidity
+        /// template file. The file must contain `{{CHECK_FN}}` and may
+        /// reference `{{NAME}}`. When omitted, Vergil reads the first .sol
+        /// under `<path>/src/`, extracts the contract identifier, and
+        /// synthesizes a default scaffold importing it with empty
+        /// constructor args. Provide this flag for contracts whose
+        /// constructor takes non-default arguments.
+        #[arg(long)]
+        scaffold: Option<PathBuf>,
     },
     /// Scaffold a Vergil config in the current Foundry project
     Init,
@@ -81,6 +90,7 @@ fn main() -> ExitCode {
             properties,
             format,
             intent,
+            scaffold,
         } => {
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -92,7 +102,9 @@ fn main() -> ExitCode {
                     return ExitCode::from(3);
                 }
             };
-            rt.block_on(commands::verify::run(path, properties, format, intent))
+            rt.block_on(commands::verify::run(
+                path, properties, format, intent, scaffold,
+            ))
         }
         Command::Init => commands::init::run(),
         Command::Prove { artifact } => commands::prove::run(artifact),

@@ -193,12 +193,16 @@ impl VerifierDispatcher for HalmosDispatcher {
     async fn dispatch(&self, spec: &SpecCandidate) -> VerifierVerdict {
         let test_dir = self.project.join("test");
         if let Err(e) = std::fs::create_dir_all(&test_dir) {
-            return VerifierVerdict::Error(format!("mkdir {}: {e}", test_dir.display()));
+            return VerifierVerdict::Error {
+                detail: format!("mkdir {}: {e}", test_dir.display()),
+            };
         }
         let file = test_dir.join("CegisProperties.t.sol");
         let body = self.render(spec);
         if let Err(e) = std::fs::write(&file, body) {
-            return VerifierVerdict::Error(format!("write {}: {e}", file.display()));
+            return VerifierVerdict::Error {
+                detail: format!("write {}: {e}", file.display()),
+            };
         }
         let cfg = PortfolioConfig {
             project: self.project.clone(),
@@ -219,11 +223,15 @@ impl VerifierDispatcher for HalmosDispatcher {
             },
             Verdict::Counterexample {
                 property, message, ..
-            } => VerifierVerdict::Counterexample(format!("{property}: {message}")),
-            Verdict::Unknown { backends } => {
-                VerifierVerdict::Unknown(summarize_backends(&backends))
-            }
-            Verdict::Error { backends } => VerifierVerdict::Error(summarize_backends(&backends)),
+            } => VerifierVerdict::Counterexample {
+                message: format!("{property}: {message}"),
+            },
+            Verdict::Unknown { backends } => VerifierVerdict::Unknown {
+                detail: summarize_backends(&backends),
+            },
+            Verdict::Error { backends } => VerifierVerdict::Error {
+                detail: summarize_backends(&backends),
+            },
         }
     }
 }
@@ -487,12 +495,12 @@ fn build_proof_artifact(
         .outcomes
         .iter()
         .filter_map(|o| match &o.verifier_verdict {
-            VerifierVerdict::Counterexample(msg) => Some(CounterexampleSummary {
+            VerifierVerdict::Counterexample { message } => Some(CounterexampleSummary {
                 property: o.candidate.name.clone(),
                 backend: "halmos".to_string(),
                 cex_file: format!("counterexamples/Cex_{}.t.sol", o.candidate.name),
                 wall_clock_ms: 0,
-                trace_summary: msg.clone(),
+                trace_summary: message.clone(),
             }),
             _ => None,
         })
