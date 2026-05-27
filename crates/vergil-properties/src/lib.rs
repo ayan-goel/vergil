@@ -16,10 +16,14 @@
 //!   - manifests whose declared file paths escape the template directory.
 
 pub mod catalog;
+pub mod embed;
 pub mod manifest;
+pub mod retrieval;
 
 pub use catalog::{
     Catalog, CostClass, EncodingPaths, PropertyManifest, PropertyTemplate, Provenance,
     StorageSlotReq, TemplateError, Tier,
 };
+pub use embed::{EmbedError, Embedder, MockEmbedder, VoyageEmbedder};
 pub use manifest::{validate, ManifestError, ValidationReport};
+pub use retrieval::{RetrievalError, RetrievedTemplate, Retriever};
