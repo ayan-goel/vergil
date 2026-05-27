@@ -58,7 +58,7 @@ pub struct CritiqueConfig {
 impl CritiqueConfig {
     pub fn default_for_openai() -> Self {
         Self {
-            model: "gpt-4o-mini".to_string(),
+            model: "gpt-5.5".to_string(),
             max_tokens: 1024,
             temperature: 0.2,
             min_axis: 0.5,
@@ -67,7 +67,7 @@ impl CritiqueConfig {
 
     pub fn default_for_anthropic_fallback() -> Self {
         Self {
-            model: "claude-opus-4-7".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
             max_tokens: 1024,
             temperature: 0.4,
             min_axis: 0.5,
@@ -180,11 +180,24 @@ impl Critic {
             schema: critique_schema(),
         };
         match self.critic.complete_structured(req).await {
-            Ok(resp) => match serde_json::from_value::<CritiqueResult>(resp.value) {
-                Ok(parsed) => parsed,
-                Err(e) => reject_with(format!("critique JSON shape: {e}")),
-            },
-            Err(e) => reject_with(format!("{e}")),
+            Ok(resp) => {
+                let raw = resp.value.clone();
+                match serde_json::from_value::<CritiqueResult>(resp.value) {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        tracing::warn!(
+                            "critique JSON shape error for {}: {e}; raw={:?}",
+                            candidate.name,
+                            raw
+                        );
+                        reject_with(format!("critique JSON shape: {e}"))
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!("critique LLM error for {}: {e}", candidate.name);
+                reject_with(format!("{e}"))
+            }
         }
     }
 }

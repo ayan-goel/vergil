@@ -62,6 +62,18 @@ pub enum OutputFormat {
 }
 
 fn main() -> ExitCode {
+    // Subscribe to tracing with a default of `warn` so the user sees
+    // synth/critique/dispatch warnings when something goes wrong. The
+    // CLI is the right boundary to install the subscriber — library
+    // crates emit events but never configure the global subscriber.
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn")),
+        )
+        .with_writer(std::io::stderr)
+        .try_init();
+
     let cli = Cli::parse();
     let result: Result<(), u8> = match cli.command {
         Command::Verify {

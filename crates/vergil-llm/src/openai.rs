@@ -158,6 +158,25 @@ fn body_for_trace<T: serde::Serialize>(req: &T) -> String {
     serde_json::to_string(req).unwrap_or_default()
 }
 
+/// OpenAI reasoning models (gpt-5 family, o-series) lock `temperature`
+/// to the default value 1; setting any other value is a 400 error. The
+/// caller's requested temperature is ignored — the model handles
+/// exploration via its internal thinking budget.
+///
+/// Older completion models (gpt-4o, gpt-4.1, etc.) accept temperature
+/// normally.
+fn model_accepts_custom_temperature(model: &str) -> bool {
+    let lower = model.to_ascii_lowercase();
+    if lower.starts_with("gpt-5")
+        || lower.starts_with("o1")
+        || lower.starts_with("o3")
+        || lower.starts_with("o4")
+    {
+        return false;
+    }
+    true
+}
+
 fn response_for_trace(resp: &CreateChatCompletionResponse) -> String {
     serde_json::to_string(resp).unwrap_or_default()
 }
@@ -174,11 +193,15 @@ impl LlmProvider for OpenAiClient {
         let model = req.model.clone();
         let temperature = req.temperature;
         let messages = to_openai_messages(&req.messages, req.system.as_deref())?;
-        let openai_req = CreateChatCompletionRequestArgs::default()
+        let mut builder = CreateChatCompletionRequestArgs::default();
+        builder
             .model(req.model.clone())
             .messages(messages)
-            .temperature(req.temperature)
-            .max_completion_tokens(req.max_tokens)
+            .max_completion_tokens(req.max_tokens);
+        if model_accepts_custom_temperature(&req.model) {
+            builder.temperature(req.temperature);
+        }
+        let openai_req = builder
             .build()
             .map_err(|e| LlmError::Permanent(format!("build chat request: {e}")))?;
 
@@ -240,10 +263,10 @@ impl LlmProvider for OpenAiClient {
             .build()
             .map_err(|e| LlmError::Permanent(format!("build function object: {e}")))?;
         let tool = ChatCompletionTools::Function(ChatCompletionTool { function });
-        let openai_req = CreateChatCompletionRequestArgs::default()
+        let mut builder = CreateChatCompletionRequestArgs::default();
+        builder
             .model(req.model.clone())
             .messages(messages)
-            .temperature(req.temperature)
             .max_completion_tokens(req.max_tokens)
             .tools(vec![tool])
             .tool_choice(ChatCompletionToolChoiceOption::Function(
@@ -252,7 +275,11 @@ impl LlmProvider for OpenAiClient {
                         name: schema_name.clone(),
                     },
                 },
-            ))
+            ));
+        if model_accepts_custom_temperature(&req.model) {
+            builder.temperature(req.temperature);
+        }
+        let openai_req = builder
             .build()
             .map_err(|e| LlmError::Permanent(format!("build chat request: {e}")))?;
 
@@ -352,6 +379,23 @@ mod tests {
     use super::*;
     use async_openai::error::{ApiError, ApiErrorResponse};
     use reqwest::StatusCode;
+
+    #[test]
+    fn gpt5_and_o_series_reject_custom_temperature() {
+        assert!(!model_accepts_custom_temperature("gpt-5"));
+        assert!(!model_accepts_custom_temperature("gpt-5.5"));
+        assert!(!model_accepts_custom_temperature("gpt-5-mini"));
+        assert!(!model_accepts_custom_temperature("o1-preview"));
+        assert!(!model_accepts_custom_temperature("o3-mini"));
+        assert!(!model_accepts_custom_temperature("o4-2025"));
+    }
+
+    #[test]
+    fn gpt4_family_accepts_custom_temperature() {
+        assert!(model_accepts_custom_temperature("gpt-4o"));
+        assert!(model_accepts_custom_temperature("gpt-4.1"));
+        assert!(model_accepts_custom_temperature("gpt-4o-mini"));
+    }
 
     fn api_err(status: u16) -> OpenAIError {
         OpenAIError::ApiError(ApiErrorResponse {

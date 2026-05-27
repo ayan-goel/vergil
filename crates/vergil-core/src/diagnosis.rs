@@ -36,7 +36,7 @@ pub struct DiagnosisConfig {
 impl DiagnosisConfig {
     pub fn default_for_anthropic() -> Self {
         Self {
-            model: "claude-opus-4-7".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
             max_tokens: 1024,
             temperature: 0.0,
         }

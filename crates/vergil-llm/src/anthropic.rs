@@ -85,6 +85,18 @@ fn role_to_sdk(role: Role) -> SdkRole {
     }
 }
 
+/// Anthropic extended-thinking models (Opus 4+) lock `temperature` to
+/// the default; setting it returns "temperature is deprecated for this
+/// model." Sonnet and Haiku in the same generation still accept
+/// custom temperature. Detection is by model-name prefix.
+fn model_accepts_custom_temperature(model: &str) -> bool {
+    let lower = model.to_ascii_lowercase();
+    if lower.starts_with("claude-opus-4") || lower.starts_with("claude-opus-5") {
+        return false;
+    }
+    true
+}
+
 fn build_message_params(req: &CompletionRequest) -> CreateMessageParams {
     let mut params = CreateMessageParams::new(RequiredMessageParams {
         model: req.model.clone(),
@@ -94,8 +106,10 @@ fn build_message_params(req: &CompletionRequest) -> CreateMessageParams {
             .map(|m| SdkMessage::new_text(role_to_sdk(m.role), m.content.clone()))
             .collect(),
         max_tokens: req.max_tokens,
-    })
-    .with_temperature(req.temperature);
+    });
+    if model_accepts_custom_temperature(&req.model) {
+        params = params.with_temperature(req.temperature);
+    }
     if let Some(sys) = &req.system {
         params = params.with_system(sys.clone());
     }
@@ -120,11 +134,13 @@ fn build_structured_params(req: &StructuredRequest) -> CreateMessageParams {
             .collect(),
         max_tokens: req.max_tokens,
     })
-    .with_temperature(req.temperature)
     .with_tools(vec![tool])
     .with_tool_choice(ToolChoice::Tool {
         name: req.schema_name.clone(),
     });
+    if model_accepts_custom_temperature(&req.model) {
+        params = params.with_temperature(req.temperature);
+    }
     if let Some(sys) = &req.system {
         params = params.with_system(sys.clone());
     }
@@ -322,6 +338,25 @@ impl LlmProvider for AnthropicClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opus_4_rejects_custom_temperature() {
+        assert!(!model_accepts_custom_temperature("claude-opus-4-7"));
+        assert!(!model_accepts_custom_temperature(
+            "claude-opus-4-8-20260101"
+        ));
+    }
+
+    #[test]
+    fn sonnet_and_haiku_accept_custom_temperature() {
+        assert!(model_accepts_custom_temperature("claude-sonnet-4-6"));
+        assert!(model_accepts_custom_temperature(
+            "claude-haiku-4-5-20251001"
+        ));
+        assert!(model_accepts_custom_temperature(
+            "claude-3-5-sonnet-20241022"
+        ));
+    }
 
     #[test]
     fn maps_401_to_auth() {

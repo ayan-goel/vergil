@@ -40,6 +40,8 @@ trace/
 *.vergil.tmp
 # Generated forge test files for replaying Halmos counterexamples.
 **/test/Cex_*.t.sol
+# Materialized per CEGIS dispatch by the intent path.
+**/test/CegisProperties.t.sol
 
 # ─── Secrets — no exceptions ────────────────────────────────────────────
 .env

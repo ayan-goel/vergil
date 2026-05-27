@@ -28,8 +28,12 @@ pub struct SynthesisConfig {
 
 impl SynthesisConfig {
     pub fn default_for_anthropic() -> Self {
+        // claude-sonnet-4-6 accepts temperature, preserving the SPEC §3.1
+        // "1 deterministic + 15 exploratory" sampling design.
+        // claude-opus-4-7 is a thinking model that rejects temperature, so
+        // it would collapse the k=16 diversity ladder without a redesign.
         Self {
-            model: "claude-opus-4-7".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
             max_tokens: 4096,
             samples: 16,
             deterministic_temp: 0.0,
@@ -172,6 +176,12 @@ pub async fn synthesize(
                 let parsed = parse_candidates(&completion.content);
                 let count = parsed.len();
                 if count == 0 {
+                    let preview: String = completion.content.chars().take(200).collect();
+                    tracing::warn!(
+                        "synthesize sample {i} (T={temp}): 0 candidates parsed; content_len={} preview={:?}",
+                        completion.content.len(),
+                        preview
+                    );
                     report.parse_failures.push(i);
                 }
                 report.samples.push(SampleStat {
