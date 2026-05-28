@@ -84,4 +84,57 @@ contract Properties {
             // Swap may revert (bad output); only assert on success.
         }
     }
+
+    // ─── Phase 4 Slice A6 — nonlinear AMM remediation attempts ──────────
+    //
+    // The canonical k-invariant above times out on Halmos because two
+    // symbolic uint256 multiplications saturate the solver. The variants
+    // below test the four remediation paths from
+    // notes/phase3-amm-postmortem.md:
+    //
+    //   A6-path-1: tighter input bounds (uint32 amountIn)
+    //   A6-path-2: decompose into directional monotonicity (no x*y)
+    //   A6-path-4: per-reserve checks instead of the product
+    //
+    // Path 3 (cross-solver re-dispatch via A2) doesn't need a new
+    // property — it re-runs the existing query through cvc5. Tested
+    // separately via `vergil prove --solver cvc5`.
+
+    /// Path 1: tighter input bounds. uint32 caps amountIn at ~4B which
+    /// keeps the two multiplied reserves within ~10^15 — well within
+    /// 64-bit arithmetic the solver handles cleanly.
+    function check_swap_k_invariant_uint32_bounds(uint32 amountIn) external {
+        require(amountIn > 0);
+        uint256 rxBefore = token.reserveX();
+        uint256 ryBefore = token.reserveY();
+        uint256 kBefore = rxBefore * ryBefore;
+        try token.swapXForY(uint256(amountIn)) returns (uint256) {
+            uint256 kAfter = token.reserveX() * token.reserveY();
+            assert(kAfter >= kBefore);
+        } catch {}
+    }
+
+    /// Path 2 (directional decomposition): the swapXForY operation
+    /// strictly increases reserveX and strictly decreases reserveY.
+    /// No multiplications — Halmos handles this trivially.
+    function check_swapXForY_moves_reserves_directionally(uint256 amountIn) external {
+        require(amountIn > 0 && amountIn <= type(uint128).max);
+        uint256 rxBefore = token.reserveX();
+        uint256 ryBefore = token.reserveY();
+        try token.swapXForY(amountIn) returns (uint256) {
+            assert(token.reserveX() > rxBefore);
+            assert(token.reserveY() < ryBefore);
+        } catch {}
+    }
+
+    /// Path 4 (per-reserve check): conservation of value at single
+    /// reserve granularity. The amount of X added equals what the
+    /// AMM credited reserveX by. No products; verifier-friendly.
+    function check_swap_reserveX_increments_by_amountIn(uint256 amountIn) external {
+        require(amountIn > 0 && amountIn <= type(uint128).max);
+        uint256 rxBefore = token.reserveX();
+        try token.swapXForY(amountIn) returns (uint256) {
+            assert(token.reserveX() == rxBefore + amountIn);
+        } catch {}
+    }
 }

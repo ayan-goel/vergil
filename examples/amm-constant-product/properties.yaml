@@ -19,3 +19,13 @@ properties:
   - name: check_swap_preserves_k_invariant
     params:
       - { name: amountIn, type: uint256 }
+  # Phase 4 Slice A6 — nonlinear remediation variants.
+  - name: check_swap_k_invariant_uint32_bounds
+    params:
+      - { name: amountIn, type: uint32 }
+  - name: check_swapXForY_moves_reserves_directionally
+    params:
+      - { name: amountIn, type: uint256 }
+  - name: check_swap_reserveX_increments_by_amountIn
+    params:
+      - { name: amountIn, type: uint256 }
