@@ -375,7 +375,11 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
     // synthesize prompt can use. Real analysis (slither + solc layout)
     // happens later for manifest validation.
     let primary_source = first_solidity_source(&spec.project)?;
-    let contract_source = std::fs::read_to_string(&primary_source)?;
+    // Phase 4 Slice A4: contract_source carries the concatenation of every
+    // .sol under src/, so the synth prompt sees the full multi-contract
+    // surface. Single-contract projects collapse to the same string as
+    // before. Separators are clearly marked so the LLM parses each unit.
+    let contract_source = combine_solidity_sources(&spec.project)?;
 
     let sa_summary = build_static_analysis_summary(&primary_source).await?;
 
@@ -489,6 +493,43 @@ fn first_solidity_source(project: &Path) -> Result<PathBuf, IntentError> {
         "no .sol files found under {}",
         src.display()
     )))
+}
+
+/// Phase 4 Slice A4: read every `.sol` under `<project>/src/` and join
+/// their bodies with file-name delimiters so the synth prompt sees the
+/// whole multi-contract surface. Single-contract projects produce
+/// effectively the same string they did before (plus a one-line header).
+/// Returns the concatenated source.
+fn combine_solidity_sources(project: &Path) -> Result<String, IntentError> {
+    let src = project.join("src");
+    let entries = std::fs::read_dir(&src)
+        .map_err(|e| IntentError::Project(format!("read {}: {e}", src.display())))?;
+    let mut files: Vec<PathBuf> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().map(|s| s == "sol").unwrap_or(false))
+        .collect();
+    if files.is_empty() {
+        return Err(IntentError::Project(format!(
+            "no .sol files found under {}",
+            src.display()
+        )));
+    }
+    files.sort();
+    let mut out = String::new();
+    for path in &files {
+        let body = std::fs::read_to_string(path)?;
+        let name = path
+            .file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        out.push_str(&format!("// ── src/{name} ──\n"));
+        out.push_str(&body);
+        if !body.ends_with('\n') {
+            out.push('\n');
+        }
+    }
+    Ok(out)
 }
 
 async fn build_static_analysis_summary(

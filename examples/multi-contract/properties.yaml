@@ -1,0 +1,17 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_vault_shares_match_token_balance
+    params: []
+    smtchecker_source: src/Vault.sol
+  - name: check_redeem_preserves_share_asset_match
+    params:
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/Vault.sol
+  - name: check_vault_total_shares_account_for_holders
+    params:
+      - { name: other, type: address }
+    smtchecker_source: src/Vault.sol

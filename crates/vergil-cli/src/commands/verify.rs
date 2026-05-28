@@ -733,21 +733,52 @@ fn resolve_scaffold(project: &Path, override_path: Option<&Path>) -> Result<Stri
     }
 }
 
-/// Read the first .sol under `<project>/src/`, find the first
-/// `contract <Name>` identifier, and synthesize a default scaffold.
-/// Returns `None` if no .sol file or no contract identifier found.
+/// Read every `.sol` under `<project>/src/`, collect each contract
+/// identifier, and synthesize a scaffold importing all of them.
+///
+/// Single-contract case (one .sol with one contract): keeps the legacy
+/// shape — instantiates the contract as `token` with no constructor args
+/// so check_ functions can use it directly.
+///
+/// Multi-contract case (Phase 4 Slice A4): emits imports for every
+/// contract but does NOT pre-instantiate (constructor signatures vary
+/// across contracts; let the LLM-authored check_ functions create
+/// instances locally with the right arg shape).
+///
+/// Returns `None` if no .sol files or no contract identifiers found.
 fn autodetect_scaffold(project: &Path) -> Option<String> {
     let src_dir = project.join("src");
-    let first_sol = std::fs::read_dir(&src_dir)
-        .ok()?
-        .flatten()
-        .find(|e| e.path().extension().map(|x| x == "sol").unwrap_or(false))?;
-    let path = first_sol.path();
-    let filename = path.file_name()?.to_string_lossy().into_owned();
-    let body = std::fs::read_to_string(&path).ok()?;
-    let ident = extract_contract_name(&body)?;
-    let scaffold = format!(
-        r#"// SPDX-License-Identifier: MIT
+    let mut sol_files = Vec::new();
+    for entry in std::fs::read_dir(&src_dir).ok()?.flatten() {
+        let p = entry.path();
+        if p.extension().map(|x| x == "sol").unwrap_or(false) {
+            sol_files.push(p);
+        }
+    }
+    if sol_files.is_empty() {
+        return None;
+    }
+    // Sort for deterministic scaffold output across runs.
+    sol_files.sort();
+
+    // Collect every contract identifier across every file.
+    let mut imports: Vec<(String, String)> = Vec::new(); // (ident, filename)
+    for path in &sol_files {
+        let filename = path.file_name()?.to_string_lossy().into_owned();
+        let body = std::fs::read_to_string(path).ok()?;
+        for ident in extract_all_contract_names(&body) {
+            imports.push((ident, filename.clone()));
+        }
+    }
+    if imports.is_empty() {
+        return None;
+    }
+
+    if imports.len() == 1 {
+        // Single-contract legacy shape: keep the `token` field + ctor.
+        let (ident, filename) = &imports[0];
+        return Some(format!(
+            r#"// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import {{{ident}}} from "../src/{filename}";
@@ -762,29 +793,75 @@ contract CegisProperties {{
     {{{{CHECK_FN}}}}
 }}
 "#
-    );
-    Some(scaffold)
+        ));
+    }
+
+    // Multi-contract: emit every import, leave constructor empty.
+    // check_ functions instantiate locally with the appropriate args.
+    let import_lines: String = imports
+        .iter()
+        .map(|(ident, file)| format!("import {{{ident}}} from \"../src/{file}\";\n"))
+        .collect();
+    Some(format!(
+        r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+{import_lines}
+// Phase 4 Slice A4: multi-contract scaffold. Constructor signatures
+// vary across imported contracts so we leave instance creation to
+// each check_ function. Example pattern:
+//   function check_foo() external {{
+//       Token t = new Token(1_000_000 ether);
+//       Vault v = new Vault(t);
+//       assert(v.totalAssets() == t.balanceOf(address(v)));
+//   }}
+contract CegisProperties {{
+    {{{{CHECK_FN}}}}
+}}
+"#
+    ))
+}
+
+/// Extract every `contract <Name>` (non-`abstract`, non-`library`,
+/// non-`interface`) identifier from Solidity source. Returns them in
+/// source order.
+fn extract_all_contract_names(source: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        // Skip `abstract contract`, `library`, `interface` — only
+        // concrete `contract <Name>` declarations.
+        if trimmed.starts_with("abstract")
+            || trimmed.starts_with("library")
+            || trimmed.starts_with("interface")
+        {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("contract ") {
+            let end = rest
+                .find(|c: char| c.is_whitespace() || c == '{')
+                .unwrap_or(rest.len());
+            let name = rest[..end].trim();
+            if !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                names.push(name.to_string());
+            }
+        }
+    }
+    names
 }
 
 /// Extract the first `contract <Name>` (non-`abstract`, non-`library`)
 /// identifier from Solidity source. Tolerates inheritance clauses and
 /// arbitrary whitespace; matches by line tokenization rather than a full
 /// parser since we only need the name.
+///
+/// Phase 4 Slice A4 retains this single-name helper as a thin wrapper
+/// over [`extract_all_contract_names`] so the existing unit tests +
+/// any downstream callers that only need the first identifier keep
+/// working.
+#[cfg(test)]
 fn extract_contract_name(source: &str) -> Option<String> {
-    for line in source.lines() {
-        let trimmed = line.trim_start();
-        if let Some(rest) = trimmed.strip_prefix("contract ") {
-            // Take everything up to the first whitespace, `{`, or `is`.
-            let end = rest
-                .find(|c: char| c.is_whitespace() || c == '{')
-                .unwrap_or(rest.len());
-            let name = rest[..end].trim();
-            if !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-                return Some(name.to_string());
-            }
-        }
-    }
-    None
+    extract_all_contract_names(source).into_iter().next()
 }
 
 /// Re-run Halmos in a thread-isolated tokio runtime to capture a structured
@@ -840,6 +917,52 @@ mod tests {
     fn extract_contract_name_returns_none_when_absent() {
         let src = "// no contract keyword here\nlibrary L {}\n";
         assert_eq!(extract_contract_name(src), None);
+    }
+
+    #[test]
+    fn extract_all_contract_names_handles_multi_contract_file() {
+        let src =
+            "contract A {}\nlibrary L {}\ninterface I {}\nabstract contract Abs {}\ncontract B {}";
+        let names = extract_all_contract_names(src);
+        assert_eq!(names, vec!["A".to_string(), "B".to_string()]);
+    }
+
+    #[test]
+    fn autodetect_scaffold_keeps_single_contract_legacy_shape() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(
+            src.join("Solo.sol"),
+            "pragma solidity ^0.8.20;\ncontract Solo {}\n",
+        )
+        .unwrap();
+        let s = autodetect_scaffold(tmp.path()).expect("Some");
+        assert!(s.contains("Solo internal token"));
+        assert!(s.contains("token = new Solo()"));
+    }
+
+    #[test]
+    fn autodetect_scaffold_handles_multi_contract_src() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(
+            src.join("Token.sol"),
+            "pragma solidity ^0.8.20;\ncontract Token {}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            src.join("Vault.sol"),
+            "pragma solidity ^0.8.20;\ncontract Vault {}\n",
+        )
+        .unwrap();
+        let s = autodetect_scaffold(tmp.path()).expect("Some");
+        // Both imports present; no pre-instantiation (multi-contract path).
+        assert!(s.contains("import {Token}"));
+        assert!(s.contains("import {Vault}"));
+        assert!(!s.contains("internal token"));
+        assert!(s.contains("{{CHECK_FN}}"));
     }
 
     #[test]
