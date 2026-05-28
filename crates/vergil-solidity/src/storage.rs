@@ -308,7 +308,9 @@ mod tests {
         let a = layout(&[("x", "0", "t_uint256"), ("y", "1", "t_address")]);
         let b = layout(&[("x", "0", "t_uint256")]);
         let diffs = diff_layouts(&a, &b);
-        assert!(diffs.iter().any(|d| matches!(d, SlotDiff::Removed { label, .. } if label == "y")));
+        assert!(diffs
+            .iter()
+            .any(|d| matches!(d, SlotDiff::Removed { label, .. } if label == "y")));
     }
 
     #[test]
@@ -316,7 +318,9 @@ mod tests {
         let a = layout(&[("x", "0", "t_uint256")]);
         let b = layout(&[("x", "0", "t_uint256"), ("z", "1", "t_address")]);
         let diffs = diff_layouts(&a, &b);
-        assert!(diffs.iter().any(|d| matches!(d, SlotDiff::Added { label, .. } if label == "z")));
+        assert!(diffs
+            .iter()
+            .any(|d| matches!(d, SlotDiff::Added { label, .. } if label == "z")));
     }
 
     #[test]
@@ -325,7 +329,10 @@ mod tests {
         let b = layout(&[("x", "1", "t_uint256"), ("y", "0", "t_address")]);
         let diffs = diff_layouts(&a, &b);
         assert_eq!(
-            diffs.iter().filter(|d| matches!(d, SlotDiff::SlotMoved { .. })).count(),
+            diffs
+                .iter()
+                .filter(|d| matches!(d, SlotDiff::SlotMoved { .. }))
+                .count(),
             2
         );
     }
