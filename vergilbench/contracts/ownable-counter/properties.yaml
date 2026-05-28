@@ -1,0 +1,16 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_owner_can_increment
+    params: []
+    smtchecker_source: src/OwnableCounter.sol
+  - name: check_transferOwnership_to_zero_reverts
+    params: []
+    smtchecker_source: src/OwnableCounter.sol
+  - name: check_transferOwnership_updates_owner
+    params:
+      - { name: newOwner, type: address }
+    smtchecker_source: src/OwnableCounter.sol

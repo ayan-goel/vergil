@@ -1,0 +1,19 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_paused_blocks_transfer
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/PausableToken.sol
+  - name: check_unpause_clears_flag
+    params: []
+    smtchecker_source: src/PausableToken.sol
+  - name: check_transfer_preserves_totalSupply
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/PausableToken.sol

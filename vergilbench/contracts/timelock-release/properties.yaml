@@ -1,0 +1,15 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_release_before_deadline_reverts
+    params: []
+    smtchecker_source: src/Timelock.sol
+  - name: check_release_idempotent
+    params: []
+    smtchecker_source: src/Timelock.sol
+  - name: check_release_drains_balance
+    params: []
+    smtchecker_source: src/Timelock.sol

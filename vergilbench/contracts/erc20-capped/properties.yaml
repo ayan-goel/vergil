@@ -1,0 +1,19 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_mint_respects_cap
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/CappedToken.sol
+  - name: check_transfer_preserves_totalSupply
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/CappedToken.sol
+  - name: check_totalSupply_below_cap_invariant
+    params: []
+    smtchecker_source: src/CappedToken.sol

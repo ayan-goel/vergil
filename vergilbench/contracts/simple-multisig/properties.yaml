@@ -1,0 +1,19 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_non_signer_confirm_reverts
+    params:
+      - { name: attacker, type: address }
+      - { name: txId, type: uint256 }
+    smtchecker_source: src/Multisig2of3.sol
+  - name: check_execute_requires_threshold
+    params:
+      - { name: txId, type: uint256 }
+    smtchecker_source: src/Multisig2of3.sol
+  - name: check_execute_once_only
+    params:
+      - { name: txId, type: uint256 }
+    smtchecker_source: src/Multisig2of3.sol
