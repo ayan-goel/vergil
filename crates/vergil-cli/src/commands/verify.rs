@@ -127,10 +127,11 @@ async fn run_all_properties(project: &Path, props: &PropertiesFile) -> Vec<Prope
             project: project.to_path_buf(),
             property: entry.name.clone(),
             smtchecker_source: smt_source,
-            // Phase 1 path enables SMT capture so proof.json carries
-            // smt_query_sha256 — matches the Phase 2 intent flow.
+            // Phase 1 path enables SMT capture + persistence so proof.json
+            // carries smt_query_sha256 and `vergil prove` can re-dispatch.
             budget: Duration::from_secs(DEFAULT_BUDGET_SECS),
             capture_smt_queries: true,
+            smt_persist_dir: Some(project.join("vergil-out").join("smt")),
         };
         let result = dispatch(cfg).await;
         outcomes.push(PropertyOutcome {

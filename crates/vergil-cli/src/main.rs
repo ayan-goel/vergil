@@ -49,6 +49,11 @@ enum Command {
     Prove {
         /// Path to a `proof.json` artifact emitted by a previous `vergil verify` run
         artifact: PathBuf,
+        /// SMT solver to re-dispatch the captured queries through.
+        /// Defaults to cvc5 (the alternate of Halmos's primary z3).
+        /// Pass `--solver z3` or `--solver bitwuzla` to override.
+        #[arg(long)]
+        solver: Option<String>,
     },
     /// Run benchmark suites (stub — use the dedicated `vergilbench` binary)
     Bench,
@@ -111,7 +116,7 @@ fn main() -> ExitCode {
             ))
         }
         Command::Init => commands::init::run(),
-        Command::Prove { artifact } => commands::prove::run(artifact),
+        Command::Prove { artifact, solver } => commands::prove::run_with_solver(artifact, solver),
         Command::Bench => commands::bench::run(),
         Command::Corpus { .. } => commands::corpus::run(),
         Command::Doctor => commands::doctor::run(),

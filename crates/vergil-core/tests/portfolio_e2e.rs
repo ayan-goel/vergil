@@ -28,6 +28,7 @@ async fn portfolio_verifies_safemath_via_winner() {
         smtchecker_source: smt_source,
         budget: Duration::from_secs(120),
         capture_smt_queries: false,
+        smt_persist_dir: None,
     };
 
     let result = dispatch(cfg).await;

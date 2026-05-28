@@ -97,13 +97,23 @@ pub struct PortfolioConfig {
     /// carries `smt_query_sha256`. Off by default for backward compat;
     /// the `vergil verify --intent` path turns it on.
     pub capture_smt_queries: bool,
+    /// Phase 4 Slice A2: where to persist captured .smt2 files
+    /// (named by their content SHA-256) so `vergil prove` can
+    /// re-dispatch them later. Convention: `<project>/vergil-out/smt/`.
+    /// When `None` but `capture_smt_queries` is on, the dump dir is
+    /// hashed but not persisted.
+    pub smt_persist_dir: Option<PathBuf>,
 }
 
 impl PortfolioConfig {
-    /// Convenience constructor: enable SMT query capture, matching what
-    /// the intent flow needs for `proof.json` population.
+    /// Convenience constructor: enable SMT query capture + persistence,
+    /// matching what the intent flow needs for `proof.json` population
+    /// AND `vergil prove` re-dispatch.
     pub fn with_smt_capture(mut self) -> Self {
         self.capture_smt_queries = true;
+        if self.smt_persist_dir.is_none() {
+            self.smt_persist_dir = Some(self.project.join("vergil-out").join("smt"));
+        }
         self
     }
 }
@@ -116,12 +126,16 @@ pub async fn dispatch(cfg: PortfolioConfig) -> PortfolioResult {
     let halmos_property = cfg.property.clone();
     let halmos_budget = cfg.budget;
     let halmos_capture = cfg.capture_smt_queries;
+    let halmos_persist = cfg.smt_persist_dir.clone();
     let halmos_task: JoinHandle<HalmosResult> = tokio::spawn(async move {
         if halmos_capture {
-            let cfg = halmos::HalmosRun::new(halmos_project, halmos_property)
+            let mut run_cfg = halmos::HalmosRun::new(halmos_project, halmos_property)
                 .with_wall_clock(halmos_budget)
                 .with_dump_smt2(true);
-            halmos::run(&cfg).await
+            if let Some(persist) = halmos_persist {
+                run_cfg = run_cfg.with_smt_persist_directory(persist);
+            }
+            halmos::run(&run_cfg).await
         } else {
             halmos::run_simple(&halmos_project, &halmos_property, halmos_budget).await
         }

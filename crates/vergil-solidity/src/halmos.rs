@@ -172,6 +172,11 @@ pub struct HalmosRun {
     /// the runner creates a per-invocation temp directory under the system
     /// temp dir. Caller-owned cleanup; we don't delete anything.
     pub dump_smt_directory: Option<PathBuf>,
+    /// When set, after the run finishes the .smt2 files Halmos dumped are
+    /// copied here, named `<sha256-of-content>.smt2`. Used by `vergil prove`
+    /// for SMT re-dispatch (the dump-directory is a temp; this is the
+    /// durable artifact location).
+    pub smt_persist_directory: Option<PathBuf>,
 }
 
 impl HalmosRun {
@@ -183,6 +188,7 @@ impl HalmosRun {
             solver_timeout_ms: 30_000,
             dump_smt2: false,
             dump_smt_directory: None,
+            smt_persist_directory: None,
         }
     }
 
@@ -203,6 +209,12 @@ impl HalmosRun {
 
     pub fn with_dump_smt_directory(mut self, dir: PathBuf) -> Self {
         self.dump_smt_directory = Some(dir);
+        self.dump_smt2 = true;
+        self
+    }
+
+    pub fn with_smt_persist_directory(mut self, dir: PathBuf) -> Self {
+        self.smt_persist_directory = Some(dir);
         self.dump_smt2 = true;
         self
     }
@@ -256,6 +268,11 @@ pub async fn run(cfg: &HalmosRun) -> HalmosResult {
                     {
                         *smt_query_sha256 = Some(hash);
                     }
+                    // Persist .smt2 files to the durable location so
+                    // `vergil prove` can re-dispatch them later.
+                    if let Some(persist) = &cfg.smt_persist_directory {
+                        let _ = persist_smt_files(dir, persist);
+                    }
                 }
             }
             parsed
@@ -289,6 +306,31 @@ fn sanitize_for_path(s: &str) -> String {
     s.chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect()
+}
+
+/// Copy each `.smt2` file under `dump_dir` into `persist_dir` named by its
+/// content SHA-256 (`<sha>.smt2`). Used by Slice A2's `vergil prove`
+/// re-dispatch path: the dump dir is a temp directory; the persist dir
+/// (typically `<project>/vergil-out/smt/`) is the durable location.
+pub fn persist_smt_files(dump_dir: &Path, persist_dir: &Path) -> Result<usize, std::io::Error> {
+    std::fs::create_dir_all(persist_dir)?;
+    let mut entries: Vec<(String, PathBuf)> = Vec::new();
+    collect_smt_files(dump_dir, dump_dir, &mut entries)?;
+    let mut copied = 0usize;
+    for (_, path) in entries {
+        let bytes = std::fs::read(&path)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        let digest: [u8; 32] = hasher.finalize().into();
+        let sha = hex_lower(&digest);
+        let dest = persist_dir.join(format!("{sha}.smt2"));
+        // If the file already exists (same content elsewhere), skip rewrite.
+        if !dest.exists() {
+            std::fs::write(&dest, &bytes)?;
+        }
+        copied += 1;
+    }
+    Ok(copied)
 }
 
 /// Walk `dir` recursively, collect every `.smt2` file (skipping `.smt2.out`
@@ -719,5 +761,41 @@ mod tests {
         let h1 = hash_smt_dump(tmp_a.path()).unwrap().unwrap();
         let h2 = hash_smt_dump(tmp_b.path()).unwrap().unwrap();
         assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn persist_smt_files_writes_sha_named_copies() {
+        let dump = tempfile::tempdir().unwrap();
+        let persist = tempfile::tempdir().unwrap();
+        let sub = dump.path().join("check_x");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("0.smt2"), b"query alpha").unwrap();
+        std::fs::write(sub.join("1.smt2"), b"query beta").unwrap();
+        // Solver-response files must NOT be copied.
+        std::fs::write(sub.join("0.smt2.out"), b"sat").unwrap();
+
+        let copied = persist_smt_files(dump.path(), persist.path()).unwrap();
+        assert_eq!(copied, 2);
+
+        // Confirm both files exist under sha-named paths.
+        let entries: Vec<_> = std::fs::read_dir(persist.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(entries.len(), 2);
+        for name in &entries {
+            assert!(name.ends_with(".smt2"));
+            assert_eq!(name.len(), "64.smt2".len() + 64 - 2, "name = {name}");
+        }
+
+        // Re-persisting the same dump is idempotent (same SHAs, same files).
+        let copied_again = persist_smt_files(dump.path(), persist.path()).unwrap();
+        assert_eq!(copied_again, 2);
+        let entries_again_count = std::fs::read_dir(persist.path()).unwrap().flatten().count();
+        assert_eq!(
+            entries_again_count, 2,
+            "second pass should not duplicate sha-named files"
+        );
     }
 }

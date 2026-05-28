@@ -134,6 +134,7 @@ async fn run_project(project: &Path, budget: Duration) -> Result<Vec<Measurement
             smtchecker_source: smt_source.clone(),
             budget,
             capture_smt_queries: false,
+            smt_persist_dir: None,
         };
         let start = Instant::now();
         let result = dispatch(cfg).await;

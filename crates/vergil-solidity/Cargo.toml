@@ -17,6 +17,7 @@ sha2 = "0.10"
 [dev-dependencies]
 indoc = "2"
 tempfile = "3"
+which = "5"
 
 [features]
 integration = []

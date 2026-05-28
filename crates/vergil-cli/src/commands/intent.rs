@@ -210,6 +210,9 @@ impl VerifierDispatcher for HalmosDispatcher {
             smtchecker_source: self.default_smtchecker_source(),
             budget: self.budget,
             capture_smt_queries: true,
+            // Persist .smt2 files under <project>/vergil-out/smt/ so
+            // `vergil prove --solver <name>` can re-dispatch later.
+            smt_persist_dir: Some(self.project.join("vergil-out").join("smt")),
         };
         let result = dispatch(cfg).await;
         match result.verdict {
