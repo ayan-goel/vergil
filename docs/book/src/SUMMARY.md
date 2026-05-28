@@ -9,6 +9,10 @@
 - [CLI reference](./cli-reference.md)
 - [FAQ](./faq.md)
 
+# Operations
+
+- [Ops runbook](./ops.md)
+
 # Internal — V2 handoff
 
 - [V2 readiness checklist](./v2-readiness.md)
