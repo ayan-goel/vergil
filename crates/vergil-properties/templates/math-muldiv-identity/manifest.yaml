@@ -1,0 +1,15 @@
+id: math-muldiv-identity
+description: "Math.mulDiv: mulDiv(a, b, 1) equals the exact product a*b within bounds (full-precision intermediate)."
+cost_class: cheap
+applies_to:
+  interfaces: [Math]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

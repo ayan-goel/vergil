@@ -1,0 +1,15 @@
+id: erc721-soulbound-blocks-transfer
+description: "Soulbound ERC-721: minting is allowed but transferring an owned token reverts."
+cost_class: medium
+applies_to:
+  interfaces: [ERC721, Soulbound]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

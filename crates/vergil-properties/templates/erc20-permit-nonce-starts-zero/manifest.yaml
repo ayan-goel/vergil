@@ -1,0 +1,15 @@
+id: erc20-permit-nonce-starts-zero
+description: "ERC-20 Permit (EIP-2612): a fresh account's permit nonce is zero."
+cost_class: trivial
+applies_to:
+  interfaces: [ERC20, Permit]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

@@ -1,0 +1,15 @@
+id: finance-vesting-end-is-start-plus-duration
+description: "VestingWallet: the schedule end equals start plus duration."
+cost_class: trivial
+applies_to:
+  interfaces: [VestingWallet]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

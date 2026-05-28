@@ -1,0 +1,15 @@
+id: erc1155-approval-for-all-symmetric
+description: "ERC-1155 setApprovalForAll toggles isApprovedForAll for the exact operator and no other."
+cost_class: cheap
+applies_to:
+  interfaces: [ERC1155]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

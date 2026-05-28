@@ -1,0 +1,15 @@
+id: util-storageslot-write-read
+description: "StorageSlot: a uint256 written to an explicit storage slot reads back exactly (the unstructured-storage primitive)."
+cost_class: trivial
+applies_to:
+  interfaces: [StorageSlot, Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

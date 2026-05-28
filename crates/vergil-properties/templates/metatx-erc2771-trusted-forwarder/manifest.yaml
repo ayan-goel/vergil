@@ -1,0 +1,15 @@
+id: metatx-erc2771-trusted-forwarder
+description: "ERC2771Context: only the forwarder configured at construction is recognized as trusted."
+cost_class: cheap
+applies_to:
+  interfaces: [ERC2771, MetaTx]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

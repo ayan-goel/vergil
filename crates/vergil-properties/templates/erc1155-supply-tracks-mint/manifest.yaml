@@ -1,0 +1,15 @@
+id: erc1155-supply-tracks-mint
+description: "ERC-1155 with the Supply extension: per-id totalSupply grows by exactly the minted amount."
+cost_class: cheap
+applies_to:
+  interfaces: [ERC1155]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

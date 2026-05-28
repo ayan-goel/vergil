@@ -178,8 +178,8 @@ pub fn detect_interfaces(source: &str) -> Vec<String> {
     // ERC-721: non-fungible owner-tracking surface. The presence of
     // ownerOf + an approval-for-all/getApproved surface is what separates it
     // from ERC-20 (both share transfer/approve/balanceOf names).
-    let is_erc721 =
-        has("ownerOf") && (has("setApprovalForAll") || has("getApproved") || has("isApprovedForAll"));
+    let is_erc721 = has("ownerOf")
+        && (has("setApprovalForAll") || has("getApproved") || has("isApprovedForAll"));
     // ERC-4626: tokenized vault. Shares are themselves an ERC-20, so a vault
     // earns both tags.
     let is_erc4626 = has("asset")
@@ -544,7 +544,10 @@ mod tests {
             }
         "#;
         let tags = detect_interfaces(src);
-        assert!(tags.contains(&"ERC20".to_string()), "expected ERC20 in {tags:?}");
+        assert!(
+            tags.contains(&"ERC20".to_string()),
+            "expected ERC20 in {tags:?}"
+        );
         assert!(
             !tags.contains(&"ERC721".to_string()),
             "ERC20 must not be tagged ERC721: {tags:?}"
@@ -557,7 +560,10 @@ mod tests {
         // or ERC20 templates leak back into ERC721 retrieval (the A1 root cause).
         let src = include_str!("../../../examples/erc721/src/ERC721.sol");
         let tags = detect_interfaces(src);
-        assert!(tags.contains(&"ERC721".to_string()), "expected ERC721 in {tags:?}");
+        assert!(
+            tags.contains(&"ERC721".to_string()),
+            "expected ERC721 in {tags:?}"
+        );
         assert!(
             !tags.contains(&"ERC20".to_string()),
             "ERC721 must not be tagged ERC20: {tags:?}"
@@ -579,7 +585,10 @@ mod tests {
             }
         "#;
         let tags = detect_interfaces(src);
-        assert!(tags.contains(&"ERC4626".to_string()), "expected ERC4626 in {tags:?}");
+        assert!(
+            tags.contains(&"ERC4626".to_string()),
+            "expected ERC4626 in {tags:?}"
+        );
         assert!(
             tags.contains(&"ERC20".to_string()),
             "vault shares are ERC20: {tags:?}"
@@ -621,7 +630,9 @@ mod tests {
 
     #[test]
     fn extract_constructor_empty_for_no_arg_ctor() {
-        assert!(extract_constructor("contract C { constructor() ERC20(\"a\",\"b\") {} }").is_empty());
+        assert!(
+            extract_constructor("contract C { constructor() ERC20(\"a\",\"b\") {} }").is_empty()
+        );
     }
 
     #[test]

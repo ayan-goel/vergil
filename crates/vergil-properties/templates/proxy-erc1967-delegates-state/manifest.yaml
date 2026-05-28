@@ -1,0 +1,15 @@
+id: proxy-erc1967-delegates-state
+description: "EIP-1967 proxy: state written through the proxy persists in the proxy's own storage (delegatecall semantics)."
+cost_class: hard
+applies_to:
+  interfaces: [Proxy, ERC1967]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

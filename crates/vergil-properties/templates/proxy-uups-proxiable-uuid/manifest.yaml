@@ -1,0 +1,15 @@
+id: proxy-uups-proxiable-uuid
+description: "UUPS upgradeable logic: proxiableUUID returns the canonical EIP-1967 implementation storage slot."
+cost_class: cheap
+applies_to:
+  interfaces: [Proxy, UUPS]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

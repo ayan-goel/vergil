@@ -1,0 +1,15 @@
+id: erc721-enumerable-supply-tracks-mint
+description: "ERC-721 Enumerable: totalSupply increases by exactly one per mint."
+cost_class: cheap
+applies_to:
+  interfaces: [ERC721, Enumerable]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

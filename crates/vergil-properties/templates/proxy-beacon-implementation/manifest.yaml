@@ -1,0 +1,15 @@
+id: proxy-beacon-implementation
+description: "UpgradeableBeacon: reports the implementation and owner configured at construction."
+cost_class: cheap
+applies_to:
+  interfaces: [Proxy, Beacon]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

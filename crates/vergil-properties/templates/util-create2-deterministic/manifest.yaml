@@ -1,0 +1,15 @@
+id: util-create2-deterministic
+description: "Create2.computeAddress is deterministic in (salt, codeHash, deployer) and binds the deployer."
+cost_class: cheap
+applies_to:
+  interfaces: [Create2, Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

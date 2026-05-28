@@ -1,0 +1,15 @@
+id: crypto-signaturechecker-empty-invalid
+description: "SignatureChecker: an empty signature is never accepted as valid for a non-zero signer (ERC-1271/ECDSA dispatch)."
+cost_class: cheap
+applies_to:
+  interfaces: [SignatureChecker, Crypto]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

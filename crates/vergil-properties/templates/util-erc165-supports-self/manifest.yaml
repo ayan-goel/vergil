@@ -1,0 +1,15 @@
+id: util-erc165-supports-self
+description: "ERC165: reports support for the ERC-165 interface id and rejects the reserved invalid id 0xffffffff."
+cost_class: trivial
+applies_to:
+  interfaces: [ERC165, Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

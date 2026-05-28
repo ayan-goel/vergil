@@ -1,0 +1,15 @@
+id: access-control-role-admin-is-default
+description: "AccessControl: a role's admin defaults to DEFAULT_ADMIN_ROLE unless explicitly changed."
+cost_class: trivial
+applies_to:
+  interfaces: [AccessControl]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

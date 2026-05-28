@@ -1,0 +1,15 @@
+id: access-control-admin-grants-role
+description: "AccessControl: an account holding the admin of a role can grant that role, after which the grantee holds it."
+cost_class: cheap
+applies_to:
+  interfaces: [AccessControl]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

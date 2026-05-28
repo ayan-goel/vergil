@@ -1,0 +1,15 @@
+id: crypto-eip712-domain-nonzero
+description: "EIP712: the typed-data domain separator is non-zero and stable across calls on a fixed chain."
+cost_class: trivial
+applies_to:
+  interfaces: [EIP712, Crypto]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

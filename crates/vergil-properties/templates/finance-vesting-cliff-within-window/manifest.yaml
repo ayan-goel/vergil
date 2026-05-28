@@ -1,0 +1,15 @@
+id: finance-vesting-cliff-within-window
+description: "VestingWalletCliff: the cliff timestamp lies within the vesting window [start, end]."
+cost_class: trivial
+applies_to:
+  interfaces: [VestingWallet, Cliff]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

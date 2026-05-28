@@ -421,7 +421,9 @@ fn write_scoreboard(agg: &AggregateResult) -> Result<(), String> {
         md.push_str("> ⚠️ Sweep aborted on aggregate budget — coverage is partial.\n\n");
     }
     if agg.halted_on_credit_error {
-        md.push_str("> ⛔ Sweep HALTED on a provider credit/quota error — coverage is partial.\n\n");
+        md.push_str(
+            "> ⛔ Sweep HALTED on a provider credit/quota error — coverage is partial.\n\n",
+        );
     }
     md.push_str("| Contract | Verified | Total | Wall clock | Cost | Exit |\n");
     md.push_str("|---|---|---|---|---|---|\n");
@@ -480,11 +482,15 @@ mod tests {
 
     #[test]
     fn credit_error_detection_flags_exhaustion_not_timeouts() {
-        assert!(looks_like_credit_error("Error: insufficient_quota for this key"));
+        assert!(looks_like_credit_error(
+            "Error: insufficient_quota for this key"
+        ));
         assert!(looks_like_credit_error("provider returned HTTP 429"));
         assert!(looks_like_credit_error("payment required (402)"));
         assert!(looks_like_credit_error("Your credit balance is too low"));
         assert!(!looks_like_credit_error("halmos timed out after 120s"));
-        assert!(!looks_like_credit_error("intent run failed: synthesis produced no candidates"));
+        assert!(!looks_like_credit_error(
+            "intent run failed: synthesis produced no candidates"
+        ));
     }
 }

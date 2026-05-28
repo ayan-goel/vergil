@@ -1,0 +1,15 @@
+id: struct-enumerablemap-set-get
+description: "EnumerableMap: set(k,v) makes the key present and readable as v; overwriting updates the value without growing the map."
+cost_class: cheap
+applies_to:
+  interfaces: [EnumerableMap, Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

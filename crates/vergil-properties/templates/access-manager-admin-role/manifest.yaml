@@ -1,0 +1,15 @@
+id: access-manager-admin-role
+description: "AccessManager: the initial admin holds the ADMIN_ROLE (roleId 0) with zero execution delay; unrelated accounts do not."
+cost_class: cheap
+applies_to:
+  interfaces: [AccessManager]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

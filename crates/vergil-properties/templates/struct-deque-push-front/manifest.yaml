@@ -1,0 +1,15 @@
+id: struct-deque-push-front
+description: "DoubleEndedQueue: a fresh queue is empty; pushing one element makes length one with that element at the front."
+cost_class: cheap
+applies_to:
+  interfaces: [DoubleEndedQueue, Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

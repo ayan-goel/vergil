@@ -1,0 +1,15 @@
+id: util-nonces-increment
+description: "Nonces: a fresh account's nonce is zero and consuming one increments it by exactly one."
+cost_class: cheap
+applies_to:
+  interfaces: [Nonces, Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

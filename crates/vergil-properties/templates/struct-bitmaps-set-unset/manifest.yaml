@@ -1,0 +1,15 @@
+id: struct-bitmaps-set-unset
+description: "BitMaps: setting a bit reads true, unsetting reads false, and an untouched bit reads false."
+cost_class: cheap
+applies_to:
+  interfaces: [BitMaps, Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

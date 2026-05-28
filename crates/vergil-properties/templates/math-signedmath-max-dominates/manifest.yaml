@@ -1,0 +1,15 @@
+id: math-signedmath-max-dominates
+description: "SignedMath: max(a,b) is at least each argument and equals one of them; min(a,b) <= max(a,b)."
+cost_class: cheap
+applies_to:
+  interfaces: [SignedMath, Math]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

@@ -1,0 +1,15 @@
+id: erc721-uristorage-preserves-owner
+description: "ERC-721 URIStorage: setting a per-token URI does not change the token's ownership."
+cost_class: cheap
+applies_to:
+  interfaces: [ERC721, URIStorage]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

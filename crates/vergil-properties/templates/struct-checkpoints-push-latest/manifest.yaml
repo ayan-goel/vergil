@@ -1,0 +1,15 @@
+id: struct-checkpoints-push-latest
+description: "Checkpoints.Trace: after a single push, latest() reads back the pushed value and length is one."
+cost_class: cheap
+applies_to:
+  interfaces: [Checkpoints, Generic]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

@@ -1,0 +1,15 @@
+id: math-sqrt-is-floor
+description: "Math.sqrt: the result is the exact integer floor square root: r*r <= n < (r+1)^2."
+cost_class: medium
+applies_to:
+  interfaces: [Math]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

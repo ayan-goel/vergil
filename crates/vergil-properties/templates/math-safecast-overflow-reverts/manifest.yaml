@@ -1,0 +1,15 @@
+id: math-safecast-overflow-reverts
+description: "SafeCast: an in-range downcast round-trips exactly; an out-of-range downcast reverts."
+cost_class: cheap
+applies_to:
+  interfaces: [SafeCast, Math]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

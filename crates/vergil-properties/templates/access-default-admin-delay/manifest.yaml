@@ -1,0 +1,15 @@
+id: access-default-admin-delay
+description: "AccessControlDefaultAdminRules: the configured default-admin transfer delay is reported and the default admin is set."
+cost_class: cheap
+applies_to:
+  interfaces: [AccessControl, DefaultAdminRules]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

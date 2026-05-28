@@ -1,0 +1,15 @@
+id: erc20-flashmint-fee-default-zero
+description: "ERC-20 FlashMint (EIP-3156): the default flash fee is zero for the token itself."
+cost_class: cheap
+applies_to:
+  interfaces: [ERC20, FlashMint]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

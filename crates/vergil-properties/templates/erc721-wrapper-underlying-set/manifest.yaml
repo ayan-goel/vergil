@@ -1,0 +1,15 @@
+id: erc721-wrapper-underlying-set
+description: "ERC-721 Wrapper: the wrapper reports the exact underlying collection it was constructed to wrap."
+cost_class: trivial
+applies_to:
+  interfaces: [ERC721, Wrapper]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

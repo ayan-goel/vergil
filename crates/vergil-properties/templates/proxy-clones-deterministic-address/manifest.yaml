@@ -1,0 +1,15 @@
+id: proxy-clones-deterministic-address
+description: "Clones (EIP-1167): a deterministic clone is deployed at exactly the address predicted by predictDeterministicAddress."
+cost_class: medium
+applies_to:
+  interfaces: [Proxy, Clones]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

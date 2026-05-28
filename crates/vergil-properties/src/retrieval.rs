@@ -211,7 +211,10 @@ fn interface_compatible(template_ifaces: &[String], target: &[String]) -> bool {
     if template_ifaces.is_empty() {
         return true;
     }
-    if template_ifaces.iter().any(|i| i.eq_ignore_ascii_case("Generic")) {
+    if template_ifaces
+        .iter()
+        .any(|i| i.eq_ignore_ascii_case("Generic"))
+    {
         return true;
     }
     template_ifaces
@@ -291,6 +294,8 @@ mod tests {
     async fn first_load_embeds_all_templates() {
         let cat = build_test_catalog();
         let n = cat.len();
+        // Phase 4 Slice A7 acceptance: the V1 catalog ships at least 100 templates.
+        assert!(n >= 100, "catalog should hold >= 100 templates, found {n}");
         let tmp = tempfile::tempdir().unwrap();
         let r = Retriever::new(cat, Box::new(MockEmbedder::new("test-32", 32)), tmp.path())
             .await

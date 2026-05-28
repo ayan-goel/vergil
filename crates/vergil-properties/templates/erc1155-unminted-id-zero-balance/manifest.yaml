@@ -1,0 +1,15 @@
+id: erc1155-unminted-id-zero-balance
+description: "ERC-1155 reports a zero balance for any (account, id) pair that was never minted."
+cost_class: trivial
+applies_to:
+  interfaces: [ERC1155]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

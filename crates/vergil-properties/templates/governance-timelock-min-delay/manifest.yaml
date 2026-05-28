@@ -1,0 +1,15 @@
+id: governance-timelock-min-delay
+description: "TimelockController: the configured minimum delay is reported and an operation never scheduled is not pending."
+cost_class: cheap
+applies_to:
+  interfaces: [Timelock, TimelockController]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

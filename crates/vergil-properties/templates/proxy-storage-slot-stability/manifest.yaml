@@ -1,0 +1,15 @@
+id: proxy-storage-slot-stability
+description: "Upgradeable storage layout: a value at an explicit EIP-1967 slot survives across an implementation swap (slot stability)."
+cost_class: hard
+applies_to:
+  interfaces: [Proxy]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

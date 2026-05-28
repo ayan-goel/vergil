@@ -1,0 +1,15 @@
+id: erc20-wrapper-underlying-set
+description: "ERC-20 Wrapper: the wrapper reports the exact underlying token it was constructed to wrap."
+cost_class: trivial
+applies_to:
+  interfaces: [ERC20, Wrapper]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

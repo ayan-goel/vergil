@@ -1,0 +1,15 @@
+id: erc1155-burn-debits-balance
+description: "ERC-1155 burn debits the holder's per-id balance by exactly the burned amount."
+cost_class: cheap
+applies_to:
+  interfaces: [ERC1155]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0

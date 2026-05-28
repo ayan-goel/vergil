@@ -1,0 +1,15 @@
+id: erc721-consecutive-batch-owner
+description: "ERC-721 Consecutive (ERC-2309): every token in a consecutively-minted batch is owned by the batch recipient."
+cost_class: medium
+applies_to:
+  interfaces: [ERC721, Consecutive]
+requires:
+  storage_slots: []
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
