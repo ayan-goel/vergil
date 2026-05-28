@@ -34,26 +34,80 @@ use vergil_proof::schema::{
     sha256_hex, Cost, CounterexampleSummary, ManifestValidationStatus, ProofArtifact,
     QualityMetrics, RunMeta, SourceFile, ToolchainVersions, VerifiedProperty,
 };
-use vergil_properties::{Catalog, Embedder, MockEmbedder, Retriever, VoyageEmbedder};
+use vergil_properties::{
+    Catalog, Embedder, MockEmbedder, RetrievalError, Retriever, VoyageEmbedder,
+};
 
+/// Errors surfaced by [`run_intent`]. Phase 4 Slice B3: every variant
+/// carries enough context for an operator to know what was being
+/// attempted (path, intent excerpt) and chain into the source error.
+///
+/// Operators inspect the chain via `anyhow::Error::chain` or
+/// `std::error::Error::source` — every variant either holds the source
+/// directly via `#[source]` or wraps it via `#[from]`.
 #[derive(Debug, Error)]
 pub enum IntentError {
+    /// A required environment variable wasn't set. The variant carries
+    /// the canonical name from the `VERGIL_*` family; check `.env` or
+    /// the shell.
     #[error("missing env var {0} (set it in .env or your shell)")]
     MissingEnv(&'static str),
+
+    /// Anthropic SDK initialization failed. The string is the SDK's
+    /// error message verbatim — usually an invalid API key shape.
     #[error("anthropic client init: {0}")]
     Anthropic(String),
-    #[error("trace recorder: {0}")]
-    Trace(String),
+
+    /// Couldn't open the trace recorder at `path`. The most common
+    /// cause is the parent dir being read-only.
+    #[error("trace recorder open at {path}: {source}")]
+    TraceOpen {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// Project layout precondition failed (no `src/` dir, no `.sol`
+    /// files in `src/`, no `foundry.toml`, etc.).
     #[error("project layout: {0}")]
     Project(String),
-    #[error("retrieval: {0}")]
-    Retrieval(String),
-    #[error("cegis: {0}")]
-    Cegis(String),
+
+    /// Retrieval pipeline failed. The intent_preview is the first 80
+    /// chars of the intent so logs can identify which run.
+    #[error("retrieval failed (intent: {intent_preview}): {source}")]
+    Retrieval {
+        intent_preview: String,
+        #[source]
+        source: RetrievalError,
+    },
+
+    /// CEGIS loop returned an error. Source carries the typed cause
+    /// (synthesis / critique / refinement / etc.).
+    #[error("cegis loop: {source}")]
+    Cegis {
+        #[source]
+        source: vergil_core::cegis::CegisError,
+    },
+
+    /// std::io::Error from any of the helper IO calls (mkdir, read,
+    /// write). `#[from]` keeps the conversion ergonomic at call sites.
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
+
+    /// JSON serialization of proof.json or the spec candidates file
+    /// failed. Effectively unreachable for our own types — surfaces
+    /// only if someone introduces a type with a non-serializable field.
     #[error("serialization: {0}")]
     Serialize(String),
+}
+
+fn intent_preview(s: &str) -> String {
+    let trimmed: String = s.chars().take(80).collect();
+    if s.chars().count() > 80 {
+        format!("{trimmed}…")
+    } else {
+        trimmed
+    }
 }
 
 /// Bundle of provider Arcs the CEGIS loop needs.
@@ -283,6 +337,24 @@ pub struct IntentRun {
 /// Orchestrate one full CEGIS run end-to-end and write `vergil-out/proof.json`.
 ///
 /// On success, returns the [`CegisRun`] plus the path to the written proof.
+///
+/// # Errors
+///
+/// Returns an [`IntentError`] for any failure in the pipeline:
+///
+/// * [`IntentError::MissingEnv`] — required `VERGIL_ANTHROPIC_API_KEY` not set.
+/// * [`IntentError::Anthropic`] — Anthropic SDK rejected the key shape.
+/// * [`IntentError::TraceOpen`] — couldn't open the trace recorder (carries
+///   the path).
+/// * [`IntentError::Project`] — `src/` is missing or has no `.sol` files.
+/// * [`IntentError::Retrieval`] — embedding API failure or empty corpus
+///   (carries an 80-char preview of the intent string).
+/// * [`IntentError::Cegis`] — the CEGIS loop itself failed (synthesis,
+///   critique, or refinement). The chained [`vergil_core::cegis::CegisError`]
+///   carries the typed cause.
+/// * [`IntentError::Io`] — any filesystem operation (mkdir, read, write).
+/// * [`IntentError::Serialize`] — proof.json / candidates.json serialization
+///   failed (effectively unreachable for our own types).
 pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentError> {
     let out_dir = spec.project.join("vergil-out");
     std::fs::create_dir_all(&out_dir)?;
@@ -292,7 +364,10 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
 
     let tracer = TraceRecorder::open(&out_dir, default_env_secrets())
         .await
-        .map_err(|e| IntentError::Trace(format!("{e}")))?;
+        .map_err(|source| IntentError::TraceOpen {
+            path: out_dir.clone(),
+            source,
+        })?;
 
     let providers = build_providers_from_env(Some(tracer.clone()))?;
 
@@ -308,11 +383,17 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
     let cache_dir = out_dir.join("retrieval-cache");
     let retriever = Retriever::new(spec.catalog, providers.embedder, &cache_dir)
         .await
-        .map_err(|e| IntentError::Retrieval(format!("{e}")))?;
+        .map_err(|source| IntentError::Retrieval {
+            intent_preview: intent_preview(&spec.intent),
+            source,
+        })?;
     let hits = retriever
         .retrieve(&spec.intent, 5)
         .await
-        .map_err(|e| IntentError::Retrieval(format!("{e}")))?;
+        .map_err(|source| IntentError::Retrieval {
+            intent_preview: intent_preview(&spec.intent),
+            source,
+        })?;
     let retrieved: Vec<RetrievedHint> = hits
         .into_iter()
         .filter_map(|h| {
@@ -375,7 +456,7 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
             &contract_source,
         )
         .await
-        .map_err(|e| IntentError::Cegis(format!("{e}")))?;
+        .map_err(|source| IntentError::Cegis { source })?;
     let wall_clock_ms = started.elapsed().as_millis() as u64;
 
     // Serialize CegisRun → ProofArtifact.
@@ -623,6 +704,51 @@ pub fn locate_templates_dir() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn intent_preview_truncates_long_intents_with_ellipsis() {
+        let long_input: String = "x".repeat(120);
+        let preview = intent_preview(&long_input);
+        let len = preview.chars().count();
+        // 80 chars + ellipsis = 81 chars.
+        assert_eq!(len, 81);
+        assert!(preview.ends_with('…'));
+    }
+
+    #[test]
+    fn intent_preview_returns_short_intents_unchanged() {
+        let input = "verify totalSupply is preserved";
+        assert_eq!(intent_preview(input), input);
+        assert!(!intent_preview(input).ends_with('…'));
+    }
+
+    #[test]
+    fn intent_error_trace_open_carries_path_and_source() {
+        let e = IntentError::TraceOpen {
+            path: PathBuf::from("/locked/dir"),
+            source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
+        };
+        let msg = format!("{e}");
+        assert!(msg.contains("/locked/dir"), "{msg}");
+        assert!(msg.contains("denied"), "{msg}");
+        // source() returns the wrapped io::Error so callers can chain.
+        use std::error::Error as _;
+        assert!(e.source().is_some());
+    }
+
+    #[test]
+    fn intent_error_retrieval_carries_intent_preview() {
+        let e = IntentError::Retrieval {
+            intent_preview: "verify token transfer is monotonic".to_string(),
+            source: RetrievalError::DimMismatch {
+                embedder: 1024,
+                cache: 512,
+            },
+        };
+        let msg = format!("{e}");
+        assert!(msg.contains("verify token transfer"), "{msg}");
+        assert!(msg.contains("retrieval failed"), "{msg}");
+    }
 
     #[test]
     fn render_substitutes_check_fn_placeholder() {
