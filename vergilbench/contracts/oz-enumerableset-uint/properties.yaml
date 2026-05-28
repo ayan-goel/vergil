@@ -1,0 +1,16 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ EnumerableSet.UintSet: adding then removing an element round-trips membership and length back to the baseline."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_add_remove_roundtrip
+    params:
+      - { name: v, type: uint256 }
+    smtchecker_source: src/Contract.sol

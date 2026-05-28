@@ -1,0 +1,20 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify an OZ ERC721 with Enumerable + Royalty: royaltyInfo reports the 2.5% receiver split and supportsInterface advertises both the Enumerable and ERC-2981 interface ids."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_royalty
+    params:
+      - { name: tokenId, type: uint256 }
+      - { name: price, type: uint256 }
+    smtchecker_source: src/Contract.sol
+  - name: check_supports_both_interfaces
+    params: []
+    smtchecker_source: src/Contract.sol

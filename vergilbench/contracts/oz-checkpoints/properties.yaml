@@ -1,0 +1,17 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ Checkpoints.Trace208: after pushing a (key,value) the latest() reads back the value and the trace length is one."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_push_sets_latest
+    params:
+      - { name: key, type: uint48 }
+      - { name: value, type: uint208 }
+    smtchecker_source: src/Contract.sol

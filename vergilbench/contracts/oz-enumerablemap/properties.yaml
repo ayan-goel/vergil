@@ -1,0 +1,23 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ EnumerableMap (UintToAddressMap): set then get reads back the value and is marked present, and overwriting an existing key updates the value without growing the map."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_set_then_get
+    params:
+      - { name: k, type: uint256 }
+      - { name: v, type: address }
+    smtchecker_source: src/Contract.sol
+  - name: check_overwrite_no_growth
+    params:
+      - { name: k, type: uint256 }
+      - { name: v1, type: address }
+      - { name: v2, type: address }
+    smtchecker_source: src/Contract.sol

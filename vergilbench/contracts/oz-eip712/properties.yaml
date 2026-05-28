@@ -1,0 +1,15 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ EIP712: the typed-data domain separator is non-zero and stable across calls (no chain fork)."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_domain_separator_nonzero_stable
+    params: []
+    smtchecker_source: src/Contract.sol

@@ -1,0 +1,22 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ SignedMath: max dominates both arguments and equals one of them, and min is never greater than max."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_max_dominates
+    params:
+      - { name: a, type: int256 }
+      - { name: b, type: int256 }
+    smtchecker_source: src/Contract.sol
+  - name: check_min_le_max
+    params:
+      - { name: a, type: int256 }
+      - { name: b, type: int256 }
+    smtchecker_source: src/Contract.sol

@@ -1,0 +1,16 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify an OZ ERC1967Proxy: state written through the proxy (via delegatecall to the logic contract) persists in the proxy's own storage."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_proxy_delegates_state
+    params:
+      - { name: v, type: uint256 }
+    smtchecker_source: src/Contract.sol

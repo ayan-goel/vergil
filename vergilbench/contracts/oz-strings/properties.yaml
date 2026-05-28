@@ -1,0 +1,18 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ Strings: toString(0) renders "0" and Strings.equal correctly distinguishes equal from unequal strings."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_zero_renders_zero
+    params: []
+    smtchecker_source: src/Contract.sol
+  - name: check_equal_reflexive
+    params: []
+    smtchecker_source: src/Contract.sol

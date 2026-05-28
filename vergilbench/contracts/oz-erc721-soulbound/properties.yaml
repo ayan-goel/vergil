@@ -1,0 +1,21 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify a soulbound ERC-721 (transfer-blocking _update override over OZ ERC721): minting is allowed but transferring an owned token reverts."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_mint_allowed
+    params:
+      - { name: to, type: address }
+      - { name: tokenId, type: uint256 }
+    smtchecker_source: src/Contract.sol
+  - name: check_transfer_blocked
+    params:
+      - { name: tokenId, type: uint256 }
+    smtchecker_source: src/Contract.sol

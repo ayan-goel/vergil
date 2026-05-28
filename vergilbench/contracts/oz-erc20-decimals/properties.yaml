@@ -1,0 +1,20 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify an OZ ERC-20 with a 6-decimal override (USDC-style): decimals() returns 6 and transfers preserve total supply."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_decimals_is_six
+    params: []
+    smtchecker_source: src/Contract.sol
+  - name: check_transfer_preserves_supply
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/Contract.sol

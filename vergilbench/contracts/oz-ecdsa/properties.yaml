@@ -1,0 +1,16 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ ECDSA.tryRecover: a signature of invalid length recovers the zero address and reports a non-zero RecoverError code rather than reverting."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_bad_length_is_error
+    params:
+      - { name: hash, type: bytes32 }
+    smtchecker_source: src/Contract.sol

@@ -1,23 +1,63 @@
 VergilBench corpus — provenance + licenses
 
-All 7 contracts in the Phase 3 seed corpus are Vergil-authored, Apache-2.0
-single-file simplifications conformant with their reference standards.
-No external code is vendored at this point.
+The corpus is 100 contracts. License posture: permissive only — no
+GPL / AGPL / BUSL anywhere in `vergilbench/`. Two provenance tiers:
 
-Sources:
-* erc20 → examples/erc20 (Vergil-authored, Apache-2.0)
-* erc20-burnable, erc20-pausable → tests/kill_criterion_month2/project/src
-  (Vergil-authored, Apache-2.0; semantically conformant with OpenZeppelin
-  ERC20Burnable / ERC20Pausable for the verified properties)
-* erc721 → examples/erc721 (Vergil-authored, Apache-2.0)
-* vault-4626 → examples/vault-4626 (Vergil-authored, Apache-2.0)
-* amm-constant-product → examples/amm-constant-product
-  (Vergil-authored, Apache-2.0; semantically a Uniswap-V2-style pair with
-  inlined accounting; not derived from Uniswap source)
-* lending → examples/lending (Vergil-authored, Apache-2.0; Compound-style
-  surface, simplified semantics)
+────────────────────────────────────────────────────────────────────────
+TIER 1 — Vergil-authored seed (10 contracts, Apache-2.0)
+────────────────────────────────────────────────────────────────────────
+Single-file simplifications conformant with their reference standards:
 
-Phase 4 will vendor or re-author external contracts (OpenZeppelin MIT,
-Certora examples, Code4rena/Sherlock public sources). All external
-vendoring goes through a license-diligence pass; nothing GPL / AGPL /
-BUSL lands in `vergilbench/contracts/`.
+* erc20, erc20-capped, erc20-pausable → ERC-20 family
+* erc721 → ERC-721
+* vault-4626 → ERC-4626
+* amm-constant-product → Uniswap-V2-style pair, inlined accounting
+  (NOT derived from Uniswap source — Uniswap V2 is GPL-3.0, V3 is BUSL)
+* lending → Compound-style surface, simplified semantics
+* ownable-counter, simple-multisig, timelock-release → common patterns
+
+────────────────────────────────────────────────────────────────────────
+TIER 2 — Real-world OpenZeppelin (90 contracts, MIT) — Slice A8
+────────────────────────────────────────────────────────────────────────
+Source:   OpenZeppelin Contracts
+Version:  v5.1.0
+Commit:   69c8def5f222ff96f2b5beff05dfba996368aa79
+License:  MIT (see vergilbench/vendor/openzeppelin-contracts-5.1.0/LICENSE)
+
+The OZ library is vendored verbatim (mocks/ pruned) under
+`vergilbench/vendor/openzeppelin-contracts-5.1.0/` and resolved by each
+corpus entry via foundry `allow_paths` + `@openzeppelin/contracts/`
+remappings. Every `oz-*` corpus entry is a minimal concrete deployment
+over the real OZ implementation — the shape the OZ Contracts Wizard
+generates and that teams actually ship. The contract logic under test is
+unmodified OZ code; the only Vergil-authored parts are the thin concrete
+wrapper, the `Properties.t.sol` harness, and `properties.yaml`.
+
+A small number of entries layer a thin Vergil-authored override on real
+OZ bases to capture common deployment patterns OZ does not ship directly
+(soulbound transfer-block, compliance blocklist, anti-whale max-wallet,
+fee-on-transfer, capped-supply drop, deposit-capped 4626). These are
+clearly named and documented as "pattern over OZ" rather than verbatim OZ.
+
+Families covered: ERC-20 (+ Burnable / Capped / Pausable / Permit /
+Votes / FlashMint / Wrapper / 4626 / combinations), ERC-721 (+ Burnable /
+Enumerable / Pausable / Royalty / URIStorage / Wrapper / Consecutive /
+Votes / combinations), ERC-1155 (+ Supply / Burnable / Pausable /
+URIStorage / combinations), access control (Ownable / Ownable2Step /
+AccessControl / + Enumerable / + DefaultAdminRules / AccessManager),
+finance (VestingWallet / + Cliff), governance (TimelockController),
+proxies/upgradeability (ERC1967 / UUPS / Transparent / Beacon / Clones),
+metatx (ERC2771Context), and utility/crypto/struct libraries (Pausable /
+ReentrancyGuard / Nonces / EnumerableSet / EnumerableMap / BitMaps /
+DoubleEndedQueue / Checkpoints / Math / SafeCast / SignedMath / ECDSA /
+MerkleProof / EIP712 / MessageHashUtils / SignatureChecker / Create2 /
+StorageSlot / Multicall / Strings / Base64 / ShortStrings / Comparators /
+ERC165 / ERC165Checker / ERC2981).
+
+solc: entries pin 0.8.20, except the proxy entries (oz-erc1967-proxy,
+oz-uups, oz-transparent-proxy) which pin 0.8.28 — ERC1967Utils requires
+^0.8.21 and 0.8.21 itself has a Natspec internal-compiler bug.
+
+Excluded on license grounds (publicly accessible but NOT permissive):
+Uniswap V2 (GPL-3.0), Uniswap V3 / parts of Aave (BUSL-1.1), Solmate
+(AGPL-3.0). These do not appear anywhere in `vergilbench/`.

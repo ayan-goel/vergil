@@ -1,0 +1,19 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify a capped-supply NFT over OZ ERC721: minting beyond MAX_SUPPLY reverts and the minted counter never exceeds the cap."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_cannot_exceed_max
+    params:
+      - { name: a, type: address }
+    smtchecker_source: src/Contract.sol
+  - name: check_minted_within_cap
+    params: []
+    smtchecker_source: src/Contract.sol

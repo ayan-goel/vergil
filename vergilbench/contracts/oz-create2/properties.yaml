@@ -1,0 +1,24 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ Create2 address derivation: computeAddress is deterministic in (salt, codeHash, deployer) and binds the deployer so a different deployer yields a different address."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_create2_is_deterministic
+    params:
+      - { name: salt, type: bytes32 }
+      - { name: codeHash, type: bytes32 }
+      - { name: deployer, type: address }
+    smtchecker_source: src/Contract.sol
+  - name: check_create2_binds_deployer
+    params:
+      - { name: salt, type: bytes32 }
+      - { name: codeHash, type: bytes32 }
+      - { name: deployer, type: address }
+    smtchecker_source: src/Contract.sol

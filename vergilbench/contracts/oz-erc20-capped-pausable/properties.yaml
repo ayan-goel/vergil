@@ -1,0 +1,20 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify an OZ ERC20 combining Capped + Pausable + Ownable: the supply-cap invariant holds and transfers revert while paused, with both _update overrides merged correctly."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_supply_at_most_cap
+    params: []
+    smtchecker_source: src/Contract.sol
+  - name: check_paused_blocks_transfer
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/Contract.sol

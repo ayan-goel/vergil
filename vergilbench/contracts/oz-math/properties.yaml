@@ -1,0 +1,21 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ Math: sqrt is the exact integer floor square root and mulDiv(a,b,1) equals the exact product within bounds."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_sqrt_is_floor
+    params:
+      - { name: n, type: uint256 }
+    smtchecker_source: src/Contract.sol
+  - name: check_muldiv_identity
+    params:
+      - { name: a, type: uint256 }
+      - { name: b, type: uint256 }
+    smtchecker_source: src/Contract.sol
