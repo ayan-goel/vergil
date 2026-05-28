@@ -1,0 +1,17 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+properties:
+  - name: check_v1_increment_advances_count
+    params: []
+    smtchecker_source: src/CounterV1.sol
+  - name: check_v2_increment_advances_count
+    params: []
+    smtchecker_source: src/CounterV2.sol
+  - name: check_v2_setOwner_rejects_non_owner
+    params:
+      - { name: attacker, type: address }
+      - { name: newOwner, type: address }
+    smtchecker_source: src/CounterV2.sol
