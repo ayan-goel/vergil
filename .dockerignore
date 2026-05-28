@@ -1,0 +1,25 @@
+# Build-time exclusions for the Vergil worker image.
+target/
+**/target/
+.git/
+.github/
+docs/book/book/
+vergil-out/
+**/vergil-out/
+out/
+**/out/
+cache/
+**/cache/
+broadcast/
+**/broadcast/
+lib/
+**/lib/
+.env
+.env.local
+tasks/
+notes/
+benchmarks/
+*.bk
+*.profraw
+tarpaulin-report.html
+cobertura.xml
