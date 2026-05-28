@@ -18,6 +18,7 @@ use crate::synthesis::{
     synthesize, RetrievedHint, SampleStat, SpecCandidate, StaticAnalysisSummary, SynthesisConfig,
     SynthesisError,
 };
+use crate::telemetry::{self, CostAccounting, NullSink, TelemetrySink};
 use vergil_llm::LlmProvider;
 
 /// Configuration for one full CEGIS run.
@@ -33,6 +34,12 @@ pub struct CegisConfig {
     /// Empirical; tune per provider.
     pub cost_per_mtok_in_usd: f64,
     pub cost_per_mtok_out_usd: f64,
+    /// Stable per-tenant identifier (Phase 4 Slice B2). V2's billing
+    /// layer keys per-customer cost off this. CLI default: `"internal"`.
+    pub tenant_id: String,
+    /// Run identifier for telemetry grouping. When `None`, the loop
+    /// auto-generates an ISO-8601 timestamp string at run start.
+    pub run_id: Option<String>,
 }
 
 impl Default for CegisConfig {
@@ -44,6 +51,8 @@ impl Default for CegisConfig {
             // Claude Opus 4.7 ballpark — recalibrate when models change.
             cost_per_mtok_in_usd: 15.0,
             cost_per_mtok_out_usd: 75.0,
+            tenant_id: "internal".to_string(),
+            run_id: None,
         }
     }
 }
@@ -56,6 +65,8 @@ impl CegisConfig {
             cost_budget_usd: 1.0,
             cost_per_mtok_in_usd: 15.0,
             cost_per_mtok_out_usd: 75.0,
+            tenant_id: "test".to_string(),
+            run_id: Some("test-run".to_string()),
         }
     }
 }
@@ -171,6 +182,25 @@ pub struct CegisLoop {
     pub cfg: CegisConfig,
     /// Minimum mutation coverage to keep a candidate. SPEC §3.7 default 0.4.
     pub mutation_min: f64,
+    /// Structured telemetry sink (Phase 4 Slice B2). Defaults to
+    /// [`NullSink`] when callers don't pass one. The CLI wires
+    /// [`telemetry::JsonlSink`] when `--telemetry-json <path>` is set.
+    pub telemetry: Arc<dyn TelemetrySink>,
+}
+
+impl CegisLoop {
+    /// Convenience: replace the default [`NullSink`] with a real telemetry
+    /// sink. Returns `self` for builder-style use at the call site.
+    pub fn with_telemetry(mut self, sink: Arc<dyn TelemetrySink>) -> Self {
+        self.telemetry = sink;
+        self
+    }
+
+    /// Default sink — drops every event. Convenience for call sites that
+    /// don't care about telemetry (tests, kill-criterion runner).
+    pub fn null_sink() -> Arc<dyn TelemetrySink> {
+        Arc::new(NullSink)
+    }
 }
 
 impl CegisLoop {
@@ -193,6 +223,10 @@ impl CegisLoop {
     /// external/public function signatures (Phase 4 Slice A3). Pass an
     /// empty string and the renderer substitutes a placeholder; callers
     /// should prefer `vergil_solidity::signatures::render_available_methods`.
+    #[tracing::instrument(
+        skip(self, sa, retrieved, contract_source, available_methods),
+        fields(tenant_id = %self.cfg.tenant_id, intent_len = intent.len())
+    )]
     pub async fn run_with_description(
         &self,
         intent: &str,
@@ -204,6 +238,13 @@ impl CegisLoop {
     ) -> Result<CegisRun, CegisError> {
         let mut run = CegisRun::default();
         let mut iteration = 0usize;
+        let run_started = std::time::Instant::now();
+        let run_id = self
+            .cfg
+            .run_id
+            .clone()
+            .unwrap_or_else(|| chrono::Utc::now().format("run-%Y%m%dT%H%M%SZ").to_string());
+        let tenant_id = self.cfg.tenant_id.as_str();
 
         loop {
             if iteration >= self.cfg.max_iterations {
@@ -230,6 +271,20 @@ impl CegisLoop {
             stats.synthesized = synth.candidates.len();
             for s in &synth.samples {
                 self.account_for_sample(&mut stats, s, &mut run);
+                self.telemetry.record(&telemetry::event(
+                    tenant_id,
+                    &run_id,
+                    iteration,
+                    telemetry::kind::SYNTH_SAMPLE,
+                    serde_json::json!({
+                        "sample_index": s.index,
+                        "temperature": s.temperature,
+                        "tokens_in": s.tokens_in,
+                        "tokens_out": s.tokens_out,
+                        "latency_ms": s.latency_ms,
+                        "candidate_count": s.candidate_count,
+                    }),
+                ));
             }
 
             // 2. Critique each.
@@ -239,6 +294,16 @@ impl CegisLoop {
                 .await;
             let critique_outcome = self.critic.filter_accepted(synth.candidates, critiques);
             stats.dropped_critique = critique_outcome.dropped.len();
+            self.telemetry.record(&telemetry::event(
+                tenant_id,
+                &run_id,
+                iteration,
+                telemetry::kind::CRITIQUE_SUMMARY,
+                serde_json::json!({
+                    "kept": critique_outcome.kept.len(),
+                    "dropped": critique_outcome.dropped.len(),
+                }),
+            ));
 
             // 3. Mutation gate.
             let mut survivors: Vec<(SpecCandidate, CritiqueResult, Option<f64>)> = Vec::new();
@@ -262,6 +327,17 @@ impl CegisLoop {
                 }
                 survivors.push((c, r, coverage));
             }
+            self.telemetry.record(&telemetry::event(
+                tenant_id,
+                &run_id,
+                iteration,
+                telemetry::kind::MUTATION_SUMMARY,
+                serde_json::json!({
+                    "kept": survivors.len(),
+                    "dropped": stats.dropped_mutation,
+                    "mutation_min": self.mutation_min,
+                }),
+            ));
 
             // 4. Verifier dispatch.
             for (c, r, cov) in survivors {
@@ -280,6 +356,17 @@ impl CegisLoop {
                     verifier_verdict: verdict,
                 });
             }
+            self.telemetry.record(&telemetry::event(
+                tenant_id,
+                &run_id,
+                iteration,
+                telemetry::kind::DISPATCH_SUMMARY,
+                serde_json::json!({
+                    "dispatched": stats.dispatched,
+                    "verified": stats.verified,
+                    "counterexamples": stats.counterexamples,
+                }),
+            ));
 
             // 5. Decide whether to refine + which way.
             stats.wall_clock_ms = started.elapsed().as_millis() as u64;
@@ -370,6 +457,45 @@ impl CegisLoop {
         if run.stop_reason.is_none() {
             run.stop_reason = Some("loop_completed".to_string());
         }
+
+        // Emit run-complete + cost so V2's billing layer sees one stable
+        // event per CegisLoop invocation.
+        let tokens_in: u32 = run.iterations.iter().map(|i| i.tokens_in).sum();
+        let tokens_out: u32 = run.iterations.iter().map(|i| i.tokens_out).sum();
+        let wall_clock_ms = run_started.elapsed().as_millis() as u64;
+        let cost = CostAccounting {
+            tokens_in,
+            tokens_out,
+            usd_estimate: run.total_cost_usd,
+            wall_clock_ms,
+        };
+        self.telemetry.record(&telemetry::event(
+            tenant_id,
+            &run_id,
+            iteration,
+            telemetry::kind::COST,
+            cost.as_fields(),
+        ));
+        let verified: usize = run
+            .outcomes
+            .iter()
+            .filter(|o| matches!(o.verifier_verdict, VerifierVerdict::Verified { .. }))
+            .count();
+        self.telemetry.record(&telemetry::event(
+            tenant_id,
+            &run_id,
+            iteration,
+            telemetry::kind::RUN_COMPLETE,
+            serde_json::json!({
+                "iterations": run.iterations.len(),
+                "outcomes": run.outcomes.len(),
+                "verified": verified,
+                "stop_reason": run.stop_reason.as_deref().unwrap_or("(unset)"),
+                "cost_usd": run.total_cost_usd,
+                "wall_clock_ms": wall_clock_ms,
+            }),
+        ));
+
         Ok(run)
     }
 
@@ -440,6 +566,7 @@ mod tests {
             dispatcher: Arc::new(FakeDispatch),
             cfg,
             mutation_min: 0.4,
+            telemetry: CegisLoop::null_sink(),
         };
         loop_.account_for_sample(&mut stats, &s, &mut run);
         assert_eq!(stats.tokens_in, 1_000_000);

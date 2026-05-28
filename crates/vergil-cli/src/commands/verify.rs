@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
-use vergil_core::cegis::{CegisConfig, VerifierVerdict};
+use vergil_core::cegis::{CegisConfig, CegisLoop, VerifierVerdict};
 use vergil_core::portfolio::{dispatch, PortfolioConfig, Verdict};
+use vergil_core::telemetry::{JsonlSink, TelemetrySink};
 use vergil_properties::Catalog;
 use vergil_solidity::foundry::{emit_counterexample, PropertyContext};
 use vergil_solidity::halmos::HalmosResult;
@@ -40,9 +42,19 @@ pub async fn run(
     format: OutputFormat,
     intent: Option<String>,
     scaffold_override: Option<PathBuf>,
+    telemetry_json: Option<PathBuf>,
+    tenant: String,
 ) -> Result<(), u8> {
     if let Some(intent_str) = intent {
-        return run_with_intent(project, intent_str, format, scaffold_override).await;
+        return run_with_intent(
+            project,
+            intent_str,
+            format,
+            scaffold_override,
+            telemetry_json,
+            tenant,
+        )
+        .await;
     }
     let project = match project.canonicalize() {
         Ok(p) => p,
@@ -376,6 +388,8 @@ async fn run_with_intent(
     intent: String,
     format: OutputFormat,
     scaffold_override: Option<PathBuf>,
+    telemetry_json: Option<PathBuf>,
+    tenant: String,
 ) -> Result<(), u8> {
     let project = match project.canonicalize() {
         Ok(p) => p,
@@ -413,6 +427,8 @@ async fn run_with_intent(
         max_iterations: 3,
         synthesis: synth,
         cost_budget_usd: 10.0,
+        tenant_id: tenant.clone(),
+        run_id: None,
         ..CegisConfig::default()
     };
 
@@ -422,6 +438,20 @@ async fn run_with_intent(
             eprintln!("scaffold: {e}");
             return Err(3);
         }
+    };
+
+    // Phase 4 Slice B2: open the telemetry sink if --telemetry-json was
+    // passed. Failure to open the sink is fatal — opting in means the
+    // caller depends on the stream.
+    let telemetry: Arc<dyn TelemetrySink> = match telemetry_json.as_deref() {
+        Some(p) => match JsonlSink::open(p) {
+            Ok(s) => Arc::new(s),
+            Err(e) => {
+                eprintln!("telemetry json sink {}: {e}", p.display());
+                return Err(3);
+            }
+        },
+        None => CegisLoop::null_sink(),
     };
 
     let spec = IntentRun {
@@ -434,6 +464,7 @@ async fn run_with_intent(
         min_critique_axis: None,
         mutation_min: 0.4,
         budget_per_property: Duration::from_secs(DEFAULT_BUDGET_SECS),
+        telemetry,
     };
 
     let (run, proof_path) = match run_intent(spec).await {

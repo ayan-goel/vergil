@@ -25,6 +25,7 @@ use vergil_core::diagnosis::{DiagnosisConfig, Diagnostician};
 use vergil_core::portfolio::{dispatch, PortfolioConfig, Verdict};
 use vergil_core::refinement::{RefinementConfig, Refiner};
 use vergil_core::synthesis::{RetrievedHint, SpecCandidate, StaticAnalysisSummary};
+use vergil_core::telemetry::TelemetrySink;
 use vergil_llm::anthropic::AnthropicClient;
 use vergil_llm::openai::OpenAiClient;
 use vergil_llm::trace::{default_env_secrets, TraceRecorder};
@@ -272,6 +273,11 @@ pub struct IntentRun {
     pub min_critique_axis: Option<f32>,
     pub mutation_min: f64,
     pub budget_per_property: Duration,
+    /// Telemetry sink (Phase 4 Slice B2). Defaults to [`CegisLoop::null_sink`]
+    /// when callers don't pass one; the CLI passes a JsonlSink when
+    /// `--telemetry-json <path>` is set so V2's billing layer can replay
+    /// the JSONL stream.
+    pub telemetry: Arc<dyn TelemetrySink>,
 }
 
 /// Orchestrate one full CEGIS run end-to-end and write `vergil-out/proof.json`.
@@ -350,6 +356,7 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
         dispatcher,
         cfg: spec.cegis.clone(),
         mutation_min: spec.mutation_min,
+        telemetry: spec.telemetry.clone(),
     };
 
     let started = std::time::Instant::now();

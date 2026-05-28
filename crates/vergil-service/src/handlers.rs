@@ -155,6 +155,19 @@ pub async fn healthz() -> Response {
     (StatusCode::OK, Json(serde_json::json!({"status": "ok"}))).into_response()
 }
 
+/// Prometheus text-format metrics endpoint. Stub for Phase 4 — emits
+/// zero baselines for the stable counter names so V2's scraper can
+/// connect on day one. V2 wires real increments through `state.metrics`.
+pub async fn metrics(State(state): State<AppState>) -> Response {
+    let body = state.metrics.render_text();
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        body,
+    )
+        .into_response()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +182,7 @@ mod tests {
         AppState {
             store: Arc::new(InMemoryStore::new()),
             auth: Arc::new(SingleTokenAuth::new("dev-token".into())),
+            metrics: Arc::new(crate::Metrics::new()),
         }
     }
 
@@ -241,6 +255,34 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn metrics_endpoint_returns_prometheus_text_with_zero_baselines() {
+        let app = crate::router(test_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let ct = resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        assert!(ct.starts_with("text/plain"));
+        let body = axum::body::to_bytes(resp.into_body(), 8 * 1024)
+            .await
+            .unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+        assert!(text.contains("# TYPE vergil_jobs_total counter"));
+        assert!(text.contains("vergil_jobs_total 0"));
     }
 
     #[tokio::test]

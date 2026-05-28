@@ -42,6 +42,16 @@ enum Command {
         /// constructor takes non-default arguments.
         #[arg(long)]
         scaffold: Option<PathBuf>,
+        /// Stream structured telemetry events to a JSONL file (one event
+        /// per line). V2's billing layer reads this file directly. Phase
+        /// 4 Slice B2.
+        #[arg(long, value_name = "PATH")]
+        telemetry_json: Option<PathBuf>,
+        /// Tenant identifier carried in every telemetry event. Default
+        /// "internal" for in-house runs; V2 wires real per-customer IDs
+        /// from the service-layer auth identity.
+        #[arg(long, default_value = "internal")]
+        tenant: String,
     },
     /// Scaffold a Vergil config in the current Foundry project (stub — see docs/book/src/cli-reference.md)
     Init,
@@ -100,6 +110,8 @@ fn main() -> ExitCode {
             format,
             intent,
             scaffold,
+            telemetry_json,
+            tenant,
         } => {
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -112,7 +124,13 @@ fn main() -> ExitCode {
                 }
             };
             rt.block_on(commands::verify::run(
-                path, properties, format, intent, scaffold,
+                path,
+                properties,
+                format,
+                intent,
+                scaffold,
+                telemetry_json,
+                tenant,
             ))
         }
         Command::Init => commands::init::run(),

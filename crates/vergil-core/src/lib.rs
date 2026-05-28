@@ -4,3 +4,4 @@ pub mod diagnosis;
 pub mod portfolio;
 pub mod refinement;
 pub mod synthesis;
+pub mod telemetry;

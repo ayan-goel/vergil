@@ -10,6 +10,7 @@
 pub mod auth;
 pub mod handlers;
 pub mod job;
+pub mod metrics;
 pub mod store;
 
 use std::sync::Arc;
@@ -21,6 +22,7 @@ use axum::{
 
 pub use auth::{AuthError, AuthProvider, SingleTokenAuth};
 pub use job::{Job, JobId, JobRequest, JobResult, JobStatus};
+pub use metrics::Metrics;
 pub use store::{InMemoryStore, JobStore};
 
 /// Shared application state passed to every handler.
@@ -28,6 +30,9 @@ pub use store::{InMemoryStore, JobStore};
 pub struct AppState {
     pub store: Arc<dyn JobStore>,
     pub auth: Arc<dyn AuthProvider>,
+    /// Prometheus-shaped metrics counter store. Phase 4 ships a stub
+    /// that always reads zero; V2 wires real increments.
+    pub metrics: Arc<Metrics>,
 }
 
 /// Build the axum Router for the v1 API. Production callers wrap this
@@ -42,6 +47,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/jobs/{id}", get(handlers::get_job))
         .route("/v1/jobs/{id}/result", get(handlers::get_job_result))
         .route("/healthz", get(handlers::healthz))
+        .route("/metrics", get(handlers::metrics))
         .with_state(state)
 }
 
@@ -54,6 +60,7 @@ mod tests {
         let state = AppState {
             store: Arc::new(InMemoryStore::new()),
             auth: Arc::new(SingleTokenAuth::new("dev-token".to_string())),
+            metrics: Arc::new(Metrics::new()),
         };
         let _router = router(state);
         // If router() compiles, the type-level contract is satisfied.

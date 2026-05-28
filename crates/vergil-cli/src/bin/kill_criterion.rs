@@ -240,6 +240,7 @@ fn run() -> Result<(), String> {
                 min_critique_axis: Some(MIN_CRITIQUE_AXIS),
                 mutation_min: 0.4,
                 budget_per_property: Duration::from_secs(PER_HALMOS_SECS),
+                telemetry: vergil_core::cegis::CegisLoop::null_sink(),
             };
 
             let result = rt.block_on(async { run_intent(spec).await });
