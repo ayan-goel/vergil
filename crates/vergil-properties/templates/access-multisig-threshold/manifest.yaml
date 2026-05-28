@@ -1,0 +1,18 @@
+id: access-multisig-threshold
+description: A multisig execute() call must revert when the confirmation count for the requested txId is strictly less than the threshold M.
+cost_class: cheap
+applies_to:
+  interfaces: [Multisig]
+requires:
+  storage_slots:
+    - name: confirmationCount
+      type: mapping(uint256 => uint256)
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: Gnosis Safe / OZ multisig pattern
+  license: Apache-2.0

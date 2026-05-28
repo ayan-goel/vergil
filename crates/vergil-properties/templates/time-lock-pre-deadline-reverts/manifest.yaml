@@ -1,0 +1,18 @@
+id: time-lock-pre-deadline-reverts
+description: A timelock's release() must revert when block.timestamp is strictly less than the release deadline.
+cost_class: cheap
+applies_to:
+  interfaces: [Timelock]
+requires:
+  storage_slots:
+    - name: releaseAt
+      type: uint256
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ TokenTimelock pattern
+  license: Apache-2.0

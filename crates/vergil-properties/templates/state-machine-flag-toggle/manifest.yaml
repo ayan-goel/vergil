@@ -1,0 +1,18 @@
+id: state-machine-flag-toggle
+description: A boolean state flag toggled by pair operations (e.g., pause/unpause, freeze/unfreeze) is idempotent — calling the "off" operation always lands the flag at false regardless of prior state.
+cost_class: cheap
+applies_to:
+  interfaces: [StateMachine]
+requires:
+  storage_slots:
+    - name: flag
+      type: bool
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ Pausable / Freezable patterns
+  license: Apache-2.0

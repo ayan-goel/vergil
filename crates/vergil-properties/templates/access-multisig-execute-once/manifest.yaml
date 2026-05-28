@@ -1,0 +1,18 @@
+id: access-multisig-execute-once
+description: Once a multisig transaction has been executed, subsequent execute() calls for the same txId must revert.
+cost_class: cheap
+applies_to:
+  interfaces: [Multisig]
+requires:
+  storage_slots:
+    - name: executed
+      type: mapping(uint256 => bool)
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: Gnosis Safe / OZ multisig pattern
+  license: Apache-2.0

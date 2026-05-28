@@ -1,0 +1,18 @@
+id: access-multisig-double-confirm
+description: A signer that has already confirmed a txId cannot confirm it a second time; the confirmation count cannot grow by more than 1 per signer per txId.
+cost_class: cheap
+applies_to:
+  interfaces: [Multisig]
+requires:
+  storage_slots:
+    - name: confirmed
+      type: mapping(uint256 => mapping(address => bool))
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: Gnosis Safe / OZ multisig pattern
+  license: Apache-2.0

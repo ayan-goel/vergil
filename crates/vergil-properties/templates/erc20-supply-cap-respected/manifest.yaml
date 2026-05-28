@@ -1,0 +1,20 @@
+id: erc20-supply-cap-respected
+description: For ERC-20 tokens with a hard supply cap, mint() must revert (or have no effect) when totalSupply + amount would exceed cap.
+cost_class: cheap
+applies_to:
+  interfaces: [ERC20, Capped]
+requires:
+  storage_slots:
+    - name: totalSupply
+      type: uint256
+    - name: cap
+      type: uint256
+  modifiers: []
+  external_call_handling: havoc
+encoding:
+  halmos: halmos.sol
+provenance:
+  tier: original
+  source: vergil-original
+  inspired_by: OZ ERC20Capped
+  license: Apache-2.0
