@@ -17,3 +17,5 @@ properties:
     params:
       - { name: txId, type: uint256 }
     smtchecker_source: src/Multisig2of3.sol
+
+intent: "Verify the multisig wallet: execution requires meeting the confirmation threshold and only signers can confirm a transaction."

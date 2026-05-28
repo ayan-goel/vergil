@@ -14,3 +14,5 @@ properties:
     params:
       - { name: newOwner, type: address }
     smtchecker_source: src/OwnableCounter.sol
+
+intent: "Verify the ownable counter: only the owner may mutate the counter and ownership transfer reassigns control."

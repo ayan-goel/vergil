@@ -17,3 +17,5 @@ properties:
   - name: check_totalSupply_below_cap_invariant
     params: []
     smtchecker_source: src/CappedToken.sol
+
+intent: "Verify the capped ERC-20: total supply never exceeds the cap and transfers preserve total supply."

@@ -19,3 +19,5 @@ properties:
   - name: check_swap_preserves_k_invariant
     params:
       - { name: amountIn, type: uint256 }
+
+intent: "Verify the constant-product AMM: a swap moves the reserves in the correct direction and the pool preserves its constant-product invariant."

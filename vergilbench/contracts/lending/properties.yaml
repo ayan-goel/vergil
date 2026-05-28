@@ -13,3 +13,5 @@ properties:
   - name: check_repay_reduces_total_debt
     params:
       - { name: amount, type: uint256 }
+
+intent: "Verify the lending market: borrowing requires sufficient collateral and only undercollateralized positions can be liquidated."

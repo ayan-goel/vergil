@@ -14,3 +14,5 @@ properties:
       - { name: spender, type: address }
       - { name: value, type: uint256 }
     smtchecker_source: src/SafeMath.sol
+
+intent: "Verify ERC-20 conformance: transfers conserve balances and total supply, and approve sets the allowance exactly."

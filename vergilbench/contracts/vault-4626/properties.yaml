@@ -19,3 +19,5 @@ properties:
     params:
       - { name: assets, type: uint256 }
       - { name: receiver, type: address }
+
+intent: "Verify the ERC-4626 vault: deposit and redeem conserve assets and shares without inflation."

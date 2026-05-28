@@ -17,3 +17,5 @@ properties:
       - { name: to, type: address }
       - { name: amount, type: uint256 }
     smtchecker_source: src/PausableToken.sol
+
+intent: "Verify the pausable ERC-20: transfers revert while paused and unpause restores transferability."

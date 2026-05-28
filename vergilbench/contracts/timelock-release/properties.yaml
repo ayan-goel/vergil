@@ -13,3 +13,5 @@ properties:
   - name: check_release_drains_balance
     params: []
     smtchecker_source: src/Timelock.sol
+
+intent: "Verify the timelock: funds cannot be released before the deadline and a completed release is idempotent."

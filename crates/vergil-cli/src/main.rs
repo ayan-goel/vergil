@@ -52,6 +52,23 @@ enum Command {
         /// from the service-layer auth identity.
         #[arg(long, default_value = "internal")]
         tenant: String,
+        /// Per-run cost ceiling in USD for the `--intent` (CEGIS) path.
+        /// Overrides the default $10. The VergilBench sweep sets a tight
+        /// value so a 100-contract run stays under its aggregate budget.
+        #[arg(long)]
+        cost_budget: Option<f64>,
+        /// Synthesis fan-out (candidates per iteration) for the `--intent`
+        /// path. Overrides the default 4. Higher values give the critic more
+        /// candidates to accept, trading cost for verification yield (the
+        /// kill-criterion sweep uses 16).
+        #[arg(long)]
+        samples: Option<usize>,
+        /// Minimum per-axis critique score (vacuity / body-independence /
+        /// testability) a candidate must clear to reach the solver, for the
+        /// `--intent` path. Overrides the default 0.5; the kill-criterion
+        /// sweep uses 0.4 (trading strictness for more candidates dispatched).
+        #[arg(long)]
+        min_critique_axis: Option<f32>,
     },
     /// Scaffold a Vergil config in the current Foundry project (stub — see docs/book/src/cli-reference.md)
     Init,
@@ -112,6 +129,9 @@ fn main() -> ExitCode {
             scaffold,
             telemetry_json,
             tenant,
+            cost_budget,
+            samples,
+            min_critique_axis,
         } => {
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -131,6 +151,9 @@ fn main() -> ExitCode {
                 scaffold,
                 telemetry_json,
                 tenant,
+                cost_budget,
+                samples,
+                min_critique_axis,
             ))
         }
         Command::Init => commands::init::run(),

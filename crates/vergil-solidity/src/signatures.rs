@@ -242,6 +242,97 @@ fn push_tag(tags: &mut Vec<String>, t: &str) {
     }
 }
 
+/// One constructor parameter: its Solidity type (first token, data-location
+/// keywords stripped) and its name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CtorParam {
+    pub ty: String,
+    pub name: String,
+}
+
+/// Parse the parameter list of the first `constructor(...)` in `source`.
+/// Returns an empty vec when there is no constructor or it takes no
+/// parameters. Inheritance/modifier args after the parameter list (e.g.
+/// `ERC20("n","s")`) are ignored — only the constructor's own parameters.
+pub fn extract_constructor(source: &str) -> Vec<CtorParam> {
+    let s = strip_comments(source);
+    let Some(idx) = s.find("constructor") else {
+        return Vec::new();
+    };
+    let after_kw = idx + "constructor".len();
+    let Some(open_rel) = s[after_kw..].find('(') else {
+        return Vec::new();
+    };
+    let open = after_kw + open_rel;
+    let Some(close) = match_paren(&s, open) else {
+        return Vec::new();
+    };
+    s[open + 1..close]
+        .split(',')
+        .filter_map(|p| {
+            let toks: Vec<&str> = p.split_whitespace().collect();
+            if toks.len() < 2 {
+                return None;
+            }
+            Some(CtorParam {
+                ty: toks[0].to_string(),
+                name: toks[toks.len() - 1].to_string(),
+            })
+        })
+        .collect()
+}
+
+/// Synthesize a plausible default constructor argument for a parameter type,
+/// for the auto-generated intent-path scaffold. Returns `None` for types we
+/// cannot fabricate generically (interface/contract handles, arrays, structs)
+/// — the caller then falls back to a no-arg deployment.
+pub fn synthesize_ctor_arg(ty: &str) -> Option<String> {
+    if ty.ends_with("[]") {
+        return None;
+    }
+    match ty {
+        "address" => Some("address(this)".to_string()),
+        "bool" => Some("false".to_string()),
+        "string" => Some("\"X\"".to_string()),
+        "bytes" => Some("\"\"".to_string()),
+        "bytes32" => Some("bytes32(0)".to_string()),
+        _ if ty.starts_with("uint") => {
+            let bits: u32 = ty
+                .strip_prefix("uint")
+                .filter(|b| !b.is_empty())
+                .and_then(|b| b.parse().ok())
+                .unwrap_or(256);
+            // Stay within each width while giving token amounts real headroom.
+            let v = if bits <= 8 {
+                "1"
+            } else if bits <= 16 {
+                "100"
+            } else if bits < 96 {
+                "1000"
+            } else {
+                "1000000 ether"
+            };
+            Some(v.to_string())
+        }
+        _ if ty.starts_with("int") => Some("1".to_string()),
+        // Interface/contract types (IERC20, etc.), structs, enums: no generic value.
+        _ => None,
+    }
+}
+
+/// Render a constructor invocation argument list (without parens) for `params`,
+/// or `None` if any parameter type cannot be synthesized.
+pub fn synthesize_ctor_args(params: &[CtorParam]) -> Option<String> {
+    if params.is_empty() {
+        return Some(String::new());
+    }
+    let mut out = Vec::with_capacity(params.len());
+    for p in params {
+        out.push(synthesize_ctor_arg(&p.ty)?);
+    }
+    Some(out.join(", "))
+}
+
 fn is_ident(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
 }
@@ -511,6 +602,45 @@ mod tests {
         assert!(tags.contains(&"ERC20".to_string()));
         assert!(tags.contains(&"Ownable".to_string()));
         assert!(tags.contains(&"Pausable".to_string()));
+    }
+
+    #[test]
+    fn extract_constructor_parses_params_ignoring_inheritance_args() {
+        let src = r#"
+            contract T is ERC20Capped {
+                constructor(uint256 cap_, uint256 supply, address owner)
+                    ERC20("Cap", "CAP") ERC20Capped(cap_) { _mint(owner, supply); }
+            }
+        "#;
+        let p = extract_constructor(src);
+        assert_eq!(p.len(), 3);
+        assert_eq!(p[0].ty, "uint256");
+        assert_eq!(p[2].ty, "address");
+        assert_eq!(p[2].name, "owner");
+    }
+
+    #[test]
+    fn extract_constructor_empty_for_no_arg_ctor() {
+        assert!(extract_constructor("contract C { constructor() ERC20(\"a\",\"b\") {} }").is_empty());
+    }
+
+    #[test]
+    fn synthesize_ctor_args_handles_common_types() {
+        let params = extract_constructor(
+            "contract C { constructor(uint256 a, address b, bool c, uint8 d) {} }",
+        );
+        assert_eq!(
+            synthesize_ctor_args(&params).as_deref(),
+            Some("1000000 ether, address(this), false, 1")
+        );
+    }
+
+    #[test]
+    fn synthesize_ctor_args_none_for_interface_param() {
+        // ERC20Wrapper(IERC20 underlying) — cannot fabricate a token handle.
+        let params = extract_constructor("contract C { constructor(IERC20 u) ERC20Wrapper(u) {} }");
+        assert_eq!(params.len(), 1);
+        assert!(synthesize_ctor_args(&params).is_none());
     }
 
     #[test]

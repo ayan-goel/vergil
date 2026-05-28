@@ -36,6 +36,7 @@ fn cleanup_stale_cex_files(project: &std::path::Path) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     project: PathBuf,
     properties: Option<PathBuf>,
@@ -44,6 +45,9 @@ pub async fn run(
     scaffold_override: Option<PathBuf>,
     telemetry_json: Option<PathBuf>,
     tenant: String,
+    cost_budget: Option<f64>,
+    samples: Option<usize>,
+    min_critique_axis: Option<f32>,
 ) -> Result<(), u8> {
     if let Some(intent_str) = intent {
         return run_with_intent(
@@ -53,6 +57,9 @@ pub async fn run(
             scaffold_override,
             telemetry_json,
             tenant,
+            cost_budget,
+            samples,
+            min_critique_axis,
         )
         .await;
     }
@@ -383,6 +390,7 @@ fn emit_counterexample_files(
 ///   0 — at least one property verified, proof.json written
 ///   1 — CEGIS finished but no property verified (counterexample or unknown)
 ///   2 — pipeline failure (env, IO, retrieval, etc.)
+#[allow(clippy::too_many_arguments)]
 async fn run_with_intent(
     project: PathBuf,
     intent: String,
@@ -390,6 +398,9 @@ async fn run_with_intent(
     scaffold_override: Option<PathBuf>,
     telemetry_json: Option<PathBuf>,
     tenant: String,
+    cost_budget: Option<f64>,
+    samples: Option<usize>,
+    min_critique_axis: Option<f32>,
 ) -> Result<(), u8> {
     let project = match project.canonicalize() {
         Ok(p) => p,
@@ -422,11 +433,11 @@ async fn run_with_intent(
     // 3 iterations is enough for the typical synth → critique → verify
     // flow before refinement diverges.
     let mut synth = CegisConfig::default().synthesis;
-    synth.samples = 4;
+    synth.samples = samples.unwrap_or(4);
     let cegis_cfg = CegisConfig {
         max_iterations: 3,
         synthesis: synth,
-        cost_budget_usd: 10.0,
+        cost_budget_usd: cost_budget.unwrap_or(10.0),
         tenant_id: tenant.clone(),
         run_id: None,
         ..CegisConfig::default()
@@ -461,7 +472,7 @@ async fn run_with_intent(
         scaffold,
         catalog,
         cegis: cegis_cfg,
-        min_critique_axis: None,
+        min_critique_axis,
         mutation_min: 0.4,
         budget_per_property: Duration::from_secs(DEFAULT_BUDGET_SECS),
         telemetry,
@@ -733,6 +744,24 @@ fn resolve_scaffold(project: &Path, override_path: Option<&Path>) -> Result<Stri
     }
 }
 
+/// Foundry-style assertion helpers injected into the auto-generated scaffold.
+/// Synthesized candidates routinely call `assertEq` / `assertTrue` / etc. (the
+/// forge-std `Test` vocabulary), but the bare scaffold does not inherit
+/// forge-std, so without these the candidate fails to compile and the verifier
+/// reports a build error rather than a verdict (Phase 4 Slice A9). Each helper
+/// reduces to a plain `assert`, which Halmos treats as the property to prove.
+const ASSERT_HELPERS: &str = r#"    // Foundry-style assertion helpers (synthesized candidates expect these).
+    function assertEq(uint256 a, uint256 b) internal pure { assert(a == b); }
+    function assertEq(address a, address b) internal pure { assert(a == b); }
+    function assertEq(bool a, bool b) internal pure { assert(a == b); }
+    function assertEq(bytes32 a, bytes32 b) internal pure { assert(a == b); }
+    function assertTrue(bool c) internal pure { assert(c); }
+    function assertFalse(bool c) internal pure { assert(!c); }
+    function assertGt(uint256 a, uint256 b) internal pure { assert(a > b); }
+    function assertGe(uint256 a, uint256 b) internal pure { assert(a >= b); }
+    function assertLt(uint256 a, uint256 b) internal pure { assert(a < b); }
+    function assertLe(uint256 a, uint256 b) internal pure { assert(a <= b); }"#;
+
 /// Read every `.sol` under `<project>/src/`, collect each contract
 /// identifier, and synthesize a scaffold importing all of them.
 ///
@@ -775,8 +804,19 @@ fn autodetect_scaffold(project: &Path) -> Option<String> {
     }
 
     if imports.len() == 1 {
-        // Single-contract legacy shape: keep the `token` field + ctor.
+        // Single-contract shape: deploy the contract as `token` so candidates
+        // can use it directly. Phase 4 Slice A9: parse the constructor and
+        // synthesize valid deploy args (the legacy no-arg `new X()` broke every
+        // contract with required ctor args — ERC20Capped(cap), Ownable(owner),
+        // etc.). Falls back to no-arg when a param type can't be synthesized
+        // (interface handles, arrays).
         let (ident, filename) = &imports[0];
+        let body = std::fs::read_to_string(src_dir.join(filename)).unwrap_or_default();
+        let params = vergil_solidity::signatures::extract_constructor(&body);
+        let deploy = match vergil_solidity::signatures::synthesize_ctor_args(&params) {
+            Some(args) => format!("new {ident}({args})"),
+            None => format!("new {ident}()"),
+        };
         return Some(format!(
             r#"// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
@@ -787,9 +827,10 @@ contract CegisProperties {{
     {ident} internal token;
 
     constructor() {{
-        token = new {ident}();
+        token = {deploy};
     }}
 
+{ASSERT_HELPERS}
     {{{{CHECK_FN}}}}
 }}
 "#
@@ -816,6 +857,7 @@ pragma solidity ^0.8.20;
 //       assert(v.totalAssets() == t.balanceOf(address(v)));
 //   }}
 contract CegisProperties {{
+{ASSERT_HELPERS}
     {{{{CHECK_FN}}}}
 }}
 "#

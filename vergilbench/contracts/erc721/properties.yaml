@@ -17,3 +17,5 @@ properties:
     params:
       - { name: operator, type: address }
       - { name: approved, type: bool }
+
+intent: "Verify ERC-721 conformance: minting assigns ownership, approval authorizes transfer, and transferring clears the prior per-token approval."
