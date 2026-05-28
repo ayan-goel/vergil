@@ -110,19 +110,71 @@ impl Retriever {
         intent: &str,
         k: usize,
     ) -> Result<Vec<RetrievedTemplate>, RetrievalError> {
+        self.retrieve_for_interfaces(intent, k, &[]).await
+    }
+
+    /// Like [`retrieve`](Self::retrieve), but first restricts the candidate
+    /// set to templates applicable to `interfaces`, then ranks by similarity.
+    ///
+    /// A template is *applicable* when its `applies_to.interfaces` is empty
+    /// (universal), contains `Generic`, or intersects `interfaces`
+    /// (case-insensitive). When `interfaces` is empty, no filtering happens —
+    /// identical to [`retrieve`](Self::retrieve).
+    ///
+    /// This is the A1 fix. Without it, an ERC-721 intent embeds close to the
+    /// catalog's dominant ERC-20 templates (shared `transfer` / `approve` /
+    /// `balance` vocabulary) and the synthesizer follows template gravity into
+    /// the wrong standard — the documented cause of the ERC-721 kill-criterion
+    /// stragglers. Filtering by the contract's detected interface stops the
+    /// cross-standard leakage before ranking.
+    ///
+    /// If the filter would leave an empty candidate set, it falls back to the
+    /// unfiltered ranking — some hints beat none.
+    pub async fn retrieve_for_interfaces(
+        &self,
+        intent: &str,
+        k: usize,
+        interfaces: &[String],
+    ) -> Result<Vec<RetrievedTemplate>, RetrievalError> {
         let qv = self.embedder.embed(&[intent.to_string()]).await?;
         let query = qv
             .into_iter()
             .next()
             .ok_or_else(|| RetrievalError::Embed(EmbedError::Schema("empty embedding".into())))?;
+
+        let eligible = |id: &str| -> bool {
+            if interfaces.is_empty() {
+                return true;
+            }
+            match self.catalog.get(id) {
+                Some(t) => interface_compatible(&t.manifest.applies_to.interfaces, interfaces),
+                None => true,
+            }
+        };
+
         let mut scored: Vec<RetrievedTemplate> = self
             .vectors
             .iter()
+            .filter(|(id, _)| eligible(id))
             .map(|(id, v)| RetrievedTemplate {
                 template_id: id.clone(),
                 score: dot(&query, v),
             })
             .collect();
+
+        // Fallback: an interface filter that pruned everything is worse than
+        // no filter — rank the full set instead.
+        if scored.is_empty() && !interfaces.is_empty() {
+            scored = self
+                .vectors
+                .iter()
+                .map(|(id, v)| RetrievedTemplate {
+                    template_id: id.clone(),
+                    score: dot(&query, v),
+                })
+                .collect();
+        }
+
         scored.sort_by(|a, b| {
             b.score
                 .partial_cmp(&a.score)
@@ -150,6 +202,21 @@ fn embed_text(t: &PropertyTemplate) -> String {
 
 fn dot(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+}
+
+/// A template applies to a target contract when it declares no interface
+/// (universal), declares `Generic`, or shares at least one interface tag with
+/// the target (case-insensitive).
+fn interface_compatible(template_ifaces: &[String], target: &[String]) -> bool {
+    if template_ifaces.is_empty() {
+        return true;
+    }
+    if template_ifaces.iter().any(|i| i.eq_ignore_ascii_case("Generic")) {
+        return true;
+    }
+    template_ifaces
+        .iter()
+        .any(|ti| target.iter().any(|t| t.eq_ignore_ascii_case(ti)))
 }
 
 fn ensure_schema(db: &Connection) -> rusqlite::Result<()> {
@@ -311,6 +378,81 @@ mod tests {
             Err(other) => panic!("expected DimMismatch, got {other}"),
             Ok(_) => panic!("expected dim mismatch error"),
         }
+    }
+
+    #[tokio::test]
+    async fn retrieve_for_interfaces_excludes_cross_standard_templates() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cat = build_test_catalog();
+        let r = Retriever::new(cat, Box::new(MockEmbedder::new("test-32", 32)), tmp.path())
+            .await
+            .unwrap();
+        let hits = r
+            .retrieve_for_interfaces(
+                "clear per-token approval on transfer",
+                8,
+                &["ERC721".to_string()],
+            )
+            .await
+            .unwrap();
+        assert!(!hits.is_empty(), "ERC721 has applicable templates");
+        for h in &hits {
+            let t = r.template(&h.template_id).expect("hit is a real template");
+            let ifaces = &t.manifest.applies_to.interfaces;
+            let ok = ifaces.is_empty()
+                || ifaces.iter().any(|i| i.eq_ignore_ascii_case("Generic"))
+                || ifaces.iter().any(|i| i.eq_ignore_ascii_case("ERC721"));
+            assert!(
+                ok,
+                "ERC20-only/cross-standard template leaked into ERC721 retrieval: {} {:?}",
+                h.template_id, ifaces
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn retrieve_for_interfaces_empty_filter_matches_retrieve() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cat = build_test_catalog();
+        let r = Retriever::new(cat, Box::new(MockEmbedder::new("test-32", 32)), tmp.path())
+            .await
+            .unwrap();
+        let a = r.retrieve("ERC20 transfer", 5).await.unwrap();
+        let b = r
+            .retrieve_for_interfaces("ERC20 transfer", 5, &[])
+            .await
+            .unwrap();
+        let ids_a: Vec<&str> = a.iter().map(|h| h.template_id.as_str()).collect();
+        let ids_b: Vec<&str> = b.iter().map(|h| h.template_id.as_str()).collect();
+        assert_eq!(ids_a, ids_b, "empty filter must equal unfiltered retrieve");
+    }
+
+    #[test]
+    fn interface_compatible_rules() {
+        // universal + Generic always pass
+        assert!(interface_compatible(&[], &["ERC721".to_string()]));
+        assert!(interface_compatible(
+            &["Generic".to_string()],
+            &["ERC721".to_string()]
+        ));
+        // exact + partial intersection pass
+        assert!(interface_compatible(
+            &["ERC721".to_string()],
+            &["ERC721".to_string()]
+        ));
+        assert!(interface_compatible(
+            &["ERC20".to_string(), "Pausable".to_string()],
+            &["ERC20".to_string()]
+        ));
+        // disjoint standards do not
+        assert!(!interface_compatible(
+            &["ERC20".to_string()],
+            &["ERC721".to_string()]
+        ));
+        assert!(!interface_compatible(
+            &["ERC4626".to_string()],
+            &["ERC721".to_string()]
+        ));
     }
 
     #[test]

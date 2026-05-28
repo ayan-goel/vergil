@@ -383,7 +383,16 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
 
     let sa_summary = build_static_analysis_summary(&primary_source).await?;
 
-    // Retrieval: pull top-k templates that match the intent.
+    // Phase 4 Slice A1: classify the target contract's interface(s) so
+    // retrieval can filter out cross-standard templates. Without this, an
+    // ERC-721 intent pulls the catalog's dominant ERC-20 templates (shared
+    // transfer/approve/balance vocabulary) and the synthesizer follows
+    // template gravity into the wrong standard — the documented cause of the
+    // ERC-721 kill-criterion stragglers. Empty result → no filtering.
+    let detected_interfaces = vergil_solidity::signatures::detect_interfaces(&contract_source);
+
+    // Retrieval: pull top-k templates that match the intent, restricted to
+    // the detected interface(s).
     let cache_dir = out_dir.join("retrieval-cache");
     let retriever = Retriever::new(spec.catalog, providers.embedder, &cache_dir)
         .await
@@ -392,7 +401,7 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
             source,
         })?;
     let hits = retriever
-        .retrieve(&spec.intent, 5)
+        .retrieve_for_interfaces(&spec.intent, 5, &detected_interfaces)
         .await
         .map_err(|source| IntentError::Retrieval {
             intent_preview: intent_preview(&spec.intent),

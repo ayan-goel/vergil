@@ -151,6 +151,97 @@ pub fn render_available_methods(sigs: &[FunctionSignature]) -> String {
         .join("\n")
 }
 
+/// Classify a contract's interface(s) from its source, using the external
+/// function surface (via [`extract`]) plus a few textual markers. Returns
+/// interface tags drawn from the catalog's `applies_to.interfaces`
+/// vocabulary (e.g. `ERC20`, `ERC721`, `ERC4626`, `Ownable`, `Pausable`).
+///
+/// Empty when nothing recognizable is found — callers treat the empty case
+/// as "do not filter retrieval" so an unrecognized contract still gets the
+/// full catalog (no worse than the pre-A1 behavior).
+///
+/// Detection is conservative and additive: a contract can carry several tags
+/// (an ERC-20 that is also Pausable and Ownable yields all three). The one
+/// hard exclusion that matters for synthesis quality is that an **ERC-721
+/// does not get the ERC-20 tag** — ERC-20 templates dominate the catalog and
+/// were the documented root cause of the ERC-721 kill-criterion stragglers
+/// (`notes/phase4-a1-stragglers-diagnosis.md`).
+pub fn detect_interfaces(source: &str) -> Vec<String> {
+    let sigs = extract(source);
+    let names: std::collections::HashSet<&str> = sigs.iter().map(|s| s.name.as_str()).collect();
+    let has = |n: &str| names.contains(n);
+    let text = strip_comments(source);
+
+    let mut tags: Vec<String> = Vec::new();
+
+    // --- token standards (mutually distinguishing) ---
+    // ERC-721: non-fungible owner-tracking surface. The presence of
+    // ownerOf + an approval-for-all/getApproved surface is what separates it
+    // from ERC-20 (both share transfer/approve/balanceOf names).
+    let is_erc721 =
+        has("ownerOf") && (has("setApprovalForAll") || has("getApproved") || has("isApprovedForAll"));
+    // ERC-4626: tokenized vault. Shares are themselves an ERC-20, so a vault
+    // earns both tags.
+    let is_erc4626 = has("asset")
+        && (has("convertToShares")
+            || has("convertToAssets")
+            || has("totalAssets")
+            || (has("deposit") && has("redeem")));
+    // ERC-20: fungible allowance surface, and explicitly not an NFT.
+    let is_erc20 = has("allowance") && has("transfer") && has("transferFrom") && !is_erc721;
+
+    if is_erc721 {
+        push_tag(&mut tags, "ERC721");
+    }
+    if is_erc4626 {
+        push_tag(&mut tags, "ERC4626");
+        push_tag(&mut tags, "ERC20");
+    } else if is_erc20 {
+        push_tag(&mut tags, "ERC20");
+    }
+
+    // --- common mixins (additive; over-inclusion is harmless) ---
+    if has("transferOwnership") || has("owner") {
+        push_tag(&mut tags, "Ownable");
+    }
+    if has("acceptOwnership") || has("pendingOwner") {
+        push_tag(&mut tags, "Ownable2Step");
+    }
+    if has("paused") || text.contains("whenNotPaused") {
+        push_tag(&mut tags, "Pausable");
+    }
+    if has("hasRole") && has("grantRole") {
+        push_tag(&mut tags, "AccessControl");
+    }
+    if has("confirmTransaction")
+        || has("executeTransaction")
+        || has("submitTransaction")
+        || (has("required") && text.contains("isOwner"))
+    {
+        push_tag(&mut tags, "Multisig");
+    }
+    if has("getMinDelay")
+        || has("schedule")
+        || (has("release") && (has("beneficiary") || text.contains("releaseTime")))
+    {
+        push_tag(&mut tags, "Timelock");
+    }
+    if text.contains("nonReentrant") || text.contains("ReentrancyGuard") {
+        push_tag(&mut tags, "ReentrancyGuard");
+    }
+    if has("cap") {
+        push_tag(&mut tags, "Capped");
+    }
+
+    tags
+}
+
+fn push_tag(tags: &mut Vec<String>, t: &str) {
+    if !tags.iter().any(|x| x == t) {
+        tags.push(t.to_string());
+    }
+}
+
 fn is_ident(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
 }
@@ -347,5 +438,89 @@ mod tests {
         }
         // The internal helper should be skipped.
         assert!(!names.contains(&"_isAuthorized"));
+    }
+
+    #[test]
+    fn detect_interfaces_erc20_not_erc721() {
+        let src = r#"
+            contract Token {
+                function totalSupply() external view returns (uint256) {}
+                function balanceOf(address a) external view returns (uint256) {}
+                function transfer(address to, uint256 v) external returns (bool) {}
+                function transferFrom(address f, address t, uint256 v) external returns (bool) {}
+                function approve(address s, uint256 v) external returns (bool) {}
+                function allowance(address o, address s) external view returns (uint256) {}
+            }
+        "#;
+        let tags = detect_interfaces(src);
+        assert!(tags.contains(&"ERC20".to_string()), "expected ERC20 in {tags:?}");
+        assert!(
+            !tags.contains(&"ERC721".to_string()),
+            "ERC20 must not be tagged ERC721: {tags:?}"
+        );
+    }
+
+    #[test]
+    fn detect_interfaces_erc721_not_erc20() {
+        // The exact stragglers' contract shape. Must NOT carry the ERC20 tag,
+        // or ERC20 templates leak back into ERC721 retrieval (the A1 root cause).
+        let src = include_str!("../../../examples/erc721/src/ERC721.sol");
+        let tags = detect_interfaces(src);
+        assert!(tags.contains(&"ERC721".to_string()), "expected ERC721 in {tags:?}");
+        assert!(
+            !tags.contains(&"ERC20".to_string()),
+            "ERC721 must not be tagged ERC20: {tags:?}"
+        );
+    }
+
+    #[test]
+    fn detect_interfaces_vault_is_erc4626_and_erc20() {
+        let src = r#"
+            contract Vault {
+                function asset() external view returns (address) {}
+                function totalAssets() external view returns (uint256) {}
+                function convertToShares(uint256 a) external view returns (uint256) {}
+                function deposit(uint256 a, address r) external returns (uint256) {}
+                function redeem(uint256 s, address r, address o) external returns (uint256) {}
+                function transfer(address to, uint256 v) external returns (bool) {}
+                function transferFrom(address f, address t, uint256 v) external returns (bool) {}
+                function allowance(address o, address s) external view returns (uint256) {}
+            }
+        "#;
+        let tags = detect_interfaces(src);
+        assert!(tags.contains(&"ERC4626".to_string()), "expected ERC4626 in {tags:?}");
+        assert!(
+            tags.contains(&"ERC20".to_string()),
+            "vault shares are ERC20: {tags:?}"
+        );
+    }
+
+    #[test]
+    fn detect_interfaces_additive_mixins() {
+        let src = r#"
+            contract PausableOwnableToken {
+                function owner() external view returns (address) {}
+                function transferOwnership(address n) external {}
+                function paused() external view returns (bool) {}
+                function transfer(address to, uint256 v) external returns (bool) {}
+                function transferFrom(address f, address t, uint256 v) external returns (bool) {}
+                function allowance(address o, address s) external view returns (uint256) {}
+            }
+        "#;
+        let tags = detect_interfaces(src);
+        assert!(tags.contains(&"ERC20".to_string()));
+        assert!(tags.contains(&"Ownable".to_string()));
+        assert!(tags.contains(&"Pausable".to_string()));
+    }
+
+    #[test]
+    fn detect_interfaces_unrecognized_is_empty() {
+        // A contract with no recognizable surface → empty → caller won't filter.
+        let src = r#"
+            contract Blob {
+                function doThing(uint256 x) external returns (uint256) {}
+            }
+        "#;
+        assert!(detect_interfaces(src).is_empty());
     }
 }
