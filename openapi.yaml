@@ -1,0 +1,219 @@
+openapi: 3.0.3
+info:
+  title: Vergil Service API
+  description: |
+    Job-submission API for Vergil verification. V2's hosted service
+    implements this contract; Phase 4 ships the contract + stub handlers.
+
+    All endpoints under `/v1/` are versioned. Breaking changes bump to `/v2/`.
+
+    Authentication: Bearer token in `Authorization` header. Phase 4 ships
+    a single-token stub (`VERGIL_SERVICE_TOKEN` env); V2 swaps in
+    per-customer keys with role-based access.
+  version: 0.1.0
+  contact:
+    name: Vergil
+    url: https://example.com
+servers:
+  - url: http://localhost:8080
+    description: Local development
+paths:
+  /v1/jobs:
+    post:
+      summary: Submit a verification job
+      operationId: submitJob
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobRequest'
+      responses:
+        '201':
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          description: Invalid request shape
+        '401':
+          description: Missing or invalid bearer token
+        '501':
+          description: Endpoint not implemented in Phase 4 stub
+    get:
+      summary: List jobs
+      operationId: listJobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [pending, running, completed, failed]
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - in: query
+          name: cursor
+          required: false
+          schema:
+            type: string
+            description: Opaque pagination cursor
+      responses:
+        '200':
+          description: Page of jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobList'
+        '401':
+          description: Missing or invalid bearer token
+        '501':
+          description: Endpoint not implemented in Phase 4 stub
+  /v1/jobs/{id}:
+    get:
+      summary: Get job status
+      operationId: getJob
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404':
+          description: Unknown job id
+        '401':
+          description: Missing or invalid bearer token
+        '501':
+          description: Endpoint not implemented in Phase 4 stub
+  /v1/jobs/{id}/result:
+    get:
+      summary: Get verification result (proof.json)
+      operationId: getJobResult
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: proof.json artifact
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Full ProofArtifact (see vergil-proof schema)
+        '404':
+          description: Unknown job id or job not yet completed
+        '401':
+          description: Missing or invalid bearer token
+        '501':
+          description: Endpoint not implemented in Phase 4 stub
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: VergilToken
+  schemas:
+    JobRequest:
+      type: object
+      required: [contract_source, intent]
+      properties:
+        contract_source:
+          type: string
+          description: Solidity source (one or more contracts in a single file). V2 will accept multi-file uploads.
+        intent:
+          type: string
+          description: Natural-language statement of what should hold
+        properties_yaml:
+          type: string
+          nullable: true
+          description: Optional Phase 1 properties.yaml content (when set, bypasses LLM synthesis)
+        cost_budget_usd:
+          type: number
+          format: float
+          nullable: true
+          default: 10
+        wall_clock_budget_seconds:
+          type: integer
+          nullable: true
+          default: 600
+    Job:
+      type: object
+      required: [id, status, submitted_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        submitted_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        cost_usd:
+          type: number
+          format: float
+          nullable: true
+        failure_reason:
+          type: string
+          nullable: true
+    JobList:
+      type: object
+      required: [jobs]
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+        next_cursor:
+          type: string
+          nullable: true
