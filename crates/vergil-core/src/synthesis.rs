@@ -99,10 +99,14 @@ pub struct RetrievedHint {
     pub halmos_snippet: String,
 }
 
-/// Render the synthesize.txt prompt with `intent`, `static_analysis`,
-/// `retrieved`, and `contract_source` placeholders filled.
+/// Render the synthesize.txt prompt with all placeholders filled.
+/// `available_methods` is the structured block describing the contract's
+/// external/public function signatures (Phase 4 Slice A3). Pass an empty
+/// string and the renderer substitutes a placeholder; callers should
+/// prefer `vergil_solidity::signatures::render_available_methods(&sigs)`.
 pub fn render_prompt(
     intent: &str,
+    available_methods: &str,
     sa: &StaticAnalysisSummary,
     retrieved: &[RetrievedHint],
     contract_source: &str,
@@ -117,8 +121,16 @@ pub fn render_prompt(
         })
         .collect::<Vec<_>>()
         .join("\n");
+    let methods_default;
+    let methods = if available_methods.is_empty() {
+        methods_default = "(no external functions detected — read the contract source above)";
+        methods_default
+    } else {
+        available_methods
+    };
     let mut vars: BTreeMap<&str, &str> = BTreeMap::new();
     vars.insert("intent", intent);
+    vars.insert("available_methods", methods);
     vars.insert("static_analysis_summary", &sa.text);
     vars.insert("retrieved_templates", &retrieved_text);
     vars.insert("contract_source", contract_source);
@@ -131,13 +143,14 @@ pub fn render_prompt(
 pub async fn synthesize(
     provider: Arc<dyn LlmProvider>,
     intent: &str,
+    available_methods: &str,
     sa: &StaticAnalysisSummary,
     retrieved: &[RetrievedHint],
     contract_source: &str,
     cfg: &SynthesisConfig,
 ) -> Result<SynthesisReport, SynthesisError> {
-    let prompt =
-        render_prompt(intent, sa, retrieved, contract_source).map_err(SynthesisError::Prompt)?;
+    let prompt = render_prompt(intent, available_methods, sa, retrieved, contract_source)
+        .map_err(SynthesisError::Prompt)?;
 
     let samples = cfg.samples.max(1);
     let mut tasks = Vec::with_capacity(samples);
@@ -333,6 +346,7 @@ mod tests {
         }];
         let out = render_prompt(
             "verify ERC20 conformance",
+            "- function transfer(address to, uint256 amount) external returns (bool)",
             &sa,
             &retrieved,
             "contract source",
@@ -342,7 +356,16 @@ mod tests {
         assert!(out.contains("two slots, one modifier"));
         assert!(out.contains("erc20-x"));
         assert!(out.contains("contract source"));
+        assert!(out.contains("function transfer"));
         // No leftover placeholders.
+        assert!(!out.contains("{{"));
+    }
+
+    #[test]
+    fn render_prompt_falls_back_to_placeholder_when_methods_empty() {
+        let sa = StaticAnalysisSummary::default();
+        let out = render_prompt("i", "", &sa, &[], "src").unwrap();
+        assert!(out.contains("no external functions detected"));
         assert!(!out.contains("{{"));
     }
 }

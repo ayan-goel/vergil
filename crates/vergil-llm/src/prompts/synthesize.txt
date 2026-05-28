@@ -11,8 +11,11 @@ Static analysis summary (storage slots, modifiers, external calls, inheritance �
 Retrieved property templates (top-k results from the corpus — patterns proven useful on similar contracts):
 {{ retrieved_templates }}
 
-Contract source under verification:
+Contract source under verification (authoritative — read this to learn the contract's actual interface):
 {{ contract_source }}
+
+Quick reference: external/public methods extracted from the contract source above. Use this as a checklist when you draft candidates; the contract source remains authoritative if anything looks off.
+{{ available_methods }}
 
 ## Output schema
 
@@ -35,6 +38,7 @@ Return a JSON array of `SpecCandidate` objects. Each object MUST conform to:
 3. **SMTChecker encodings live inside the contract.** Use `assert(...)` at the relevant program point. If the property is multi-transaction or unbounded, mark the candidate's `smtchecker` field as an empty string — Halmos alone will discharge it.
 4. **Be wary of vacuity.** A property the contract trivially satisfies (e.g. `assert(true)`, `assert(balance >= 0)` on a uint) is worse than no property — it produces a misleading green checkmark. Prefer fewer non-vacuous specs over many vacuous ones.
 5. **Respect static analysis.** Only assert about storage slots and modifiers the static analysis confirms exist; the manifest validator will reject specs that reference phantom state.
-6. **Reference templates only when they fit.** A retrieved template proves useful patterns; copying one verbatim when the contract differs structurally is worse than authoring from scratch.
+6. **Reference templates only when they fit.** A retrieved template proves useful patterns; copying one verbatim when the contract differs structurally is worse than authoring from scratch. Match templates to the contract's actual methods (the quick-reference list above is a useful checklist).
+7. **Trust the contract source.** The methods quick-reference is helpful but the source above is authoritative — if a method appears in the source but not in the quick-reference, prefer the source. If you find yourself wanting to call a method that doesn't appear in either, the contract probably doesn't support that property; omit the candidate rather than invent the method.
 
 Return only the JSON array. No prose. No code fences.

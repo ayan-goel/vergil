@@ -58,7 +58,9 @@ async fn synthesize_returns_candidates_from_mock_fixture() {
         "contract Token { mapping(address => uint256) _balances; uint256 _totalSupply; }";
 
     // Compute the expected request SHA so we can author the fixture.
-    let prompt = render_prompt(intent, &sa, &retrieved, contract_source).expect("prompt renders");
+    let available_methods = ""; // empty → renderer substitutes the placeholder
+    let prompt = render_prompt(intent, available_methods, &sa, &retrieved, contract_source)
+        .expect("prompt renders");
     let req = CompletionRequest {
         model: cfg.model.clone(),
         messages: vec![Message {
@@ -81,9 +83,17 @@ async fn synthesize_returns_candidates_from_mock_fixture() {
     );
 
     let provider = Arc::new(MockProvider::new(fixtures_dir()));
-    let report = synthesize(provider, intent, &sa, &retrieved, contract_source, &cfg)
-        .await
-        .expect("synthesize ok");
+    let report = synthesize(
+        provider,
+        intent,
+        available_methods,
+        &sa,
+        &retrieved,
+        contract_source,
+        &cfg,
+    )
+    .await
+    .expect("synthesize ok");
     assert_eq!(report.samples.len(), 1);
     assert!(report.parse_failures.is_empty(), "parse failed: {report:?}");
     assert!(!report.candidates.is_empty(), "no candidates produced");

@@ -181,7 +181,7 @@ impl CegisLoop {
         retrieved: &[RetrievedHint],
         contract_source: &str,
     ) -> Result<CegisRun, CegisError> {
-        self.run_with_description(intent, None, sa, retrieved, contract_source)
+        self.run_with_description(intent, None, "", sa, retrieved, contract_source)
             .await
     }
 
@@ -189,10 +189,15 @@ impl CegisLoop {
     /// `description` (in addition to the broader `intent`) — used by the
     /// kill-criterion runner so the critic scores each candidate against the
     /// one ground-truth property the iteration is targeting.
+    /// `available_methods` is the synth-prompt block listing the contract's
+    /// external/public function signatures (Phase 4 Slice A3). Pass an
+    /// empty string and the renderer substitutes a placeholder; callers
+    /// should prefer `vergil_solidity::signatures::render_available_methods`.
     pub async fn run_with_description(
         &self,
         intent: &str,
         description: Option<&str>,
+        available_methods: &str,
         sa: &StaticAnalysisSummary,
         retrieved: &[RetrievedHint],
         contract_source: &str,
@@ -215,6 +220,7 @@ impl CegisLoop {
             let synth = synthesize(
                 self.synthesizer.clone(),
                 intent,
+                available_methods,
                 sa,
                 retrieved,
                 contract_source,

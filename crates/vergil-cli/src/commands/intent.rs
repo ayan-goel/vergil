@@ -353,10 +353,16 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
     };
 
     let started = std::time::Instant::now();
+    // Phase 4 Slice A3: extract the contract's external/public function
+    // signatures and inject as `available_methods` so the synthesizer
+    // stops hallucinating methods or reaching for the wrong interface.
+    let signatures = vergil_solidity::signatures::extract(&contract_source);
+    let available_methods = vergil_solidity::signatures::render_available_methods(&signatures);
     let run = cegis
         .run_with_description(
             &spec.intent,
             spec.description.as_deref(),
+            &available_methods,
             &sa_summary,
             &retrieved,
             &contract_source,
