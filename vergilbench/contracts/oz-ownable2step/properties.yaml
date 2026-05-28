@@ -1,0 +1,16 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ Ownable2Step: transferOwnership stages a pending owner without changing the current owner until acceptance."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_transfer_only_stages_pending
+    params:
+      - { name: n, type: address }
+    smtchecker_source: src/Contract.sol

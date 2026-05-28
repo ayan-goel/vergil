@@ -1,0 +1,26 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify ERC-20 conformance for the OpenZeppelin token: transfers conserve balances and total supply, and approve sets allowance exactly."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_transfer_conserves_balances
+    params:
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/BasicToken.sol
+  - name: check_transfer_preserves_supply
+    params:
+      - { name: to, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/BasicToken.sol
+  - name: check_approve_sets_allowance
+    params:
+      - { name: spender, type: address }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/BasicToken.sol

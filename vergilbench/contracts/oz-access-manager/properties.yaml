@@ -1,0 +1,19 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ AccessManager: the initial admin holds the ADMIN_ROLE with zero execution delay and unrelated accounts do not."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_initial_admin_has_admin_role
+    params: []
+    smtchecker_source: src/Contract.sol
+  - name: check_other_lacks_admin_role
+    params:
+      - { name: other, type: address }
+    smtchecker_source: src/Contract.sol

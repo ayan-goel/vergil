@@ -1,0 +1,18 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ ERC4626 tokenized vault: it reports its underlying asset and an empty vault holds zero total assets."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_asset_is_set
+    params: []
+    smtchecker_source: src/Contract.sol
+  - name: check_total_assets_zero_initially
+    params: []
+    smtchecker_source: src/Contract.sol

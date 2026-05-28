@@ -1,0 +1,18 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ Pausable: functions guarded by whenNotPaused revert while paused, and pause followed by unpause restores the running state."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_bump_blocked_while_paused
+    params: []
+    smtchecker_source: src/Contract.sol
+  - name: check_pause_unpause_round_trip
+    params: []
+    smtchecker_source: src/Contract.sol

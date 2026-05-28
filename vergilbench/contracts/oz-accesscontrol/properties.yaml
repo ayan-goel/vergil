@@ -1,0 +1,22 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ AccessControl: the deployer holds DEFAULT_ADMIN_ROLE, an admin can grant roles, and the admin of a custom role is DEFAULT_ADMIN_ROLE."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_deployer_is_admin
+    params: []
+    smtchecker_source: src/Contract.sol
+  - name: check_admin_can_grant
+    params:
+      - { name: account, type: address }
+    smtchecker_source: src/Contract.sol
+  - name: check_minter_admin_is_default
+    params: []
+    smtchecker_source: src/Contract.sol

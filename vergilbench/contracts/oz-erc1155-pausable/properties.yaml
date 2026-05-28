@@ -1,0 +1,18 @@
+version: 1
+property_contract:
+  name: Properties
+  path: ./Properties.t.sol
+  constructor_args: []
+intent: "Verify OZ ERC1155Pausable: token mints/transfers revert while the contract is paused."
+provenance:
+  source: openzeppelin-contracts
+  version: 5.1.0
+  commit: 69c8def5f222ff96f2b5beff05dfba996368aa79
+  license: MIT
+properties:
+  - name: check_paused_blocks_mint
+    params:
+      - { name: to, type: address }
+      - { name: id, type: uint256 }
+      - { name: amount, type: uint256 }
+    smtchecker_source: src/Contract.sol
