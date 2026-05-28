@@ -16,6 +16,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.88"
       - name: Run LLM-live tests
         env:
           VERGIL_ANTHROPIC_API_KEY: ${{ secrets.VERGIL_ANTHROPIC_API_KEY }}

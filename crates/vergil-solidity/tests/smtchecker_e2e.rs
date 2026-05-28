@@ -28,6 +28,7 @@ async fn smtchecker_verifies_safemath_overflow_freedom() {
         SmtCheckerResult::Verified {
             proved_safe_count,
             wall_clock_ms,
+            ..
         } => {
             assert!(
                 proved_safe_count >= 1,
