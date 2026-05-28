@@ -1,0 +1,81 @@
+{
+  "started_at": "2026-05-28T19:42:08.646202+00:00",
+  "finished_at": "2026-05-28T19:42:51.962929+00:00",
+  "per_contract": [
+    {
+      "contract": "amm-constant-product",
+      "verified": 3,
+      "total": 4,
+      "wall_clock_ms": 31775,
+      "exit_code": 2
+    },
+    {
+      "contract": "erc20",
+      "verified": 2,
+      "total": 2,
+      "wall_clock_ms": 923,
+      "exit_code": 0
+    },
+    {
+      "contract": "erc20-capped",
+      "verified": 3,
+      "total": 3,
+      "wall_clock_ms": 1348,
+      "exit_code": 0
+    },
+    {
+      "contract": "erc20-pausable",
+      "verified": 3,
+      "total": 3,
+      "wall_clock_ms": 1326,
+      "exit_code": 0
+    },
+    {
+      "contract": "erc721",
+      "verified": 4,
+      "total": 4,
+      "wall_clock_ms": 1399,
+      "exit_code": 0
+    },
+    {
+      "contract": "lending",
+      "verified": 3,
+      "total": 3,
+      "wall_clock_ms": 1111,
+      "exit_code": 0
+    },
+    {
+      "contract": "ownable-counter",
+      "verified": 3,
+      "total": 3,
+      "wall_clock_ms": 1233,
+      "exit_code": 0
+    },
+    {
+      "contract": "simple-multisig",
+      "verified": 3,
+      "total": 3,
+      "wall_clock_ms": 1460,
+      "exit_code": 0
+    },
+    {
+      "contract": "timelock-release",
+      "verified": 3,
+      "total": 3,
+      "wall_clock_ms": 1259,
+      "exit_code": 0
+    },
+    {
+      "contract": "vault-4626",
+      "verified": 4,
+      "total": 4,
+      "wall_clock_ms": 1474,
+      "exit_code": 0
+    }
+  ],
+  "verified_total": 31,
+  "property_total": 32,
+  "pass_rate": 0.96875,
+  "total_wall_clock_ms": 43317,
+  "aborted_on_budget": false
+}
