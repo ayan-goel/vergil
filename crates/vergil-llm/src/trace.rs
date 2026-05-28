@@ -316,5 +316,63 @@ mod tests {
         assert!(ENV_KEYS.contains(&"VERGIL_ANTHROPIC_API_KEY"));
         assert!(ENV_KEYS.contains(&"VERGIL_OPENAI_API_KEY"));
         assert!(ENV_KEYS.contains(&"VOYAGE_API_KEY"));
+        assert!(ENV_KEYS.contains(&"ANTHROPIC_API_KEY"));
+        assert!(ENV_KEYS.contains(&"OPENAI_API_KEY"));
+    }
+
+    /// Phase 4 Slice B1: regression guard — every key in the canonical
+    /// `ENV_KEYS` list, when set to a synthetic value at recorder
+    /// construction time, must be redacted from prompts, responses, AND
+    /// the JSONL event when present in any of those payloads.
+    ///
+    /// We materialize the secrets directly rather than mutating the
+    /// process env (tests run in parallel; env mutation isn't safe).
+    /// Each iteration confirms the scrubber treats every key uniformly.
+    #[tokio::test]
+    async fn every_env_key_secret_is_scrubbed_end_to_end() {
+        for key in ENV_KEYS {
+            let tmp = tempfile::tempdir().unwrap();
+            let secret = format!("synthetic-{key}-value-must-not-leak");
+            let rec = TraceRecorder::open(tmp.path(), vec![secret.clone()])
+                .await
+                .unwrap();
+            let req = fake_sha(0xAA);
+            let resp = fake_sha(0xBB);
+            let ev = llm_call_event(params(&req, &resp, 0, 0, Some(secret.clone())));
+            rec.record(
+                ev,
+                &format!("prompt with {secret} embedded"),
+                &format!("response echoes {secret}"),
+            )
+            .await
+            .unwrap();
+
+            let jsonl = tokio::fs::read_to_string(tmp.path().join("trace/run.jsonl"))
+                .await
+                .unwrap();
+            assert!(
+                !jsonl.contains(&secret),
+                "JSONL leaked {key} secret: {jsonl}"
+            );
+            assert!(jsonl.contains(REDACTED));
+
+            let p = tokio::fs::read_to_string(
+                tmp.path()
+                    .join("trace/prompts")
+                    .join(format!("{}.txt", sha_hex(&req))),
+            )
+            .await
+            .unwrap();
+            assert!(!p.contains(&secret), "prompt body leaked {key}");
+
+            let r = tokio::fs::read_to_string(
+                tmp.path()
+                    .join("trace/responses")
+                    .join(format!("{}.txt", sha_hex(&resp))),
+            )
+            .await
+            .unwrap();
+            assert!(!r.contains(&secret), "response body leaked {key}");
+        }
     }
 }

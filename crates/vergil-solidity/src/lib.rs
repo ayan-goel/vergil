@@ -1,5 +1,6 @@
 pub mod foundry;
 pub mod halmos;
+pub mod sandbox;
 pub mod signatures;
 pub mod slither;
 pub mod smtchecker;
