@@ -189,8 +189,8 @@ jq -r 'select(.kind=="run_complete") | "\(.fields.verified) verified, stop=\(.fi
 
 ## When to escalate
 
-- **Solver bump regressed kill criterion below 20/22** → roll back the
-  bump, file a bug with the solver upstream.
+- **Solver bump regressed kill criterion below 19/22** (the current accepted
+  baseline) → roll back the bump, file a bug with the solver upstream.
 - **API outage affecting > 30 min** → switch to manual triage; do not
   retry indefinitely. Phase 3 / 4 rule.
 - **Customer reports verified-then-failed counterexample** → trust the

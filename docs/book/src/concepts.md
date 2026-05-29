@@ -19,8 +19,8 @@ Vergil is **incomplete**. There exist real bugs the kernel will miss:
 
 - Multi-transaction reentrancy chains beyond the loop unroll depth.
 - Properties requiring inductive invariants over reachable states
-  (the [lending example](https://example.com/vergil/examples/lending)
-  decomposes the inductive solvency property into per-call lemmas).
+  (the lending example under `examples/lending/` decomposes the inductive
+  solvency property into per-call lemmas).
 - Nonlinear arithmetic over symbolic `uint256` operands, e.g. the
   AMM `x*y >= k` invariant (documented in `examples/amm-constant-product`).
 

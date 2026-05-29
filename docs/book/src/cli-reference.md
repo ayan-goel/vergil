@@ -60,28 +60,33 @@ vergil doctor
 
 ## `vergil init`
 
-Scaffold a Vergil config in the current Foundry project.
-
-```
-vergil init    # writes properties.yaml + .gitignore entries
-```
+Scaffold a Vergil config in the current Foundry project. **Stub** — kept for
+V2; today you write `properties.yaml` by hand or just use `--intent`.
 
 ## `vergil bench` / `vergil corpus`
 
-Bench infrastructure entry points — both stubs in Phase 1; the real
-bench lives in the standalone `vergilbench` binary (see below).
+Stubs — the real bench lives in the standalone `vergilbench` binary (below);
+the template catalog lives in `crates/vergil-properties/templates/`.
 
 ## `vergilbench` (separate binary)
 
-Run the VergilBench corpus.
+Run the VergilBench corpus — the deterministic ($0) path by default, or the
+LLM-driven `--intent` sweep.
 
 ```
 vergilbench
-  [--corpus <path>]     # default: vergilbench/
-  [--max <n>]           # smoke-test the first n contracts
-  [--vergil <path>]     # path to vergil binary
-  [--verbose]
+  [--corpus <path>]            # default: vergilbench/
+  [--max <n>]                  # smoke-test the first n contracts
+  [--intent]                   # LLM-driven CEGIS sweep (reads each contract's intent:)
+  [--samples <n>]              # synthesis breadth (default 8)
+  [--per-contract-budget <$>]  # per-contract cap forwarded to `vergil verify`
+  [--aggregate-budget <$>]     # hard cap; aborts cleanly before exceeding it
+  [--min-critique-axis <f>]    # critic threshold (default 0.4)
+  [--vergil <path>] [--verbose]
 ```
+
+The intent sweep aborts gracefully at the aggregate budget and HALTS on a
+provider credit/quota error rather than grinding against a dead key.
 
 ## Manual benchmarks
 
@@ -91,8 +96,8 @@ Use the GitHub workflow_dispatch UI or the Makefile targets.
 ```bash
 make kill-criterion   # ~$12, ~22 min wall clock
 make llm-live         # ~$0.05, smoke test
-make bench            # zero-cost on the Phase 3 seed corpus
-                       # ~$50-200 once the Phase 4 100-contract corpus lands
+make bench            # zero-cost deterministic sweep on the seed corpus
+                       # the full LLM --intent sweep over the 100-contract corpus ran ~$71
 ```
 
 Every Makefile target prints estimated cost and waits for `y`

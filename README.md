@@ -1,98 +1,119 @@
 # Vergil
 
-Mathematically verified Solidity smart contracts.
+**Formal verification for Solidity — guided by an LLM, but decided by a solver.**
 
-Vergil translates a Solidity contract and a statement of intent into formal properties, then proves them with a sound SMT-backed verifier. The output is either a machine-checkable proof certificate or a concrete Foundry test reproducing a counterexample.
+Tell Vergil, in plain English, what should always be true about a contract.
+Vergil turns that into formal properties, proves them with a sound SMT solver,
+and hands you back either a proof or a runnable test that breaks your contract.
 
-## Install
+## The problem
+
+Smart contracts are immutable and hold real money, so a single edge-case bug — an
+integer overflow, a missing access check, a rounding error that drains a vault — is
+often unrecoverable. Two things stand between you and that bug:
+
+- **Tests and fuzzing** check the cases you thought of (or random samples). They can
+  show a bug *exists*; they can't show one *doesn't*.
+- **Formal verification** proves a property holds for *every* possible input and
+  state. It's the real guarantee — but writing the formal specs has traditionally
+  needed a verification expert, which is why almost no one does it.
+
+The hard, expensive part of formal verification was never running the solver — it was
+**writing the spec**. That's the part Vergil automates.
+
+## What it does, and where it fits
+
+Point Vergil at a Foundry project and describe the invariant you care about:
 
 ```bash
-brew install vergil
+vergil verify ./my-token --intent "balances always sum to totalSupply; \
+transfers move value without creating or destroying it"
 ```
 
-Or from source:
+Vergil reads the contract, writes the formal properties that capture your intent, and
+discharges them with a sound verifier. You get one of:
 
-```bash
-cargo install vergil-cli
-```
+- ✅ a **proof** the property holds for all inputs (the deciding solver and exact spec recorded),
+- ❌ a **counterexample** as a runnable Foundry test you can drop straight into your suite, or
+- ❓ an honest **"unknown"** when the property is outside what the solver can decide.
 
-Or as a Foundry dependency:
+It sits between your test suite and a full manual audit: cheaper and faster than hiring
+a verification engineer, far stronger than fuzzing, and honest about what it can't settle.
 
-```bash
-forge install vergil-tools/vergil
-```
+## Why you can trust the green checkmark
 
-Vergil shells out to Foundry, Halmos, Slither, Gambit, Z3, and cvc5. Run `vergil doctor` to verify your toolchain.
-
-## Quick start
-
-```bash
-cd my-foundry-project
-vergil init
-vergil verify src/Token.sol --intent "ERC-20 token; balances always sum to totalSupply"
-```
-
-Output lands in `vergil-out/`:
-
-```
-vergil-out/
-├── report.md             Human-readable verification report
-├── proof.json            Machine-checkable proof artifact
-├── spec/                 Generated Halmos check functions and SMTChecker asserts
-└── counterexamples/      Runnable Foundry tests for any violation
-```
-
-Exit codes:
-
-- `0` — all properties verified.
-- `1` — at least one counterexample found.
-- `2` — at least one property returned `Unknown` or timed out.
-- `3` — infrastructure error.
+**The LLM only proposes. The solver decides.** A language model writes the candidate
+properties — but a property is reported "verified" *only* when a sound SMT solver (via
+Halmos or Solidity's SMTChecker) proves it. A hallucinated or wrong guess cannot produce
+a false ✅; at worst it yields a property the solver rejects or can't decide. The LLM is
+explicitly **not** in the trusted base.
 
 ## How it works
 
-1. **Static analysis.** `solc --storage-layout` provides authoritative storage slot identification; Slither extracts the call graph, modifiers, and inheritance.
-2. **Spec synthesis.** An LLM proposes formal properties (Halmos `check_*` functions and SMTChecker assertions) using retrieval-augmented generation over a curated property catalog.
-3. **Critique.** An independent LLM call filters vacuous specs. Gambit mutation testing scores remaining candidates.
-4. **Verification.** Halmos discharges bounded per-function safety; SMTChecker CHC mode discharges unbounded multi-transaction invariants. Z3 and cvc5 are dispatched as a portfolio, escalating by theory.
-5. **Refinement.** On counterexample, the LLM classifies the failure as code bug, spec bug, or ambiguous, then patches code or refines spec. Up to ten rounds.
+A closed loop — counterexample-guided inductive synthesis (CEGIS):
 
-The SMT solver is the trusted base. The LLM proposes; the solver decides. Every verified property in the report names the solver that discharged it and the static-analysis sources that validated its encoding.
+1. **Analyze.** `solc` gives the authoritative storage layout; Slither extracts the call
+   graph, modifiers, and inheritance.
+2. **Synthesize.** An LLM proposes candidate properties, guided by retrieval over a
+   100-template catalog of patterns proven on real contracts.
+3. **Critique.** A second, independent LLM rejects vacuous or tautological specs before
+   they waste solver time.
+4. **Verify.** Halmos (symbolic execution) and Solidity SMTChecker (CHC model checking)
+   run as a portfolio backed by Z3 / cvc5; the first definitive verdict wins.
+5. **Refine.** On a counterexample, Vergil diagnoses spec-bug vs. real contract-bug, then
+   fixes the spec or hands you the failing test. Loop until proven, refuted, or budget spent.
 
-## Commands
+Every verified property in the report names the solver that discharged it and the
+static-analysis facts its encoding relied on.
 
-```
-vergil verify <PATH>     Verify a contract against generated or supplied properties
-vergil init              Scaffold Vergil config in a Foundry project
-vergil prove <FILE>      Re-check an existing proof artifact, no LLM, no solver search
-vergil bench             Run benchmark suites
-vergil corpus update     Pull the latest property catalog
-vergil doctor            Check that toolchain dependencies are installed
-```
+## Using it
 
-Run `vergil <command> --help` for full flag documentation.
+Vergil is a Rust workspace, built from source (it's internal / pre-release — not published
+to any package registry). From the repo root:
 
-## Configuration
-
-`vergil init` writes a `vergil.toml`:
-
-```toml
-[llm]
-primary = "anthropic/claude-opus-4-5"
-critique = "openai/gpt-5"
-samples = 16
-
-[verify]
-max_iterations = 10
-solvers = ["z3", "cvc5"]
+```bash
+cargo build --release --bin vergil
+./target/release/vergil doctor   # checks solc, halmos, forge, z3, cvc5, slither
 ```
 
-API keys come from `VERGIL_ANTHROPIC_API_KEY` and `VERGIL_OPENAI_API_KEY` environment variables.
+The LLM-guided path needs provider keys, read from the environment or a local `.env`
+(never committed):
 
-## Documentation
+```bash
+export VERGIL_ANTHROPIC_API_KEY=...   # synthesis
+export VERGIL_OPENAI_API_KEY=...      # critique (independent of the synthesizer)
+export VOYAGE_API_KEY=...             # retrieval embeddings (optional; local fallback otherwise)
+```
 
-Full documentation is at <https://vergil.tools/docs>.
+Then verify any Foundry project (a directory with `src/` + `foundry.toml`):
 
-## License
+```bash
+vergil verify ./my-token --intent "..."               # LLM-guided
+vergil verify ./my-token                               # deterministic: use a checked-in properties.yaml ($0, no LLM)
+vergil prove ./my-token/vergil-out/proof.json          # re-check an existing proof — no LLM, no solver search
+```
 
-Apache 2.0. See [LICENSE-APACHE](LICENSE-APACHE).
+Results land in `vergil-out/`: `report.md` (human-readable), `proof.json` (machine-checkable —
+source hashes, deciding backend, SMT-query hashes), `spec/` (the generated check functions),
+and `counterexamples/` (runnable failing tests).
+
+Useful `verify` flags: `--cost-budget <usd>` (per-run cap), `--samples <n>` (synthesis
+breadth), `--scaffold <file>` (custom harness for contracts with constructor args),
+`--format json`. Exit codes: `0` verified · `1` counterexample · `2` unknown/timeout ·
+`3` infrastructure error.
+
+## How well it works
+
+On an internal 100-contract benchmark of real OpenZeppelin-based contracts, Vergil
+verifies **~82%** of the targeted safety properties end-to-end — high on the standards
+it's built for (ERC-20 / 721 / 1155, access control, vaults, vesting) and honest about
+its frontier: it does **not** pretend to prove what SMT can't decide soundly (nonlinear
+AMM invariants, elliptic-curve crypto, time-dependent release schedules beyond their
+construction-time invariants). The solver decides every result; nothing is rubber-stamped.
+
+## Status & license
+
+Internal / pre-release: built from source, not published, no public packaging. Vergil's
+own code and property templates are Apache-2.0 (`LICENSE-APACHE`); bundled benchmark
+contracts keep their upstream permissive licenses (see `vergilbench/NOTICE`). Full
+internal docs live in `docs/book/` (mdBook).

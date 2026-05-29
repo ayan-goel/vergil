@@ -23,21 +23,18 @@ Optional, but recommended for the full LLM-guided flow:
 
 ## Install Vergil
 
-For now Vergil is a workspace; install from source:
+Vergil is a Rust workspace built from source (internal / pre-release — not
+published to a package registry). From the repo root:
 
 ```bash
-git clone https://example.com/vergil
-cd vergil
 cargo build --release --bin vergil
 # binary lives at ./target/release/vergil
 ```
 
-A `cargo install` recipe ships in Phase 4.
+## Configure API keys (intent path only)
 
-## Configure API keys (Phase 2 intent path only)
-
-Skip this section if you only want the deterministic Phase 1 path
-(`vergil verify <project>` against a checked-in `properties.yaml`).
+Skip this section if you only want the deterministic path
+(`vergil verify <project>` against a checked-in `properties.yaml` — no LLM, $0).
 
 For the natural-language intent path (`vergil verify <project> --intent
 "..."`) you'll need two LLM provider keys. Vergil reads them from
@@ -96,7 +93,7 @@ you get the same shape of output. Typical cost: $0.50–$1.
 
 - [Concepts](./concepts.md) — sound vs complete, the two-axis trust
   hierarchy that lets us trust an LLM-proposed spec.
-- [Property catalog](./property-catalog.md) — 43 templates the
+- [Property catalog](./property-catalog.md) — 100 templates the
   synthesizer pulls from when proposing candidates.
 - [CLI reference](./cli-reference.md) — every command, every flag.
 - [FAQ](./faq.md) — why a proof beats a fuzz pass; how Vergil compares

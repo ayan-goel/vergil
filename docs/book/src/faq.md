@@ -66,9 +66,9 @@ Three options, in increasing order of effort:
    `vergil-out/trace/responses/*.txt`) usually points at what it
    thinks is loose. A more specific intent narrows the candidate
    space and gives the critic better calibration.
-2. **Lower `min_axis` via the `--min-critique-axis` flag** (coming
-   in Phase 4). The current 0.5 default is conservative; the kill
-   criterion runs at 0.4 to similar effect.
+2. **Lower `min_axis` via the `--min-critique-axis` flag.** The 0.5
+   default is conservative; the kill criterion and bench sweep run at
+   0.4 to similar effect.
 3. **Switch critics.** Set `VERGIL_OPENAI_API_KEY` if you only have
    Anthropic configured (or vice versa). Same-provider critique is
    weaker than cross-provider; the run will warn you when it falls
@@ -77,17 +77,29 @@ Three options, in increasing order of effort:
 ## Can Vergil verify code I didn't write?
 
 Yes — point `vergil verify` at any Foundry project with a `src/`
-directory. The scaffold autodetects the first contract and generates
-a default test rig calling its constructor with empty args. For
-contracts whose constructor takes required args, write a custom
-scaffold and pass it via `--scaffold`.
+directory. The scaffold autodetects the contract(s), deploys the target
+as a `token` instance (synthesizing default constructor arguments from the
+constructor signature, falling back to no-arg when a parameter type can't be
+synthesized), and exposes it to the synthesized check functions. For unusual
+deploy setups, write a custom harness and pass it via `--scaffold`.
 
-## What's planned for Phase 4?
+## What did Phase 4 deliver, and what's next?
 
-- Multi-contract verification (Compound-style call graphs)
-- Proxy / upgradeability invariants (storage slot stability)
-- SMT-LIB re-dispatch through `vergil prove` (cross-solver retry)
-- The remaining ~57 catalog templates
-- The 100-contract VergilBench full run (deferred from Phase 3)
-- Public scoreboard at vergilbench.org (or equivalent)
-- `cargo install vergil-cli` + `brew install vergil` packaging
+Phase 4 shipped multi-contract verification, proxy / upgradeability invariants,
+SMT-LIB re-dispatch through `vergil prove`, the catalog at 100 templates, the
+100-contract VergilBench corpus, and the first full LLM-driven sweep (**~82%**
+of targeted properties verified, every result solver-decided). The kernel fix
+that made the autonomous sweep work — harness-aware synthesis (the synthesizer
+now sees the test harness, so it stops inventing variables or reaching for
+`vm.*` cheatcodes) — also lifts every `vergil verify --intent` run.
+
+Still ahead (V2 / future):
+
+- A time-travel harness helper so time-dependent contracts (vesting, timelock)
+  can express post-cliff release properties, not just construction-time invariants.
+- Wiring the subprocess sandbox (needs a Linux test env) and passing remappings to
+  the SMTChecker backend so the second solver works on remapped projects.
+- The hosted multi-tenant service — the `vergil-service` skeleton, OpenAPI contract,
+  and ADRs are already in place.
+
+Vergil is internal / pre-release: no public packaging or scoreboard yet.
