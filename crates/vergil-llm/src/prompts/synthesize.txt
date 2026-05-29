@@ -23,6 +23,22 @@ Retrieved property templates (top-k results from the corpus — patterns proven 
 Quick reference: external/public methods extracted from the contract source above. Use this as a checklist when you draft candidates; the contract source remains authoritative if anything looks off.
 {{ available_methods }}
 
+## Verification harness (read before writing ANY code)
+
+Your `check_` function does NOT run standalone. It is inserted verbatim where the `// <<< your check_ function is inserted here >>>` marker appears inside this exact harness contract:
+
+{{ scaffold }}
+
+Every candidate compiles inside that harness or it is discarded with zero value. Respect these constraints:
+
+1. **Use the harness's deployed instance — do not invent one.** The single-contract harness above already constructs the target and holds it in the state variable named `token`. Call methods on `token` directly (`token.transfer(...)`). Do NOT declare your own variable (`c`, `contract_`, `target`, the contract's own name) and do NOT `new` a second instance — the harness ctor already deployed it with the right arguments. If instead the harness has an empty constructor (multi-contract case), construct the instances you need inside your function with their real constructor arguments.
+2. **No Foundry / forge-std cheatcodes.** The harness does NOT inherit `Test`. `vm.*` (`vm.prank`, `vm.assume`, `vm.expectRevert`, `vm.warp`, `vm.startPrank`, …), `hoax`, `deal`, `makeAddr`, and `console.log` are UNDECLARED and will fail to compile.
+   - Express "this call must revert" with try/catch: `try token.foo(args) { assert(false); } catch { /* expected */ }`.
+   - Constrain a symbolic input by early-returning instead of `vm.assume`: `if (amount == 0) return;`.
+   - You cannot change `msg.sender` (no `vm.prank`). Only assert properties that hold with the harness itself as the caller, or omit the candidate.
+3. **Symbolic inputs are your function parameters.** Halmos makes every parameter symbolic — name them after the property's variables and use them directly; do not try to "make" symbolic values.
+4. **Assertion helpers already exist in the harness:** `assertEq` (for uint256 / address / bool / bytes32), `assertTrue`, `assertFalse`, `assertGt`, `assertGe`, `assertLt`, `assertLe`. Plain `assert(...)` also works. Import nothing.
+
 ## Output schema
 
 Return a JSON array of `SpecCandidate` objects. Each object MUST conform to:
@@ -40,7 +56,7 @@ Return a JSON array of `SpecCandidate` objects. Each object MUST conform to:
 ## Rules
 
 1. **The LLM never decides correctness.** Write specs the SMT solver will discharge. If you cannot encode a property soundly, omit it rather than guess.
-2. **Halmos check_ functions take symbolic inputs.** Use parameter names matching the property's variables. Inside the function, set up state, perform the action, and `assertEq` / `assertTrue` the post-condition.
+2. **Halmos check_ functions take symbolic inputs.** Use parameter names matching the property's variables. Inside the function, act on the harness's `token` instance (see the Verification harness section — never invent a variable or use `vm.*`), then `assertEq` / `assertTrue` the post-condition, or use try/catch to require a revert.
 3. **SMTChecker encodings live inside the contract.** Use `assert(...)` at the relevant program point. If the property is multi-transaction or unbounded, mark the candidate's `smtchecker` field as an empty string — Halmos alone will discharge it.
 4. **Be wary of vacuity.** A property the contract trivially satisfies (e.g. `assert(true)`, `assert(balance >= 0)` on a uint) is worse than no property — it produces a misleading green checkmark. Prefer fewer non-vacuous specs over many vacuous ones.
 5. **Respect static analysis.** Only assert about storage slots and modifiers the static analysis confirms exist; the manifest validator will reject specs that reference phantom state.

@@ -210,8 +210,9 @@ impl CegisLoop {
         sa: &StaticAnalysisSummary,
         retrieved: &[RetrievedHint],
         contract_source: &str,
+        scaffold: &str,
     ) -> Result<CegisRun, CegisError> {
-        self.run_with_description(intent, None, "", sa, retrieved, contract_source)
+        self.run_with_description(intent, None, "", sa, retrieved, contract_source, scaffold)
             .await
     }
 
@@ -223,8 +224,13 @@ impl CegisLoop {
     /// external/public function signatures (Phase 4 Slice A3). Pass an
     /// empty string and the renderer substitutes a placeholder; callers
     /// should prefer `vergil_solidity::signatures::render_available_methods`.
+    /// `scaffold` is the verification harness (with the `{{CHECK_FN}}`
+    /// placeholder) the synthesizer's check_ function will be injected into
+    /// (Phase 4 Slice A9). Showing it stops the model from inventing a
+    /// contract variable or reaching for forge-std `vm.*` cheatcodes.
+    #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(
-        skip(self, sa, retrieved, contract_source, available_methods),
+        skip(self, sa, retrieved, contract_source, available_methods, scaffold),
         fields(tenant_id = %self.cfg.tenant_id, intent_len = intent.len())
     )]
     pub async fn run_with_description(
@@ -235,6 +241,7 @@ impl CegisLoop {
         sa: &StaticAnalysisSummary,
         retrieved: &[RetrievedHint],
         contract_source: &str,
+        scaffold: &str,
     ) -> Result<CegisRun, CegisError> {
         let mut run = CegisRun::default();
         let mut iteration = 0usize;
@@ -265,6 +272,7 @@ impl CegisLoop {
                 sa,
                 retrieved,
                 contract_source,
+                scaffold,
                 &self.cfg.synthesis,
             )
             .await?;

@@ -59,8 +59,16 @@ async fn synthesize_returns_candidates_from_mock_fixture() {
 
     // Compute the expected request SHA so we can author the fixture.
     let available_methods = ""; // empty → renderer substitutes the placeholder
-    let prompt = render_prompt(intent, available_methods, &sa, &retrieved, contract_source)
-        .expect("prompt renders");
+    let scaffold = ""; // empty → renderer substitutes the harness fallback note
+    let prompt = render_prompt(
+        intent,
+        available_methods,
+        &sa,
+        &retrieved,
+        contract_source,
+        scaffold,
+    )
+    .expect("prompt renders");
     let req = CompletionRequest {
         model: cfg.model.clone(),
         messages: vec![Message {
@@ -90,6 +98,7 @@ async fn synthesize_returns_candidates_from_mock_fixture() {
         &sa,
         &retrieved,
         contract_source,
+        scaffold,
         &cfg,
     )
     .await

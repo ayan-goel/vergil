@@ -467,6 +467,7 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
             &sa_summary,
             &retrieved,
             &contract_source,
+            &spec.scaffold,
         )
         .await
         .map_err(|source| IntentError::Cegis { source })?;

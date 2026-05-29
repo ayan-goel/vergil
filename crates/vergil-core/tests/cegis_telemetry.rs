@@ -111,7 +111,7 @@ async fn cegis_loop_emits_every_expected_event_kind() {
 
     let sa = StaticAnalysisSummary::default();
     let _ = cegis
-        .run_with_description("test intent", Some("test desc"), "", &sa, &[], "// src")
+        .run_with_description("test intent", Some("test desc"), "", &sa, &[], "// src", "")
         .await
         .expect("run ok");
 
@@ -148,7 +148,7 @@ async fn jsonl_sink_writes_parseable_lines_from_a_cegis_run() {
 
     let sa = StaticAnalysisSummary::default();
     let _ = cegis
-        .run_with_description("i", None, "", &sa, &[], "src")
+        .run_with_description("i", None, "", &sa, &[], "src", "")
         .await
         .expect("run ok");
 

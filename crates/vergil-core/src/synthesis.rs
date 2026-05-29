@@ -110,6 +110,7 @@ pub fn render_prompt(
     sa: &StaticAnalysisSummary,
     retrieved: &[RetrievedHint],
     contract_source: &str,
+    scaffold: &str,
 ) -> Result<String, vergil_llm::prompts::PromptError> {
     let retrieved_text = retrieved
         .iter()
@@ -128,18 +129,48 @@ pub fn render_prompt(
     } else {
         available_methods
     };
+    // Phase 4 Slice A9: show the synthesizer the exact harness its check_
+    // function lands in. Without this the model invents a contract variable
+    // (`contract_`, `c`, `target`) instead of the harness's `token`, or reaches
+    // for forge-std `vm.*` cheatcodes the bare scaffold lacks — both produce
+    // undeclared-identifier build errors that dominate the failure mode.
+    let harness_owned;
+    let harness = if scaffold.trim().is_empty() {
+        "(no explicit harness — assume your check_ function is a method on a contract that already \
+         holds the deployed target in a state variable named `token`; do not use vm.* cheatcodes \
+         or declare your own instance)"
+    } else {
+        harness_owned = harness_for_prompt(scaffold);
+        &harness_owned
+    };
     let mut vars: BTreeMap<&str, &str> = BTreeMap::new();
     vars.insert("intent", intent);
     vars.insert("available_methods", methods);
     vars.insert("static_analysis_summary", &sa.text);
     vars.insert("retrieved_templates", &retrieved_text);
     vars.insert("contract_source", contract_source);
+    vars.insert("scaffold", harness);
     SYNTHESIZE.render(&vars)
+}
+
+/// Render a scaffold for display inside the synthesis prompt. The live
+/// scaffold carries `{{CHECK_FN}}` / `{{NAME}}` placeholders that the
+/// dispatcher fills later; we replace them with a human-readable marker so
+/// (a) the model sees where its function lands and (b) no `{{` survives to
+/// trip the prompt renderer's unrendered-placeholder guard.
+fn harness_for_prompt(scaffold: &str) -> String {
+    scaffold
+        .replace(
+            "{{CHECK_FN}}",
+            "// <<< your check_ function is inserted here >>>",
+        )
+        .replace("{{NAME}}", "check_property")
 }
 
 /// Sample `cfg.samples` candidates from the LLM. The first sample uses
 /// `deterministic_temp`; the remainder use `exploratory_temp`. Each call
 /// runs in parallel via `futures::future::join_all`.
+#[allow(clippy::too_many_arguments)]
 pub async fn synthesize(
     provider: Arc<dyn LlmProvider>,
     intent: &str,
@@ -147,10 +178,18 @@ pub async fn synthesize(
     sa: &StaticAnalysisSummary,
     retrieved: &[RetrievedHint],
     contract_source: &str,
+    scaffold: &str,
     cfg: &SynthesisConfig,
 ) -> Result<SynthesisReport, SynthesisError> {
-    let prompt = render_prompt(intent, available_methods, sa, retrieved, contract_source)
-        .map_err(SynthesisError::Prompt)?;
+    let prompt = render_prompt(
+        intent,
+        available_methods,
+        sa,
+        retrieved,
+        contract_source,
+        scaffold,
+    )
+    .map_err(SynthesisError::Prompt)?;
 
     let samples = cfg.samples.max(1);
     let mut tasks = Vec::with_capacity(samples);
@@ -350,6 +389,7 @@ mod tests {
             &sa,
             &retrieved,
             "contract source",
+            "contract CegisProperties { Foo internal token; {{CHECK_FN}} }",
         )
         .unwrap();
         assert!(out.contains("verify ERC20 conformance"));
@@ -364,8 +404,41 @@ mod tests {
     #[test]
     fn render_prompt_falls_back_to_placeholder_when_methods_empty() {
         let sa = StaticAnalysisSummary::default();
-        let out = render_prompt("i", "", &sa, &[], "src").unwrap();
+        let out = render_prompt("i", "", &sa, &[], "src", "").unwrap();
         assert!(out.contains("no external functions detected"));
+        assert!(!out.contains("{{"));
+    }
+
+    #[test]
+    fn render_prompt_embeds_harness_and_strips_check_fn_marker() {
+        // Phase 4 Slice A9: the live scaffold carries a `{{CHECK_FN}}`
+        // placeholder. It must be (a) shown to the model as a readable marker
+        // and (b) neutralized so the renderer's leftover-`{{` guard doesn't
+        // reject the whole prompt.
+        let sa = StaticAnalysisSummary::default();
+        let scaffold =
+            "contract CegisProperties {\n    MyToken internal token;\n    {{CHECK_FN}}\n}";
+        let out = render_prompt("verify", "", &sa, &[], "src", scaffold).unwrap();
+        // The harness body is shown to the model...
+        assert!(out.contains("MyToken internal token;"));
+        // ...with the placeholder rewritten to a human-readable marker...
+        assert!(out.contains("your check_ function is inserted here"));
+        // ...and no raw template placeholder survives to trip the renderer.
+        assert!(!out.contains("{{CHECK_FN}}"));
+        assert!(!out.contains("{{"));
+        // The harness rules that counter the observed failure modes are present.
+        assert!(out.contains("vm.")); // the "no vm.* cheatcodes" rule
+        assert!(out.contains("token"));
+    }
+
+    #[test]
+    fn render_prompt_empty_scaffold_uses_token_fallback_note() {
+        let sa = StaticAnalysisSummary::default();
+        let out = render_prompt("verify", "", &sa, &[], "src", "   ").unwrap();
+        // Empty/whitespace scaffold still steers the model to `token` and away
+        // from vm.* rather than leaving the harness section blank.
+        assert!(out.contains("token"));
+        assert!(out.contains("vm."));
         assert!(!out.contains("{{"));
     }
 }
