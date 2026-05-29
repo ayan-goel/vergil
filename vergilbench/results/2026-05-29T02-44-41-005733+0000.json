@@ -1,0 +1,814 @@
+{
+  "started_at": "2026-05-29T02:44:41.005733+00:00",
+  "finished_at": "2026-05-29T04:01:17.437926+00:00",
+  "per_contract": [
+    {
+      "contract": "amm-constant-product",
+      "verified": 1,
+      "total": 4,
+      "wall_clock_ms": 54090,
+      "exit_code": 0,
+      "cost_usd": 1.3306
+    },
+    {
+      "contract": "erc20",
+      "verified": 7,
+      "total": 2,
+      "wall_clock_ms": 61291,
+      "exit_code": 0,
+      "cost_usd": 1.5459
+    },
+    {
+      "contract": "erc20-capped",
+      "verified": 4,
+      "total": 3,
+      "wall_clock_ms": 37716,
+      "exit_code": 0,
+      "cost_usd": 0.7713
+    },
+    {
+      "contract": "erc20-pausable",
+      "verified": 3,
+      "total": 3,
+      "wall_clock_ms": 36346,
+      "exit_code": 0,
+      "cost_usd": 0.7453
+    },
+    {
+      "contract": "erc721",
+      "verified": 17,
+      "total": 4,
+      "wall_clock_ms": 60608,
+      "exit_code": 0,
+      "cost_usd": 1.1657
+    },
+    {
+      "contract": "lending",
+      "verified": 10,
+      "total": 3,
+      "wall_clock_ms": 51903,
+      "exit_code": 0,
+      "cost_usd": 1.2888
+    },
+    {
+      "contract": "ownable-counter",
+      "verified": 10,
+      "total": 3,
+      "wall_clock_ms": 40474,
+      "exit_code": 0,
+      "cost_usd": 0.7737
+    },
+    {
+      "contract": "oz-access-manager",
+      "verified": 0,
+      "total": 2,
+      "wall_clock_ms": 31218,
+      "exit_code": 1,
+      "cost_usd": 0.5111
+    },
+    {
+      "contract": "oz-accesscontrol",
+      "verified": 5,
+      "total": 3,
+      "wall_clock_ms": 57897,
+      "exit_code": 0,
+      "cost_usd": 0.7025
+    },
+    {
+      "contract": "oz-accesscontrol-defaultadmin",
+      "verified": 0,
+      "total": 2,
+      "wall_clock_ms": 26603,
+      "exit_code": 1,
+      "cost_usd": 0.5412
+    },
+    {
+      "contract": "oz-accesscontrol-enumerable",
+      "verified": 7,
+      "total": 1,
+      "wall_clock_ms": 34544,
+      "exit_code": 0,
+      "cost_usd": 0.5399
+    },
+    {
+      "contract": "oz-base64",
+      "verified": 0,
+      "total": 2,
+      "wall_clock_ms": 19316,
+      "exit_code": 1,
+      "cost_usd": 0.4099
+    },
+    {
+      "contract": "oz-beacon",
+      "verified": 3,
+      "total": 1,
+      "wall_clock_ms": 31425,
+      "exit_code": 0,
+      "cost_usd": 0.5393
+    },
+    {
+      "contract": "oz-bitmaps",
+      "verified": 13,
+      "total": 2,
+      "wall_clock_ms": 37114,
+      "exit_code": 0,
+      "cost_usd": 0.6509
+    },
+    {
+      "contract": "oz-checkpoints",
+      "verified": 7,
+      "total": 1,
+      "wall_clock_ms": 32800,
+      "exit_code": 0,
+      "cost_usd": 0.4537
+    },
+    {
+      "contract": "oz-clones",
+      "verified": 1,
+      "total": 1,
+      "wall_clock_ms": 28548,
+      "exit_code": 0,
+      "cost_usd": 0.5665
+    },
+    {
+      "contract": "oz-comparators",
+      "verified": 1,
+      "total": 1,
+      "wall_clock_ms": 32559,
+      "exit_code": 0,
+      "cost_usd": 0.7455
+    },
+    {
+      "contract": "oz-create2",
+      "verified": 5,
+      "total": 2,
+      "wall_clock_ms": 37277,
+      "exit_code": 0,
+      "cost_usd": 0.8194
+    },
+    {
+      "contract": "oz-deque",
+      "verified": 14,
+      "total": 2,
+      "wall_clock_ms": 35975,
+      "exit_code": 0,
+      "cost_usd": 0.5439
+    },
+    {
+      "contract": "oz-ecdsa",
+      "verified": 23,
+      "total": 1,
+      "wall_clock_ms": 47615,
+      "exit_code": 0,
+      "cost_usd": 0.6347
+    },
+    {
+      "contract": "oz-eip712",
+      "verified": 0,
+      "total": 1,
+      "wall_clock_ms": 17425,
+      "exit_code": 1,
+      "cost_usd": 0.3937
+    },
+    {
+      "contract": "oz-enumerablemap",
+      "verified": 6,
+      "total": 2,
+      "wall_clock_ms": 32999,
+      "exit_code": 0,
+      "cost_usd": 0.6289
+    },
+    {
+      "contract": "oz-enumerableset",
+      "verified": 11,
+      "total": 2,
+      "wall_clock_ms": 35685,
+      "exit_code": 0,
+      "cost_usd": 0.5506
+    },
+    {
+      "contract": "oz-enumerableset-uint",
+      "verified": 11,
+      "total": 1,
+      "wall_clock_ms": 36286,
+      "exit_code": 0,
+      "cost_usd": 0.65
+    },
+    {
+      "contract": "oz-erc1155-basic",
+      "verified": 6,
+      "total": 1,
+      "wall_clock_ms": 43109,
+      "exit_code": 0,
+      "cost_usd": 0.5947
+    },
+    {
+      "contract": "oz-erc1155-burnable",
+      "verified": 2,
+      "total": 1,
+      "wall_clock_ms": 71927,
+      "exit_code": 0,
+      "cost_usd": 0.8257
+    },
+    {
+      "contract": "oz-erc1155-full",
+      "verified": 2,
+      "total": 2,
+      "wall_clock_ms": 48035,
+      "exit_code": 0,
+      "cost_usd": 0.8439
+    },
+    {
+      "contract": "oz-erc1155-pausable",
+      "verified": 13,
+      "total": 1,
+      "wall_clock_ms": 78520,
+      "exit_code": 0,
+      "cost_usd": 0.6822
+    },
+    {
+      "contract": "oz-erc1155-supply",
+      "verified": 7,
+      "total": 2,
+      "wall_clock_ms": 50439,
+      "exit_code": 0,
+      "cost_usd": 0.6226
+    },
+    {
+      "contract": "oz-erc1155-supply-burnable",
+      "verified": 2,
+      "total": 1,
+      "wall_clock_ms": 96077,
+      "exit_code": 0,
+      "cost_usd": 0.7942
+    },
+    {
+      "contract": "oz-erc1155-uristorage",
+      "verified": 8,
+      "total": 1,
+      "wall_clock_ms": 52668,
+      "exit_code": 0,
+      "cost_usd": 0.6244
+    },
+    {
+      "contract": "oz-erc1363",
+      "verified": 6,
+      "total": 1,
+      "wall_clock_ms": 29940,
+      "exit_code": 0,
+      "cost_usd": 0.4826
+    },
+    {
+      "contract": "oz-erc165",
+      "verified": 6,
+      "total": 1,
+      "wall_clock_ms": 24525,
+      "exit_code": 0,
+      "cost_usd": 0.4588
+    },
+    {
+      "contract": "oz-erc165checker",
+      "verified": 1,
+      "total": 1,
+      "wall_clock_ms": 29206,
+      "exit_code": 0,
+      "cost_usd": 0.475
+    },
+    {
+      "contract": "oz-erc1967-proxy",
+      "verified": 4,
+      "total": 1,
+      "wall_clock_ms": 33086,
+      "exit_code": 0,
+      "cost_usd": 0.575
+    },
+    {
+      "contract": "oz-erc20-basic",
+      "verified": 6,
+      "total": 3,
+      "wall_clock_ms": 56896,
+      "exit_code": 0,
+      "cost_usd": 1.4308
+    },
+    {
+      "contract": "oz-erc20-blocklist",
+      "verified": 10,
+      "total": 2,
+      "wall_clock_ms": 59726,
+      "exit_code": 0,
+      "cost_usd": 0.8677
+    },
+    {
+      "contract": "oz-erc20-burnable",
+      "verified": 14,
+      "total": 2,
+      "wall_clock_ms": 56901,
+      "exit_code": 0,
+      "cost_usd": 0.7887
+    },
+    {
+      "contract": "oz-erc20-capped-burnable",
+      "verified": 9,
+      "total": 2,
+      "wall_clock_ms": 49770,
+      "exit_code": 0,
+      "cost_usd": 0.8236
+    },
+    {
+      "contract": "oz-erc20-capped-oz",
+      "verified": 8,
+      "total": 2,
+      "wall_clock_ms": 44139,
+      "exit_code": 0,
+      "cost_usd": 0.644
+    },
+    {
+      "contract": "oz-erc20-capped-pausable",
+      "verified": 1,
+      "total": 2,
+      "wall_clock_ms": 41049,
+      "exit_code": 0,
+      "cost_usd": 0.8741
+    },
+    {
+      "contract": "oz-erc20-decimals",
+      "verified": 0,
+      "total": 2,
+      "wall_clock_ms": 35587,
+      "exit_code": 1,
+      "cost_usd": 0.654
+    },
+    {
+      "contract": "oz-erc20-flashmint",
+      "verified": 4,
+      "total": 2,
+      "wall_clock_ms": 35102,
+      "exit_code": 0,
+      "cost_usd": 0.5338
+    },
+    {
+      "contract": "oz-erc20-flashmint-burnable",
+      "verified": 1,
+      "total": 2,
+      "wall_clock_ms": 37947,
+      "exit_code": 0,
+      "cost_usd": 0.7872
+    },
+    {
+      "contract": "oz-erc20-governance-full",
+      "verified": 1,
+      "total": 2,
+      "wall_clock_ms": 42661,
+      "exit_code": 0,
+      "cost_usd": 0.605
+    },
+    {
+      "contract": "oz-erc20-maxwallet",
+      "verified": 0,
+      "total": 1,
+      "wall_clock_ms": 51031,
+      "exit_code": 1,
+      "cost_usd": 0.8376
+    },
+    {
+      "contract": "oz-erc20-mintable-accesscontrol",
+      "verified": 3,
+      "total": 2,
+      "wall_clock_ms": 51287,
+      "exit_code": 0,
+      "cost_usd": 0.8482
+    },
+    {
+      "contract": "oz-erc20-mintable-ownable",
+      "verified": 9,
+      "total": 2,
+      "wall_clock_ms": 53953,
+      "exit_code": 0,
+      "cost_usd": 0.782
+    },
+    {
+      "contract": "oz-erc20-pausable-oz",
+      "verified": 1,
+      "total": 2,
+      "wall_clock_ms": 32415,
+      "exit_code": 0,
+      "cost_usd": 0.5722
+    },
+    {
+      "contract": "oz-erc20-permit",
+      "verified": 4,
+      "total": 2,
+      "wall_clock_ms": 38187,
+      "exit_code": 0,
+      "cost_usd": 0.4762
+    },
+    {
+      "contract": "oz-erc20-permit-pausable",
+      "verified": 2,
+      "total": 2,
+      "wall_clock_ms": 40347,
+      "exit_code": 0,
+      "cost_usd": 0.6556
+    },
+    {
+      "contract": "oz-erc20-stablecoin",
+      "verified": 11,
+      "total": 3,
+      "wall_clock_ms": 95476,
+      "exit_code": 0,
+      "cost_usd": 1.0632
+    },
+    {
+      "contract": "oz-erc20-taxed",
+      "verified": 1,
+      "total": 1,
+      "wall_clock_ms": 149779,
+      "exit_code": 0,
+      "cost_usd": 2.2748
+    },
+    {
+      "contract": "oz-erc20-votes",
+      "verified": 4,
+      "total": 2,
+      "wall_clock_ms": 50646,
+      "exit_code": 0,
+      "cost_usd": 0.5442
+    },
+    {
+      "contract": "oz-erc20-wrapper",
+      "verified": 0,
+      "total": 2,
+      "wall_clock_ms": 24232,
+      "exit_code": 1,
+      "cost_usd": 0.482
+    },
+    {
+      "contract": "oz-erc2771-context",
+      "verified": 1,
+      "total": 1,
+      "wall_clock_ms": 22880,
+      "exit_code": 0,
+      "cost_usd": 0.3956
+    },
+    {
+      "contract": "oz-erc2981",
+      "verified": 6,
+      "total": 1,
+      "wall_clock_ms": 32168,
+      "exit_code": 0,
+      "cost_usd": 0.6937
+    },
+    {
+      "contract": "oz-erc4626-capped",
+      "verified": 14,
+      "total": 1,
+      "wall_clock_ms": 87840,
+      "exit_code": 0,
+      "cost_usd": 0.7442
+    },
+    {
+      "contract": "oz-erc4626-fees",
+      "verified": 5,
+      "total": 2,
+      "wall_clock_ms": 54641,
+      "exit_code": 0,
+      "cost_usd": 0.9003
+    },
+    {
+      "contract": "oz-erc4626-vault",
+      "verified": 3,
+      "total": 2,
+      "wall_clock_ms": 44384,
+      "exit_code": 0,
+      "cost_usd": 0.7152
+    },
+    {
+      "contract": "oz-erc721-autoincrement",
+      "verified": 6,
+      "total": 1,
+      "wall_clock_ms": 51609,
+      "exit_code": 0,
+      "cost_usd": 0.9004
+    },
+    {
+      "contract": "oz-erc721-basic",
+      "verified": 4,
+      "total": 2,
+      "wall_clock_ms": 35811,
+      "exit_code": 0,
+      "cost_usd": 0.6389
+    },
+    {
+      "contract": "oz-erc721-burnable",
+      "verified": 5,
+      "total": 2,
+      "wall_clock_ms": 56702,
+      "exit_code": 0,
+      "cost_usd": 0.8625
+    },
+    {
+      "contract": "oz-erc721-burnable-enumerable",
+      "verified": 16,
+      "total": 1,
+      "wall_clock_ms": 88825,
+      "exit_code": 0,
+      "cost_usd": 0.7493
+    },
+    {
+      "contract": "oz-erc721-consecutive",
+      "verified": 0,
+      "total": 1,
+      "wall_clock_ms": 28993,
+      "exit_code": 1,
+      "cost_usd": 0.7085
+    },
+    {
+      "contract": "oz-erc721-enumerable",
+      "verified": 11,
+      "total": 2,
+      "wall_clock_ms": 61195,
+      "exit_code": 0,
+      "cost_usd": 0.6448
+    },
+    {
+      "contract": "oz-erc721-enumerable-pausable",
+      "verified": 1,
+      "total": 2,
+      "wall_clock_ms": 38123,
+      "exit_code": 0,
+      "cost_usd": 0.6895
+    },
+    {
+      "contract": "oz-erc721-full",
+      "verified": 6,
+      "total": 2,
+      "wall_clock_ms": 66914,
+      "exit_code": 0,
+      "cost_usd": 0.976
+    },
+    {
+      "contract": "oz-erc721-maxsupply",
+      "verified": 7,
+      "total": 2,
+      "wall_clock_ms": 52811,
+      "exit_code": 0,
+      "cost_usd": 0.8437
+    },
+    {
+      "contract": "oz-erc721-mintable-pausable-ownable",
+      "verified": 2,
+      "total": 2,
+      "wall_clock_ms": 46634,
+      "exit_code": 0,
+      "cost_usd": 0.7054
+    },
+    {
+      "contract": "oz-erc721-pausable",
+      "verified": 15,
+      "total": 2,
+      "wall_clock_ms": 69262,
+      "exit_code": 0,
+      "cost_usd": 0.634
+    },
+    {
+      "contract": "oz-erc721-royalty",
+      "verified": 7,
+      "total": 1,
+      "wall_clock_ms": 50416,
+      "exit_code": 0,
+      "cost_usd": 0.6724
+    },
+    {
+      "contract": "oz-erc721-royalty-enumerable",
+      "verified": 0,
+      "total": 2,
+      "wall_clock_ms": 38736,
+      "exit_code": 1,
+      "cost_usd": 0.7309
+    },
+    {
+      "contract": "oz-erc721-soulbound",
+      "verified": 9,
+      "total": 2,
+      "wall_clock_ms": 54022,
+      "exit_code": 0,
+      "cost_usd": 0.6826
+    },
+    {
+      "contract": "oz-erc721-uristorage",
+      "verified": 0,
+      "total": 2,
+      "wall_clock_ms": 34229,
+      "exit_code": 1,
+      "cost_usd": 0.732
+    },
+    {
+      "contract": "oz-erc721-votes",
+      "verified": 4,
+      "total": 2,
+      "wall_clock_ms": 65657,
+      "exit_code": 0,
+      "cost_usd": 0.6235
+    },
+    {
+      "contract": "oz-erc721-wrapper",
+      "verified": 6,
+      "total": 1,
+      "wall_clock_ms": 46646,
+      "exit_code": 0,
+      "cost_usd": 0.4622
+    },
+    {
+      "contract": "oz-math",
+      "verified": 4,
+      "total": 2,
+      "wall_clock_ms": 149871,
+      "exit_code": 0,
+      "cost_usd": 0.8267
+    },
+    {
+      "contract": "oz-merkleproof",
+      "verified": 3,
+      "total": 2,
+      "wall_clock_ms": 37122,
+      "exit_code": 0,
+      "cost_usd": 0.5946
+    },
+    {
+      "contract": "oz-messagehashutils",
+      "verified": 5,
+      "total": 1,
+      "wall_clock_ms": 37717,
+      "exit_code": 0,
+      "cost_usd": 0.5859
+    },
+    {
+      "contract": "oz-multicall",
+      "verified": 12,
+      "total": 1,
+      "wall_clock_ms": 41431,
+      "exit_code": 0,
+      "cost_usd": 0.6126
+    },
+    {
+      "contract": "oz-nonces",
+      "verified": 7,
+      "total": 2,
+      "wall_clock_ms": 31256,
+      "exit_code": 0,
+      "cost_usd": 0.5027
+    },
+    {
+      "contract": "oz-ownable",
+      "verified": 5,
+      "total": 3,
+      "wall_clock_ms": 32905,
+      "exit_code": 0,
+      "cost_usd": 0.6031
+    },
+    {
+      "contract": "oz-ownable2step",
+      "verified": 7,
+      "total": 1,
+      "wall_clock_ms": 33210,
+      "exit_code": 0,
+      "cost_usd": 0.5756
+    },
+    {
+      "contract": "oz-pausable",
+      "verified": 10,
+      "total": 2,
+      "wall_clock_ms": 36900,
+      "exit_code": 0,
+      "cost_usd": 0.6043
+    },
+    {
+      "contract": "oz-reentrancy-guard",
+      "verified": 15,
+      "total": 1,
+      "wall_clock_ms": 38069,
+      "exit_code": 0,
+      "cost_usd": 0.5153
+    },
+    {
+      "contract": "oz-safecast",
+      "verified": 9,
+      "total": 2,
+      "wall_clock_ms": 33407,
+      "exit_code": 0,
+      "cost_usd": 0.6582
+    },
+    {
+      "contract": "oz-shortstrings",
+      "verified": 7,
+      "total": 1,
+      "wall_clock_ms": 35467,
+      "exit_code": 0,
+      "cost_usd": 0.5446
+    },
+    {
+      "contract": "oz-signaturechecker",
+      "verified": 9,
+      "total": 1,
+      "wall_clock_ms": 37179,
+      "exit_code": 0,
+      "cost_usd": 0.4992
+    },
+    {
+      "contract": "oz-signedmath",
+      "verified": 4,
+      "total": 2,
+      "wall_clock_ms": 37158,
+      "exit_code": 0,
+      "cost_usd": 0.8169
+    },
+    {
+      "contract": "oz-storageslot",
+      "verified": 0,
+      "total": 1,
+      "wall_clock_ms": 38860,
+      "exit_code": 1,
+      "cost_usd": 0.555
+    },
+    {
+      "contract": "oz-strings",
+      "verified": 3,
+      "total": 2,
+      "wall_clock_ms": 34029,
+      "exit_code": 0,
+      "cost_usd": 0.6381
+    },
+    {
+      "contract": "oz-timelock-controller",
+      "verified": 0,
+      "total": 2,
+      "wall_clock_ms": 34059,
+      "exit_code": 1,
+      "cost_usd": 0.6214
+    },
+    {
+      "contract": "oz-transparent-proxy",
+      "verified": 7,
+      "total": 1,
+      "wall_clock_ms": 41267,
+      "exit_code": 0,
+      "cost_usd": 0.6522
+    },
+    {
+      "contract": "oz-uups",
+      "verified": 6,
+      "total": 1,
+      "wall_clock_ms": 18478,
+      "exit_code": 0,
+      "cost_usd": 0.4036
+    },
+    {
+      "contract": "oz-vesting-wallet",
+      "verified": 1,
+      "total": 2,
+      "wall_clock_ms": 30434,
+      "exit_code": 0,
+      "cost_usd": 0.4655
+    },
+    {
+      "contract": "oz-vesting-wallet-cliff",
+      "verified": 7,
+      "total": 1,
+      "wall_clock_ms": 46747,
+      "exit_code": 0,
+      "cost_usd": 0.6008
+    },
+    {
+      "contract": "simple-multisig",
+      "verified": 2,
+      "total": 3,
+      "wall_clock_ms": 35302,
+      "exit_code": 0,
+      "cost_usd": 0.7798
+    },
+    {
+      "contract": "timelock-release",
+      "verified": 0,
+      "total": 3,
+      "wall_clock_ms": 29487,
+      "exit_code": 1,
+      "cost_usd": 0.5821
+    },
+    {
+      "contract": "vault-4626",
+      "verified": 13,
+      "total": 4,
+      "wall_clock_ms": 54988,
+      "exit_code": 0,
+      "cost_usd": 1.3789
+    }
+  ],
+  "verified_total": 569,
+  "property_total": 179,
+  "pass_rate": 0.8156424581005587,
+  "total_wall_clock_ms": 4596439,
+  "aborted_on_budget": false,
+  "mode": "intent",
+  "total_cost_usd": 71.34970000000001,
+  "halted_on_credit_error": false
+}

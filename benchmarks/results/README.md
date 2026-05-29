@@ -1,16 +1,106 @@
 # VergilBench scoreboard
 
-Last run: **2026-05-28T19:42:51.962929+00:00** — verified **31/32** (96.9%) in 43.32s
+Last run: **2026-05-29T04:01:17.437926+00:00** — mode **intent** — verified **569/179** (81.6%) in 4596.44s — cost **$71.35**
 
-| Contract | Verified | Total | Wall clock | Exit |
-|---|---|---|---|---|
-| `amm-constant-product` | 3 | 4 | 31775 ms | 2 |
-| `erc20` | 2 | 2 | 923 ms | 0 |
-| `erc20-capped` | 3 | 3 | 1348 ms | 0 |
-| `erc20-pausable` | 3 | 3 | 1326 ms | 0 |
-| `erc721` | 4 | 4 | 1399 ms | 0 |
-| `lending` | 3 | 3 | 1111 ms | 0 |
-| `ownable-counter` | 3 | 3 | 1233 ms | 0 |
-| `simple-multisig` | 3 | 3 | 1460 ms | 0 |
-| `timelock-release` | 3 | 3 | 1259 ms | 0 |
-| `vault-4626` | 4 | 4 | 1474 ms | 0 |
+| Contract | Verified | Total | Wall clock | Cost | Exit |
+|---|---|---|---|---|---|
+| `amm-constant-product` | 1 | 4 | 54090 ms | $1.3306 | 0 |
+| `erc20` | 7 | 2 | 61291 ms | $1.5459 | 0 |
+| `erc20-capped` | 4 | 3 | 37716 ms | $0.7713 | 0 |
+| `erc20-pausable` | 3 | 3 | 36346 ms | $0.7453 | 0 |
+| `erc721` | 17 | 4 | 60608 ms | $1.1657 | 0 |
+| `lending` | 10 | 3 | 51903 ms | $1.2888 | 0 |
+| `ownable-counter` | 10 | 3 | 40474 ms | $0.7737 | 0 |
+| `oz-access-manager` | 0 | 2 | 31218 ms | $0.5111 | 1 |
+| `oz-accesscontrol` | 5 | 3 | 57897 ms | $0.7025 | 0 |
+| `oz-accesscontrol-defaultadmin` | 0 | 2 | 26603 ms | $0.5412 | 1 |
+| `oz-accesscontrol-enumerable` | 7 | 1 | 34544 ms | $0.5399 | 0 |
+| `oz-base64` | 0 | 2 | 19316 ms | $0.4099 | 1 |
+| `oz-beacon` | 3 | 1 | 31425 ms | $0.5393 | 0 |
+| `oz-bitmaps` | 13 | 2 | 37114 ms | $0.6509 | 0 |
+| `oz-checkpoints` | 7 | 1 | 32800 ms | $0.4537 | 0 |
+| `oz-clones` | 1 | 1 | 28548 ms | $0.5665 | 0 |
+| `oz-comparators` | 1 | 1 | 32559 ms | $0.7455 | 0 |
+| `oz-create2` | 5 | 2 | 37277 ms | $0.8194 | 0 |
+| `oz-deque` | 14 | 2 | 35975 ms | $0.5439 | 0 |
+| `oz-ecdsa` | 23 | 1 | 47615 ms | $0.6347 | 0 |
+| `oz-eip712` | 0 | 1 | 17425 ms | $0.3937 | 1 |
+| `oz-enumerablemap` | 6 | 2 | 32999 ms | $0.6289 | 0 |
+| `oz-enumerableset` | 11 | 2 | 35685 ms | $0.5506 | 0 |
+| `oz-enumerableset-uint` | 11 | 1 | 36286 ms | $0.6500 | 0 |
+| `oz-erc1155-basic` | 6 | 1 | 43109 ms | $0.5947 | 0 |
+| `oz-erc1155-burnable` | 2 | 1 | 71927 ms | $0.8257 | 0 |
+| `oz-erc1155-full` | 2 | 2 | 48035 ms | $0.8439 | 0 |
+| `oz-erc1155-pausable` | 13 | 1 | 78520 ms | $0.6822 | 0 |
+| `oz-erc1155-supply` | 7 | 2 | 50439 ms | $0.6226 | 0 |
+| `oz-erc1155-supply-burnable` | 2 | 1 | 96077 ms | $0.7942 | 0 |
+| `oz-erc1155-uristorage` | 8 | 1 | 52668 ms | $0.6244 | 0 |
+| `oz-erc1363` | 6 | 1 | 29940 ms | $0.4826 | 0 |
+| `oz-erc165` | 6 | 1 | 24525 ms | $0.4588 | 0 |
+| `oz-erc165checker` | 1 | 1 | 29206 ms | $0.4750 | 0 |
+| `oz-erc1967-proxy` | 4 | 1 | 33086 ms | $0.5750 | 0 |
+| `oz-erc20-basic` | 6 | 3 | 56896 ms | $1.4308 | 0 |
+| `oz-erc20-blocklist` | 10 | 2 | 59726 ms | $0.8677 | 0 |
+| `oz-erc20-burnable` | 14 | 2 | 56901 ms | $0.7887 | 0 |
+| `oz-erc20-capped-burnable` | 9 | 2 | 49770 ms | $0.8236 | 0 |
+| `oz-erc20-capped-oz` | 8 | 2 | 44139 ms | $0.6440 | 0 |
+| `oz-erc20-capped-pausable` | 1 | 2 | 41049 ms | $0.8741 | 0 |
+| `oz-erc20-decimals` | 0 | 2 | 35587 ms | $0.6540 | 1 |
+| `oz-erc20-flashmint` | 4 | 2 | 35102 ms | $0.5338 | 0 |
+| `oz-erc20-flashmint-burnable` | 1 | 2 | 37947 ms | $0.7872 | 0 |
+| `oz-erc20-governance-full` | 1 | 2 | 42661 ms | $0.6050 | 0 |
+| `oz-erc20-maxwallet` | 0 | 1 | 51031 ms | $0.8376 | 1 |
+| `oz-erc20-mintable-accesscontrol` | 3 | 2 | 51287 ms | $0.8482 | 0 |
+| `oz-erc20-mintable-ownable` | 9 | 2 | 53953 ms | $0.7820 | 0 |
+| `oz-erc20-pausable-oz` | 1 | 2 | 32415 ms | $0.5722 | 0 |
+| `oz-erc20-permit` | 4 | 2 | 38187 ms | $0.4762 | 0 |
+| `oz-erc20-permit-pausable` | 2 | 2 | 40347 ms | $0.6556 | 0 |
+| `oz-erc20-stablecoin` | 11 | 3 | 95476 ms | $1.0632 | 0 |
+| `oz-erc20-taxed` | 1 | 1 | 149779 ms | $2.2748 | 0 |
+| `oz-erc20-votes` | 4 | 2 | 50646 ms | $0.5442 | 0 |
+| `oz-erc20-wrapper` | 0 | 2 | 24232 ms | $0.4820 | 1 |
+| `oz-erc2771-context` | 1 | 1 | 22880 ms | $0.3956 | 0 |
+| `oz-erc2981` | 6 | 1 | 32168 ms | $0.6937 | 0 |
+| `oz-erc4626-capped` | 14 | 1 | 87840 ms | $0.7442 | 0 |
+| `oz-erc4626-fees` | 5 | 2 | 54641 ms | $0.9003 | 0 |
+| `oz-erc4626-vault` | 3 | 2 | 44384 ms | $0.7152 | 0 |
+| `oz-erc721-autoincrement` | 6 | 1 | 51609 ms | $0.9004 | 0 |
+| `oz-erc721-basic` | 4 | 2 | 35811 ms | $0.6389 | 0 |
+| `oz-erc721-burnable` | 5 | 2 | 56702 ms | $0.8625 | 0 |
+| `oz-erc721-burnable-enumerable` | 16 | 1 | 88825 ms | $0.7493 | 0 |
+| `oz-erc721-consecutive` | 0 | 1 | 28993 ms | $0.7085 | 1 |
+| `oz-erc721-enumerable` | 11 | 2 | 61195 ms | $0.6448 | 0 |
+| `oz-erc721-enumerable-pausable` | 1 | 2 | 38123 ms | $0.6895 | 0 |
+| `oz-erc721-full` | 6 | 2 | 66914 ms | $0.9760 | 0 |
+| `oz-erc721-maxsupply` | 7 | 2 | 52811 ms | $0.8437 | 0 |
+| `oz-erc721-mintable-pausable-ownable` | 2 | 2 | 46634 ms | $0.7054 | 0 |
+| `oz-erc721-pausable` | 15 | 2 | 69262 ms | $0.6340 | 0 |
+| `oz-erc721-royalty` | 7 | 1 | 50416 ms | $0.6724 | 0 |
+| `oz-erc721-royalty-enumerable` | 0 | 2 | 38736 ms | $0.7309 | 1 |
+| `oz-erc721-soulbound` | 9 | 2 | 54022 ms | $0.6826 | 0 |
+| `oz-erc721-uristorage` | 0 | 2 | 34229 ms | $0.7320 | 1 |
+| `oz-erc721-votes` | 4 | 2 | 65657 ms | $0.6235 | 0 |
+| `oz-erc721-wrapper` | 6 | 1 | 46646 ms | $0.4622 | 0 |
+| `oz-math` | 4 | 2 | 149871 ms | $0.8267 | 0 |
+| `oz-merkleproof` | 3 | 2 | 37122 ms | $0.5946 | 0 |
+| `oz-messagehashutils` | 5 | 1 | 37717 ms | $0.5859 | 0 |
+| `oz-multicall` | 12 | 1 | 41431 ms | $0.6126 | 0 |
+| `oz-nonces` | 7 | 2 | 31256 ms | $0.5027 | 0 |
+| `oz-ownable` | 5 | 3 | 32905 ms | $0.6031 | 0 |
+| `oz-ownable2step` | 7 | 1 | 33210 ms | $0.5756 | 0 |
+| `oz-pausable` | 10 | 2 | 36900 ms | $0.6043 | 0 |
+| `oz-reentrancy-guard` | 15 | 1 | 38069 ms | $0.5153 | 0 |
+| `oz-safecast` | 9 | 2 | 33407 ms | $0.6582 | 0 |
+| `oz-shortstrings` | 7 | 1 | 35467 ms | $0.5446 | 0 |
+| `oz-signaturechecker` | 9 | 1 | 37179 ms | $0.4992 | 0 |
+| `oz-signedmath` | 4 | 2 | 37158 ms | $0.8169 | 0 |
+| `oz-storageslot` | 0 | 1 | 38860 ms | $0.5550 | 1 |
+| `oz-strings` | 3 | 2 | 34029 ms | $0.6381 | 0 |
+| `oz-timelock-controller` | 0 | 2 | 34059 ms | $0.6214 | 1 |
+| `oz-transparent-proxy` | 7 | 1 | 41267 ms | $0.6522 | 0 |
+| `oz-uups` | 6 | 1 | 18478 ms | $0.4036 | 0 |
+| `oz-vesting-wallet` | 1 | 2 | 30434 ms | $0.4655 | 0 |
+| `oz-vesting-wallet-cliff` | 7 | 1 | 46747 ms | $0.6008 | 0 |
+| `simple-multisig` | 2 | 3 | 35302 ms | $0.7798 | 0 |
+| `timelock-release` | 0 | 3 | 29487 ms | $0.5821 | 1 |
+| `vault-4626` | 13 | 4 | 54988 ms | $1.3789 | 0 |
