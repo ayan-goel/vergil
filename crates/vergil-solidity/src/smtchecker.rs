@@ -248,21 +248,30 @@ pub async fn run(cfg: &SmtCheckerRun) -> SmtCheckerResult {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "source.sol".to_string());
 
+    let mut model_checker = serde_json::json!({
+        "engine": "chc",
+        "targets": ["assert", "overflow", "underflow", "divByZero", "outOfBounds"],
+        "timeout": cfg.solver_timeout_ms,
+        "showProvedSafe": true,
+        // Use both built-in (if solc was linked with z3) and external z3 (via
+        // smtlib2). On some Linux solc binaries z3 isn't linked in; falling
+        // back to smtlib2 finds the z3 binary on PATH.
+        "solvers": ["z3", "smtlib2"],
+    });
+    // `printQuery` (Slice 3) is only recognized by newer solc — solc 0.8.20
+    // rejects the *key itself* with `Unknown key "printQuery"` even when the
+    // value is false. So only emit it when query capture is requested; the
+    // default path then stays compatible with any solc the host provides
+    // (CI pins 0.8.20). Callers that need query capture run on a newer solc.
+    if cfg.print_query {
+        model_checker["printQuery"] = serde_json::Value::Bool(true);
+    }
+
     let input = serde_json::json!({
         "language": "Solidity",
         "sources": { source_key.clone(): { "content": content } },
         "settings": {
-            "modelChecker": {
-                "engine": "chc",
-                "targets": ["assert", "overflow", "underflow", "divByZero", "outOfBounds"],
-                "timeout": cfg.solver_timeout_ms,
-                "showProvedSafe": true,
-                // Use both built-in (if solc was linked with z3) and external z3 (via
-                // smtlib2). On some Linux solc binaries z3 isn't linked in; falling
-                // back to smtlib2 finds the z3 binary on PATH.
-                "solvers": ["z3", "smtlib2"],
-                "printQuery": cfg.print_query,
-            },
+            "modelChecker": model_checker,
             "outputSelection": { "*": { "*": ["abi"] } }
         }
     });
