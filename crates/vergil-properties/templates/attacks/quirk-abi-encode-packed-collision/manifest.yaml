@@ -1,0 +1,62 @@
+id: quirk-abi-encode-packed-collision
+name: abi.encodePacked over dynamic types enables hash collisions
+category: quirks
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns: {}
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  When two or more dynamic-type values are concatenated and hashed for
+  authorization, `abi.encodePacked` is unsafe — adjacent dynamic values
+  can be shifted between fields without changing the concatenation. Use
+  `abi.encode` (length-prefixed) instead.
+
+  Formally:
+    ∀ trace. ∀ (a₁, b₁) ≠ (a₂, b₂) in domain:
+      keccak(encode(a₁, b₁)) ≠ keccak(encode(a₂, b₂))
+
+  Phase-2 encoding (Halmos): the harness checks that `keccak(packed)`
+  for `("aa", "bbcc")` equals `keccak(packed)` for `("aabb", "cc")` —
+  a known collision pair. Vulnerable: protocol uses encodePacked → the
+  collision pair both validate against the same hash → cex on the
+  uniqueness assertion. Clean: uses encode → distinct hashes →
+  verified.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "Solidity docs: abi.encodePacked"
+    - "SWC-133"
+
+mitigation: |
+  Use `abi.encode` for any hash-as-authorization concatenation of
+  two or more dynamic-length values.
+
+engineering_notes: |
+  The collision pair is hard-coded in the check function as
+  bytes-string constants. Halmos doesn't need to discover the
+  collision symbolically — it just executes both inputs and asserts
+  the hashes match (vulnerable) or differ (clean).

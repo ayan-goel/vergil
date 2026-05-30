@@ -1,0 +1,54 @@
+id: flashloan-no-amount-validation
+name: Flash-loan dispatcher has no upper bound on amount
+category: flash-loan
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    flashloan_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Flash-loan dispatchers MUST cap the loan amount at a protocol-defined
+  ceiling (typically a fraction of reserves). Unbounded loans amplify
+  any downstream manipulation vector and frequently exhaust protocol
+  reserves outright.
+
+  Formally:
+    ∀ trace. ∀ flashLoan(amount, borrower):
+      amount > MAX_LOAN ⇒ revert
+
+  Phase-2 encoding (Halmos): symbolic `amount`; assertion that calls
+  with `amount > MAX_LOAN` revert. Vulnerable: no upper bound → cex.
+  Clean: explicit `require(amount <= MAX_LOAN)` → verified.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-3156 (Flash Loans)"
+    - "OWASP SC07:2026"
+
+mitigation: |
+  Cap loan amount at a fraction of reserves
+  (`require(amount <= reserves * X / 100)`).

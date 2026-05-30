@@ -1396,3 +1396,115 @@ async fn call_return_ignored_clean_verified() {
     )
     .await;
 }
+
+// ─── Phase 2 Slice 7: Categories 12 + 13 + 14 batch ──────────────────────────
+
+// 12.2 oracle-missing-staleness-check
+#[tokio::test]
+async fn oracle_staleness_vulnerable_cex() {
+    slice1_check(
+        "oracle-missing-staleness-check",
+        "check_stale_price_rejected",
+        "oms-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn oracle_staleness_clean_verified() {
+    slice1_check(
+        "oracle-missing-staleness-check",
+        "check_stale_price_rejected",
+        "oms-clean",
+        false,
+    )
+    .await;
+}
+
+// 13.1 flashloan-balance-dependent-state
+#[tokio::test]
+async fn flashloan_balance_dep_vulnerable_cex() {
+    slice1_check(
+        "flashloan-balance-dependent-state",
+        "check_flash_loaned_balance_does_not_authorize",
+        "fbd-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn flashloan_balance_dep_clean_verified() {
+    slice1_check(
+        "flashloan-balance-dependent-state",
+        "check_flash_loaned_balance_does_not_authorize",
+        "fbd-clean",
+        false,
+    )
+    .await;
+}
+
+// 13.2 flashloan-no-amount-validation
+#[tokio::test]
+async fn flashloan_no_cap_vulnerable_cex() {
+    slice1_check(
+        "flashloan-no-amount-validation",
+        "check_loan_above_cap_reverts",
+        "fnv-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn flashloan_no_cap_clean_verified() {
+    slice1_check(
+        "flashloan-no-amount-validation",
+        "check_loan_above_cap_reverts",
+        "fnv-clean",
+        false,
+    )
+    .await;
+}
+
+// 13.3 flashloan-share-inflation-sensitive
+#[tokio::test]
+async fn flashloan_share_inflation_vulnerable_cex() {
+    slice1_check(
+        "flashloan-share-inflation-sensitive",
+        "check_rate_stable_under_inflation",
+        "fsi-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn flashloan_share_inflation_clean_verified() {
+    slice1_check(
+        "flashloan-share-inflation-sensitive",
+        "check_rate_stable_under_inflation",
+        "fsi-clean",
+        false,
+    )
+    .await;
+}
+
+// 14.3 quirk-abi-encode-packed-collision
+#[tokio::test]
+async fn quirk_packed_collision_vulnerable_cex() {
+    slice1_check(
+        "quirk-abi-encode-packed-collision",
+        "check_distinct_inputs_distinct_hashes",
+        "qpc-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn quirk_packed_collision_clean_verified() {
+    slice1_check(
+        "quirk-abi-encode-packed-collision",
+        "check_distinct_inputs_distinct_hashes",
+        "qpc-clean",
+        false,
+    )
+    .await;
+}

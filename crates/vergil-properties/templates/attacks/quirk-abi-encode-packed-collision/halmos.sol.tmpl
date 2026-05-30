@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: distinct (a, b) pairs MUST produce distinct hashes.
+    /// We test the known collision pair `("aa","bbcc")` vs `("aabb","cc")`.
+    function check_distinct_inputs_distinct_hashes() public view {
+        bytes32 h1 = target.identify(bytes("aa"), bytes("bbcc"));
+        bytes32 h2 = target.identify(bytes("aabb"), bytes("cc"));
+        assert(h1 != h2);
+    }
+}

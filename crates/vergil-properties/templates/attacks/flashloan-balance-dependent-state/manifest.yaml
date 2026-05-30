@@ -1,0 +1,63 @@
+id: flashloan-balance-dependent-state
+name: Auth/eligibility check reads a flash-loan-inflatable balance
+category: flash-loan
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    erc20_dependent: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Permission gates or proportional rights MUST NOT read
+  `token.balanceOf(caller)` at call time — flash loans let the caller
+  hold an arbitrary balance for the duration of one transaction.
+
+  Formally:
+    ∀ trace. ∀ permissionedCall(caller):
+      gate_check uses checkpointed/historical balance
+        OR uses non-balance-dependent attribute
+
+  Phase-2 encoding (Halmos): the harness wraps the protocol's gate in
+  a check that records the gate's decision when the caller's
+  `balanceOf` is symbolically large. Vulnerable: gate accepts spot
+  balance → caller passes by holding a flash-loaned amount → cex.
+  Clean: gate consults a snapshot taken before the action started
+  → caller fails because snapshot balance is small.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "Beanstalk (Apr 2022)"
+    - "OWASP SC07:2026 (Flash Loan Attacks)"
+  real_world:
+    - name: "Beanstalk"
+      year: 2022
+      loss_usd_approx: 182000000
+      chain: ethereum
+
+mitigation: |
+  Snapshot the caller's balance/shares at the start of the
+  multi-block window and consult that snapshot, not the live
+  `balanceOf`. Compound's COMP / Aave's stkAAVE use this pattern.

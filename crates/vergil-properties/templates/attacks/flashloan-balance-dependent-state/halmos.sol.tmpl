@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}}, MockToken } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: a caller with zero historical balance cannot pass the
+    /// privileged gate by flash-loaning a large spot balance.
+    function check_flash_loaned_balance_does_not_authorize(uint256 flashAmount) public {
+        if (flashAmount < target.QUORUM()) return;
+        MockToken tok = target.token();
+        tok.mint(address(this), flashAmount); // simulates flash loan credit
+        bool succeeded;
+        try target.privileged() {
+            succeeded = true;
+        } catch {
+            succeeded = false;
+        }
+        assert(!succeeded);
+    }
+}

@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}}, Oracle } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: requesting price with a stale `updatedAt` (older than
+    /// the protocol's max staleness threshold) MUST revert.
+    function check_stale_price_rejected(uint256 price, uint256 stalenessOffset) public {
+        if (price == 0 || price > type(uint128).max) return;
+        if (stalenessOffset == 0 || stalenessOffset > 2 * target.MAX_STALENESS()) return;
+        Oracle oracle = target.oracle();
+        uint256 updatedAt = block.timestamp > stalenessOffset
+            ? block.timestamp - stalenessOffset
+            : 0;
+        oracle.setPrice(price, updatedAt);
+        // Only the stale-window subset matters.
+        if (stalenessOffset <= target.MAX_STALENESS()) return;
+        bool succeeded;
+        try target.usePrice() returns (uint256) {
+            succeeded = true;
+        } catch {
+            succeeded = false;
+        }
+        assert(!succeeded);
+    }
+}

@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: a direct asset inflation does not shift the
+    /// exchange rate.
+    function check_rate_stable_under_inflation(uint256 inflation) public {
+        if (inflation == 0 || inflation > type(uint96).max) return;
+        target.deposit(1000);
+        uint256 rateBefore = target.exchangeRate();
+        target.inflateExternal(inflation);
+        uint256 rateAfter = target.exchangeRate();
+        assert(rateAfter == rateBefore);
+    }
+}

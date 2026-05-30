@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: a flash-loan dispatch with amount above the protocol's
+    /// cap MUST revert.
+    function check_loan_above_cap_reverts(uint256 amount) public {
+        if (amount <= target.MAX_LOAN() || amount > 2 * target.MAX_LOAN()) return;
+        bool succeeded;
+        try target.flashLoan(amount) {
+            succeeded = true;
+        } catch {
+            succeeded = false;
+        }
+        assert(!succeeded);
+    }
+}

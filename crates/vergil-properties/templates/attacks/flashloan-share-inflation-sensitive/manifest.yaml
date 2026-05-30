@@ -1,0 +1,61 @@
+id: flashloan-share-inflation-sensitive
+name: Share/asset accounting reads flash-loanable spot balance
+category: flash-loan
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [ERC4626]
+  primitives: [vault-share]
+  patterns:
+    vault_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Share-price / exchange-rate computations MUST read internally-tracked
+  accounting (`totalAssets` slot) rather than `token.balanceOf(self)`.
+  The latter is flash-loan-manipulable.
+
+  Formally:
+    ∀ trace. ∀ exchangeRate():
+      reads(internal_accounting) ∧ ¬reads(balanceOf(self))
+
+  Phase-2 encoding (Halmos): the harness asserts that a direct asset
+  inflation does not shift the exchange rate. Vulnerable: rate reads
+  external balance → cex. Clean: rate reads internal slot → verified.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC07:2026"
+    - "EIP-4626 (security considerations)"
+
+mitigation: |
+  Track `totalAssets` internally; update only on `deposit` / `withdraw`.
+  Do not read `asset.balanceOf(self)` for rate computation.
+
+engineering_notes: |
+  Defensive structural sibling of the (deferred-to-Slice-8 frontier)
+  `vault-share-price-flash-manipulation` (5.7). Shares the encoding
+  shape with `vault-donation-exchange-rate-manipulation` (5.6) — both
+  surface the "read flash-loanable balance" anti-pattern but in
+  different contexts (5.6 framed at the vault level; 13.3 framed at
+  the flash-loan-protection level).

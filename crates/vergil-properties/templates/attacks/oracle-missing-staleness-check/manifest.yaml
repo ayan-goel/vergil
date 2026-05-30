@@ -1,0 +1,56 @@
+id: oracle-missing-staleness-check
+name: Oracle reader accepts stale price feeds
+category: oracle
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [any]
+  primitives: [oracle-consumer]
+  patterns:
+    oracle_consumed: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Oracle reads MUST validate the feed's `updatedAt` timestamp against
+  a maximum staleness threshold and revert when the price is older.
+
+  Formally:
+    ∀ trace. ∀ usePrice(price, updatedAt):
+      block.timestamp - updatedAt > MAX_STALENESS ⇒ revert
+
+  Phase-2 encoding (Halmos): the harness models the oracle as a
+  contract returning (price, updatedAt) tuples; the check requests
+  a price and asserts that a sufficiently old `updatedAt` reverts.
+  Vulnerable: no staleness gate → accepts → assertion of revert
+  fails. Clean: explicit `require(block.timestamp - updatedAt
+  <= MAX_STALENESS)` reverts → assertion holds.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "Chainlink Best Practices"
+    - "OWASP SC09:2026 (Oracle Manipulation)"
+
+mitigation: |
+  After `latestRoundData()`, verify `updatedAt > 0` and
+  `block.timestamp - updatedAt <= MAX_STALENESS`. Production protocols
+  use 1-2h staleness thresholds for major-pair feeds.
