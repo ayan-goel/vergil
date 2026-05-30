@@ -1,0 +1,25 @@
+incident:
+  name: The DAO
+  year: 2016
+  loss_usd_approx: 60000000
+  chain: ethereum
+  reference_url: "https://www.coindesk.com/learn/understanding-the-dao-attack/"
+
+template:
+  id: reentrancy-single-function-cei
+  check_fn: check_withdrawBalance_does_not_double_increment
+  bindings:
+    contract_name: DAO
+    contract_path: src/Vulnerable.sol
+    action: withdrawBalance
+    getter: totalWithdrawals
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Faithful minimal reproduction of the publicly-known reentrancy bug
+    in The DAO's `withdrawRewardFor` / `splitDAO` path. Reduced to a
+    single `withdrawBalance` external function that mirrors the
+    "increment then external call" anti-pattern, with realistic
+    `deposit` + `balanceOf` surface to differentiate it from the
+    template's narrow fixture.

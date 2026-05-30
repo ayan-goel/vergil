@@ -1,0 +1,25 @@
+incident:
+  name: Audius
+  year: 2022
+  loss_usd_approx: 6000000
+  chain: ethereum
+  reference_url: "https://blog.audius.co/article/audius-governance-takeover-post-mortem-7-23-22"
+
+template:
+  id: init-unprotected-initializer
+  check_fn: check_attacker_cannot_seize_ownership
+  bindings:
+    contract_name: AudiusGovernance
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of the Audius governance takeover (Jul 2022). The
+    Governance contract's `initialize` was unprotected — the attacker
+    front-ran the legitimate initialization, became
+    `guardianAddress`, then queued + executed a malicious proposal
+    transferring AUDIO tokens. Reduced here to a single
+    `initialize()` that sets `owner = msg.sender` without
+    initializer guard; the catalog template's encoding (attacker
+    attempts initialize after legitimate init) catches it.

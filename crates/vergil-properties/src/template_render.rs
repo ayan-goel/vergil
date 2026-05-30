@@ -31,6 +31,13 @@ impl RenderContext {
         self
     }
 
+    /// Mutating variant of [`set`] — useful when bindings come from a
+    /// dynamic source (e.g. per-PoC YAML) and a consuming builder
+    /// wouldn't compose naturally.
+    pub fn insert(&mut self, k: impl Into<String>, v: impl Into<String>) {
+        self.vars.insert(k.into(), v.into());
+    }
+
     pub fn from_pairs<I, K, V>(pairs: I) -> Self
     where
         I: IntoIterator<Item = (K, V)>,
@@ -127,5 +134,16 @@ mod tests {
     fn from_pairs_accepts_string_types() {
         let ctx = RenderContext::from_pairs([("k", "v".to_string())]);
         assert_eq!(ctx.get("k"), Some("v"));
+    }
+
+    #[test]
+    fn insert_mutates_in_place() {
+        let mut ctx = RenderContext::new();
+        ctx.insert("k", "v");
+        ctx.insert("k2", "v2");
+        // Overwrite an existing key.
+        ctx.insert("k", "overwritten");
+        assert_eq!(ctx.get("k"), Some("overwritten"));
+        assert_eq!(ctx.get("k2"), Some("v2"));
     }
 }

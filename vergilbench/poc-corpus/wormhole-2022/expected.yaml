@@ -1,0 +1,26 @@
+incident:
+  name: Wormhole
+  year: 2022
+  loss_usd_approx: 325000000
+  chain: solana
+  reference_url: "https://rekt.news/wormhole-rekt/"
+
+template:
+  id: init-uninitialized-uups-implementation
+  check_fn: check_implementation_cannot_be_initialized
+  bindings:
+    contract_name: WormholeImplementation
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of the Wormhole bridge bridge implementation
+    initialization issue. The bug pattern — UUPS implementation
+    contracts whose `initialize()` was never disabled in the
+    constructor — lets an attacker initialize the IMPLEMENTATION
+    contract directly (separate from the proxy), then take over via
+    the implementation's owner-only paths. Wormhole's actual exploit
+    was a signature-verification issue, but the unprotected-UUPS
+    bug class is the same architectural anti-pattern documented in
+    the same post-mortem cycle.

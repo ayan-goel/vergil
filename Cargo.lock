@@ -2889,8 +2889,11 @@ dependencies = [
  "clap",
  "serde",
  "serde_json",
+ "serde_yaml",
+ "tempfile",
  "tokio",
  "vergil-core",
+ "vergil-properties",
  "vergil-solidity",
 ]
 

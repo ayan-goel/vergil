@@ -1,0 +1,26 @@
+incident:
+  name: BeautyChain (BEC)
+  year: 2018
+  loss_usd_approx: 900000000
+  chain: ethereum
+  reference_url: "https://medium.com/@peckshield/alert-new-batchoverflow-bug-in-multiple-erc20-smart-contracts-cve-2018-10299-511067db6536"
+
+template:
+  id: arith-overflow-underflow-unchecked
+  check_fn: check_batchAmount_does_not_wrap
+  bindings:
+    contract_name: BeautyChainToken
+    contract_path: src/Vulnerable.sol
+    op: batchAmount
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of the batchOverflow / CVE-2018-10299 multiplication
+    overflow in BeautyChain's `batchTransfer(address[] _receivers,
+    uint256 _value)`. Original code computed `uint256 amount =
+    _receivers.length * _value` in unchecked Solidity 0.4.x; the
+    multiplication wrapped to 0 (or a tiny value) for adversarial
+    `_value`, bypassing `require(balanceOf[msg.sender] >= amount)`.
+    Reproduced here as `batchAmount(uint256 a, uint256 b)` in an
+    explicit `unchecked` block to mirror pre-0.8 semantics.

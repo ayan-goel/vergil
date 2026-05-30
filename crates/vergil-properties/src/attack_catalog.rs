@@ -810,8 +810,7 @@ mitigation: Test mitigation.
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("a");
         // decidable manifest but no encoding section
-        let manifest = format!(
-            r#"id: a
+        let manifest = r#"id: a
 name: Test attack
 category: access
 severity: high
@@ -828,9 +827,8 @@ provenance:
   source: vergil-test
   license: Apache-2.0
 mitigation: Test.
-"#
-        );
-        write(&dir.join("manifest.yaml"), &manifest);
+"#;
+        write(&dir.join("manifest.yaml"), manifest);
         let err = AttackCatalog::load(tmp.path()).unwrap_err();
         assert!(matches!(err, AttackError::MissingEncoding { .. }), "{err}");
     }

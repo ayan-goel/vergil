@@ -1,0 +1,25 @@
+incident:
+  name: Cream Finance (AMP)
+  year: 2021
+  loss_usd_approx: 130000000
+  chain: ethereum
+  reference_url: "https://medium.com/cream-finance/c-r-e-a-m-finance-post-mortem-amp-exploit-6ceb20a630c5"
+
+template:
+  id: reentrancy-cross-function-state
+  check_fn: check_cross_function_does_not_double_increment
+  bindings:
+    contract_name: CreamLendingPool
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of the Cream Finance AMP cross-function reentrancy
+    (Aug 2021). The attacker borrowed AMP via `borrow()`, the AMP
+    ERC-777 `_callPostTransferHooks` callback re-entered a DIFFERENT
+    function (`borrow` again with another asset) before the original
+    `borrow`'s accounting closed. Cross-function reentrancy by token
+    hook is the canonical bug shape. Reproduced here with `tick()`
+    (callback-issuing) and `step()` (re-entry target) per the
+    template's contract surface.
