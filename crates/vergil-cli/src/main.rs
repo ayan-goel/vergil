@@ -69,6 +69,14 @@ enum Command {
         /// sweep uses 0.4 (trading strictness for more candidates dispatched).
         #[arg(long)]
         min_critique_axis: Option<f32>,
+        /// V1.5 zero-config tier. `zero-config` runs the attack-pattern
+        /// catalog activation + self-tests against the project (Phase 1
+        /// surface — per-contract dispatch lands in V1.5 Phase 4).
+        /// `intent` keeps the V1 CEGIS path verbatim. Default: `intent`
+        /// (preserves V1 behavior; SPEC §3.1's `both` default is the
+        /// Phase 6 target once all four zero-config oracles land).
+        #[arg(long, value_enum, default_value_t = VerifyMode::Intent)]
+        mode: VerifyMode,
     },
     /// Scaffold a Vergil config in the current Foundry project (stub — see docs/book/src/cli-reference.md)
     Init,
@@ -128,6 +136,20 @@ pub enum OutputFormat {
     Json,
 }
 
+#[derive(Copy, Clone, Debug, ValueEnum, PartialEq, Eq)]
+pub enum VerifyMode {
+    /// V1.5 zero-config tier: run the attack-pattern catalog activation +
+    /// per-template self-tests against the project. No LLM calls.
+    ZeroConfig,
+    /// V1 CEGIS path: synthesize properties from a `--intent` (or
+    /// `properties.yaml`) and discharge via the SMT portfolio.
+    Intent,
+    /// Run both tiers and concatenate the results. (Phase-1 stub: in
+    /// Phase 1 this is equivalent to running zero-config followed by
+    /// intent; Phase 6 lands the stratified verdict combining them.)
+    Both,
+}
+
 fn main() -> ExitCode {
     // Subscribe to tracing with a default of `warn` so the user sees
     // synth/critique/dispatch warnings when something goes wrong. The
@@ -154,6 +176,7 @@ fn main() -> ExitCode {
             cost_budget,
             samples,
             min_critique_axis,
+            mode,
         } => {
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -165,18 +188,41 @@ fn main() -> ExitCode {
                     return ExitCode::from(3);
                 }
             };
-            rt.block_on(commands::verify::run(
-                path,
-                properties,
-                format,
-                intent,
-                scaffold,
-                telemetry_json,
-                tenant,
-                cost_budget,
-                samples,
-                min_critique_axis,
-            ))
+            match mode {
+                VerifyMode::ZeroConfig => rt.block_on(commands::zero_config::run(path)),
+                VerifyMode::Intent => rt.block_on(commands::verify::run(
+                    path,
+                    properties,
+                    format,
+                    intent,
+                    scaffold,
+                    telemetry_json,
+                    tenant,
+                    cost_budget,
+                    samples,
+                    min_critique_axis,
+                )),
+                VerifyMode::Both => {
+                    // Phase-1 simplification: run zero-config first, then
+                    // intent if zero-config succeeded. Phase 6 lands the
+                    // unified stratified verdict.
+                    match rt.block_on(commands::zero_config::run(path.clone())) {
+                        Ok(()) => rt.block_on(commands::verify::run(
+                            path,
+                            properties,
+                            format,
+                            intent,
+                            scaffold,
+                            telemetry_json,
+                            tenant,
+                            cost_budget,
+                            samples,
+                            min_critique_axis,
+                        )),
+                        Err(code) => Err(code),
+                    }
+                }
+            }
         }
         Command::Init => commands::init::run(),
         Command::Prove { artifact, solver } => commands::prove::run_with_solver(artifact, solver),
