@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}}, FoTToken } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: the protocol's internal accounting for `msg.sender`
+    /// MUST NOT exceed the actual token balance the protocol holds for
+    /// that user's deposit.
+    function check_internal_credit_bounded_by_received(uint256 amount) public {
+        if (amount == 0 || amount > type(uint96).max) return;
+        FoTToken tok = target.token();
+        tok.mint(address(this), amount);
+        tok.approve(address(target), amount);
+        uint256 heldBefore = tok.balanceOf(address(target));
+        target.deposit(amount);
+        uint256 heldAfter = tok.balanceOf(address(target));
+        uint256 actualCredit = heldAfter - heldBefore;
+        uint256 internalCredit = target.internalBalance(address(this));
+        assert(internalCredit <= actualCredit);
+    }
+}

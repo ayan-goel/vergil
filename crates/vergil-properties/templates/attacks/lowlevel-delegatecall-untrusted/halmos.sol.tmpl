@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker public attacker;
+
+    constructor() {
+        // Deploy Target via an intermediary so its constructor's
+        // `msg.sender` (the deployer / owner) is distinct from this
+        // Check contract. Otherwise the attack's `slot0 = msg.sender`
+        // writes the same address that's already in slot 0 and the
+        // assertion holds trivially.
+        Deployer d = new Deployer();
+        target = d.deploy();
+        attacker = new Attacker();
+    }
+
+    /// Property: an attacker's delegatecall payload MUST NOT overwrite
+    /// Target's owner slot.
+    function check_attacker_cannot_seize_via_delegatecall() public {
+        address ownerBefore = target.owner();
+        bytes memory data = abi.encodeWithSelector(Attacker.takeOver.selector);
+        try target.forward(address(attacker), data) {} catch {}
+        address ownerAfter = target.owner();
+        assert(ownerAfter == ownerBefore);
+    }
+}
+
+contract Deployer {
+    function deploy() external returns ({{contract_name}}) {
+        return new {{contract_name}}();
+    }
+}
+
+contract Attacker {
+    /// Slot-0-aliased declaration: when delegatecalled, writing to this
+    /// state variable lands in the calling contract's slot 0 (which is
+    /// Target's `owner` in both fixtures).
+    address public slot0;
+
+    function takeOver() external {
+        slot0 = msg.sender;
+    }
+}

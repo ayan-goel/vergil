@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: invocation with `recovered == address(0)` reverts.
+    function check_zero_address_does_not_authorize() public {
+        bool succeeded;
+        try target.execute(address(0)) {
+            succeeded = true;
+        } catch {
+            succeeded = false;
+        }
+        assert(!succeeded);
+    }
+}

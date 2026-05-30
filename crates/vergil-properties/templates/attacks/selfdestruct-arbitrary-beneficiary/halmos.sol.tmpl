@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    address public ownerOfTarget;
+
+    constructor() {
+        // Deploy target as a different account (the "owner") so the
+        // check contract is a non-owner caller. The transient deployer
+        // helper is the simplest way to put owner != address(this).
+        Deployer d = new Deployer();
+        target = d.deploy();
+        ownerOfTarget = address(d);
+    }
+
+    /// Property: a non-owner caller's destroy() attempt MUST revert.
+    function check_non_owner_cannot_destroy(address payable to) public {
+        if (to == address(0)) return;
+        bool succeeded;
+        try target.destroy(to) {
+            succeeded = true;
+        } catch {
+            succeeded = false;
+        }
+        assert(!succeeded);
+    }
+}
+
+contract Deployer {
+    function deploy() external returns ({{contract_name}}) {
+        return new {{contract_name}}();
+    }
+}

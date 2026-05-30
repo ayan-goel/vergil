@@ -1,0 +1,77 @@
+id: selfdestruct-arbitrary-beneficiary
+name: Unprotected selfdestruct with caller-supplied beneficiary
+category: storage-selfdestruct
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    selfdestruct_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Any function reachable through `selfdestruct(beneficiary)` MUST gate
+  the call on the contract's authorized actor set. Beneficiary
+  parameters under attacker control combined with no auth equal full
+  fund drain (Parity Multisig, Nov 2017, ~150k ETH).
+
+  Formally:
+    ∀ trace. ∀ caller c. ∀ selfdestruct callsite s:
+      reaches(c, s) ⇒ c ∈ authorized_actors
+
+  Phase-2 encoding (Halmos): the check contract is the attacker. It
+  calls `Target.destroy(beneficiary)` with a symbolic beneficiary;
+  property is that the call MUST revert for a non-owner caller.
+  Vulnerable: no auth — call succeeds → assertion of revert fails.
+  Clean: `onlyOwner` modifier reverts → assertion holds.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-106"
+    - "OWASP SC10:2026"
+    - "EIP-6780 (post-Cancun selfdestruct restriction)"
+  real_world:
+    - name: "Parity Multisig"
+      year: 2017
+      loss_usd_approx: 150000000
+      chain: ethereum
+      url: "https://blog.openzeppelin.com/on-the-parity-wallet-multisig-hack-405a8c12e8f7"
+
+mitigation: |
+  Gate every selfdestruct callsite behind owner / role auth. Post-EIP-6780
+  the call only deletes balance (not code) outside the deployment
+  transaction, but caller-supplied beneficiary is still a fund-drain
+  primitive — gate it.
+
+engineering_notes: |
+  Halmos does not support the SELFDESTRUCT opcode at all (it raises
+  HalmosException: Unsupported opcode SELFDESTRUCT). The fixtures
+  therefore replace the literal `selfdestruct(beneficiary)` with a
+  `claimedRecipient[beneficiary] = true` write — the auth gate around
+  the destructive callsite is what we verify, not the destruction
+  itself. Structurally the encoding mirrors
+  `access-unprotected-ether-withdrawal` (1.2). Post-EIP-6780
+  selfdestruct is deprecated on mainnet anyway; in V2 a richer
+  harness can re-introduce real selfdestruct semantics if Halmos
+  upstream adds support.

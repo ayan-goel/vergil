@@ -1,0 +1,66 @@
+id: sig-missing-nonce
+name: Pre-authorized proof is replayable (no nonce in hash)
+category: signature-replay
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    signature_or_proof_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  A pre-authorized action proof MUST NOT be replayable. The proof either
+  contains a nonce that's checked against the contract's used-nonce set,
+  or its hash is recorded as consumed in the same transaction that
+  validates it.
+
+  Formally:
+    ∀ proof p. ∀ trace t. ∀ caller c.
+      executeWithProof(p, ...) succeeded in trace t at step i
+      ⇒ executeWithProof(p, ...) fails at every step j > i
+
+  Phase-2 encoding (Halmos): the harness substitutes a hash-based proof
+  for the ECDSA signature (ecrecover modeling is out-of-scope in the
+  bare scaffold). The first call succeeds; the second call with the
+  SAME proof either reverts (clean) or replays (vulnerable). Property:
+  the counter advances by at most one across two attempts.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-712"
+    - "EIP-2612 permit"
+    - "SWC-121"
+
+mitigation: |
+  Embed a per-account or per-proof nonce in the signed/hashed payload
+  and check + consume it atomically. EIP-2612 / EIP-712 do this by
+  design — implementations that forget are the bug.
+
+engineering_notes: |
+  Hash-based-proof substitution rather than ECDSA: the property
+  (replay-prevention) is independent of the signing scheme, and the
+  bare scaffold's ECDSA modeling is too constrained to use directly.
+  V2's `--symbolic-msg-sender`-aware harness extension will let this
+  template upgrade to a real ECDSA-signed flow.

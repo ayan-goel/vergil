@@ -1,0 +1,75 @@
+id: lowlevel-delegatecall-untrusted
+name: Unrestricted delegatecall to attacker-supplied address
+category: storage-selfdestruct
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    delegatecall_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Every `delegatecall(target, data)` callsite MUST EITHER (a) constrain
+  `target` to a fixed/whitelisted address, OR (b) protect the caller's
+  storage slots from being mutated by the delegated code. Without
+  either, an attacker-controlled `target` overwrites the calling
+  contract's storage at will — including ownership / authorization
+  slots.
+
+  Formally:
+    ∀ trace. ∀ delegatecall(target, data) site:
+      target ∈ whitelist ∨ no_critical_storage_mutated_by_dispatch
+
+  Phase-2 encoding (Halmos): the harness deploys an `Attacker` logic
+  contract whose function uses inline `sstore(0, caller())` to
+  overwrite storage slot 0 (the Target's `owner`). The check contract
+  routes through Target's `forward(logic, data)`. Property: Target's
+  `owner` is not changed to the attacker. Vulnerable: no whitelist —
+  delegatecall mutates slot 0. Clean: `require(logic == whitelist)`
+  reverts.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-112"
+    - "OWASP SC10:2026"
+    - "Parity Wallet (Jul 2017)"
+  real_world:
+    - name: "Parity Wallet (Jul 2017)"
+      year: 2017
+      loss_usd_approx: 30000000
+      chain: ethereum
+
+mitigation: |
+  Whitelist allowed logic addresses, OR use `staticcall` instead of
+  `delegatecall` when state mutation isn't required, OR adopt an
+  upgradeable-proxy pattern (UUPS/Transparent) where the proxy and
+  logic addresses are known at deploy time.
+
+engineering_notes: |
+  Sibling of `selfdestruct-arbitrary-beneficiary` (11.2) — both
+  primitives let unauthorized actors take terminal control. This
+  template's framing emphasizes storage corruption (the delegatecall
+  bug at the Target's contract level), whereas 11.2 emphasizes ETH
+  drain.

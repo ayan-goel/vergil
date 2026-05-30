@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: a proof that succeeded once cannot be replayed.
+    function check_proof_cannot_be_replayed(bytes32 proof, uint256 amount) public {
+        if (amount == 0 || amount > type(uint96).max) return;
+        try target.executeWithProof(proof, amount) {} catch {
+            return;
+        }
+        uint256 c1 = target.counter();
+        // Replay attempt with identical inputs.
+        try target.executeWithProof(proof, amount) {} catch {}
+        uint256 c2 = target.counter();
+        assert(c2 == c1);
+    }
+}

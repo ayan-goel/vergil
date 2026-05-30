@@ -1,0 +1,68 @@
+id: token-fee-on-transfer-balance-drift
+name: Protocol assumes ERC-20 transfer credits the full amount
+category: token-integration
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [ERC20]
+  primitives: [any]
+  patterns:
+    erc20_dependent: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Protocol code that pulls tokens via `transferFrom(user, self, amount)`
+  MUST credit `actualReceivedAmount`, not `requestedAmount`. For
+  fee-on-transfer tokens (e.g. SAFEMOON, STA, paxg) the credit differs.
+
+  Formally:
+    ∀ trace. ∀ deposit(amount):
+      actualHeld(self) - actualHeldBefore(self) >= internalCredit(user)
+
+  Phase-2 encoding (Halmos): the fixture embeds a minimal
+  fee-on-transfer token (`FoTToken`) the protocol pulls from. The
+  check contract calls `deposit(amount)`, then asserts the
+  protocol's accounting credit doesn't exceed the actual on-chain
+  balance change. Vulnerable: credit = amount but actual = amount-fee
+  → over-crediting → cex. Clean: credit = balance-after − balance-before
+  → consistent → verified.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC04:2026 (Token Integration Incompatibilities)"
+    - "SafeMoon / STA fee-on-transfer reference"
+
+mitigation: |
+  Use the balance-before / balance-after pattern when pulling tokens.
+  Or blacklist fee-on-transfer tokens at the protocol's allowlist.
+
+engineering_notes: |
+  The fixture embeds a `FoTToken` mock with a 1-wei-per-transfer fee
+  rather than referencing OpenZeppelin's ERC20 — Phase-1's no-external-
+  imports discipline. Halmos's contract-creation model handles the
+  embedded token automatically; no extra harness flags needed.
+
+  The check uses `mint(self, amount)` on the FoT token directly (the
+  mock makes this public for the verification harness) and then calls
+  `target.deposit(amount)` — a real protocol's mint would be gated, but
+  the harness only verifies the deposit-side accounting.

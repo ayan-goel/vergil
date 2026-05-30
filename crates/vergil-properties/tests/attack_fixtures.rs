@@ -1260,3 +1260,139 @@ async fn vault_donation_rate_clean_verified() {
     )
     .await;
 }
+
+// ─── Phase 2 Slice 6: Categories 9 + 10 + 11 batch ───────────────────────────
+
+// All Slice 6 templates use the same simple ctx shape as Slice 1.
+
+// 9.1 token-fee-on-transfer-balance-drift
+#[tokio::test]
+async fn token_fot_drift_vulnerable_cex() {
+    slice1_check(
+        "token-fee-on-transfer-balance-drift",
+        "check_internal_credit_bounded_by_received",
+        "fot-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn token_fot_drift_clean_verified() {
+    slice1_check(
+        "token-fee-on-transfer-balance-drift",
+        "check_internal_credit_bounded_by_received",
+        "fot-clean",
+        false,
+    )
+    .await;
+}
+
+// 10.1 sig-missing-nonce
+#[tokio::test]
+async fn sig_missing_nonce_vulnerable_cex() {
+    slice1_check(
+        "sig-missing-nonce",
+        "check_proof_cannot_be_replayed",
+        "smn-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn sig_missing_nonce_clean_verified() {
+    slice1_check(
+        "sig-missing-nonce",
+        "check_proof_cannot_be_replayed",
+        "smn-clean",
+        false,
+    )
+    .await;
+}
+
+// 10.3 sig-ecrecover-zero-address-bypass
+#[tokio::test]
+async fn sig_zero_addr_vulnerable_cex() {
+    slice1_check(
+        "sig-ecrecover-zero-address-bypass",
+        "check_zero_address_does_not_authorize",
+        "sza-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn sig_zero_addr_clean_verified() {
+    slice1_check(
+        "sig-ecrecover-zero-address-bypass",
+        "check_zero_address_does_not_authorize",
+        "sza-clean",
+        false,
+    )
+    .await;
+}
+
+// 11.2 selfdestruct-arbitrary-beneficiary
+#[tokio::test]
+async fn selfdestruct_arbitrary_vulnerable_cex() {
+    slice1_check(
+        "selfdestruct-arbitrary-beneficiary",
+        "check_non_owner_cannot_destroy",
+        "sda-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn selfdestruct_arbitrary_clean_verified() {
+    slice1_check(
+        "selfdestruct-arbitrary-beneficiary",
+        "check_non_owner_cannot_destroy",
+        "sda-clean",
+        false,
+    )
+    .await;
+}
+
+// 11.3 lowlevel-delegatecall-untrusted
+#[tokio::test]
+async fn delegatecall_untrusted_vulnerable_cex() {
+    slice1_check(
+        "lowlevel-delegatecall-untrusted",
+        "check_attacker_cannot_seize_via_delegatecall",
+        "dcu-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn delegatecall_untrusted_clean_verified() {
+    slice1_check(
+        "lowlevel-delegatecall-untrusted",
+        "check_attacker_cannot_seize_via_delegatecall",
+        "dcu-clean",
+        false,
+    )
+    .await;
+}
+
+// 11.5 lowlevel-call-return-ignored
+#[tokio::test]
+async fn call_return_ignored_vulnerable_cex() {
+    slice1_check(
+        "lowlevel-call-return-ignored",
+        "check_failed_call_does_not_credit",
+        "cri-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn call_return_ignored_clean_verified() {
+    slice1_check(
+        "lowlevel-call-return-ignored",
+        "check_failed_call_does_not_credit",
+        "cri-clean",
+        false,
+    )
+    .await;
+}

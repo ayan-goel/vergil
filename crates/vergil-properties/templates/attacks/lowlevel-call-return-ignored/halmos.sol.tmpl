@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    bool public revertOnCall;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    fallback() external {
+        if (revertOnCall) revert("Check: refuse");
+    }
+
+    receive() external payable {
+        if (revertOnCall) revert("Check: refuse");
+    }
+
+    /// Property: when the external call reverts, the protocol's
+    /// internal counter MUST NOT advance.
+    function check_failed_call_does_not_credit() public {
+        revertOnCall = true;
+        try target.settle(address(this), hex"deadbeef") {} catch {}
+        uint256 c = target.settledCount(address(this));
+        assert(c == 0);
+    }
+}

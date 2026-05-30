@@ -1,0 +1,64 @@
+id: sig-ecrecover-zero-address-bypass
+name: Address-zero auth bypass (uninitialized signer)
+category: signature-replay
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    signature_or_proof_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Any auth comparison `recoveredAddress == authorizedAddress` MUST
+  explicitly reject `recoveredAddress == address(0)`. `ecrecover`
+  returns `address(0)` on malformed signatures; if the `authorized`
+  state is also `address(0)` (uninitialized signer, deleted role), the
+  comparison succeeds for forged inputs.
+
+  Formally:
+    ∀ trace. ∀ exec(recovered, ...):
+      recovered == address(0) ⇒ revert
+
+  Phase-2 encoding (Halmos): the harness abstracts ecrecover out and
+  models the bug as a direct `execute(recovered)` where the caller
+  supplies the "recovered" address. Property: `execute(address(0))`
+  reverts. Vulnerable: passes through when authorized == address(0).
+  Clean: explicit `require(recovered != address(0))` guard.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-2 (ECDSA invalid sig returns 0)"
+    - "Solidity docs §ecrecover"
+
+mitigation: |
+  `require(recovered != address(0), "zero")` before any equality check.
+  OpenZeppelin's `ECDSA.recover` enforces this internally.
+
+engineering_notes: |
+  Abstraction: ecrecover modeling is constrained in the bare scaffold,
+  so the encoding directly accepts a `recovered` address and tests the
+  defensive check. This sacrifices the "real signature input"
+  framing but preserves the structural property — V2's ECDSA-aware
+  harness extension upgrades to a real signature flow.

@@ -1,0 +1,65 @@
+id: lowlevel-call-return-ignored
+name: External call return-success flag ignored
+category: storage-selfdestruct
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    external_call_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Every `target.call(data)` or `target.send(...)` callsite that affects
+  protocol state MUST check the success flag and revert (or handle)
+  on failure. Ignoring it silently credits the protocol's accounting
+  for an action the external call didn't perform.
+
+  Formally:
+    ∀ trace. ∀ low-level call site c affecting state s:
+      state_credit(s) at exit ⇒ call_succeeded(c)
+
+  Phase-2 encoding (Halmos): the harness toggles a `revertOnCall` flag
+  in the check contract's fallback. Vulnerable Target ignores the call
+  return; the fallback reverts; the protocol nonetheless credits its
+  internal counter → cex on the assertion `count == 0`. Clean: the
+  `require(ok)` reverts the parent, no credit happens → assertion
+  holds.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-104"
+    - "OWASP SC10:2026"
+    - "King of the Ether Throne (Apr 2016)"
+
+mitigation: |
+  `(bool ok, ) = target.call(...); require(ok, "fail")`. Or use
+  OpenZeppelin's `Address.functionCall` which both checks and reverts
+  on the inner call's failure.
+
+engineering_notes: |
+  The fixture's fallback acts as a programmable "fail switch" so the
+  vulnerable / clean fixtures share the same call-graph at compile time
+  but differ in runtime semantics. Halmos symbolically explores both
+  paths.
