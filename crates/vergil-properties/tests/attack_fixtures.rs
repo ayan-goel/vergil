@@ -484,3 +484,167 @@ async fn input_missing_validation_clean_verifies() {
         ),
     }
 }
+
+// ─── arith-incorrect-overflow-check-shift (Cetus BV demo) ────────────────────
+
+fn shift_render_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+#[tokio::test]
+async fn incorrect_shift_vulnerable_produces_counterexample() {
+    let t = load_template("arith-incorrect-overflow-check-shift");
+    let ctx = shift_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("shift-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(project.path(), "check_shift_is_recoverable", HALMOS_BUDGET).await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {}
+        other => panic!(
+            "expected Counterexample on vulnerable shift fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn incorrect_shift_clean_verifies() {
+    let t = load_template("arith-incorrect-overflow-check-shift");
+    let ctx = shift_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("shift-clean", &t.clean_source, &check);
+
+    let result = run_simple(project.path(), "check_shift_is_recoverable", HALMOS_BUDGET).await;
+
+    match result {
+        HalmosResult::Verified { .. } => {}
+        other => panic!(
+            "expected Verified on clean shift fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+// ─── vault-inflation-first-depositor-donation ────────────────────────────────
+
+fn vault_render_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+#[tokio::test]
+async fn vault_inflation_vulnerable_produces_counterexample() {
+    let t = load_template("vault-inflation-first-depositor-donation");
+    let ctx = vault_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("vault-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_no_zero_shares_under_inflation",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {}
+        other => panic!(
+            "expected Counterexample on vulnerable vault fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn vault_inflation_clean_verifies() {
+    let t = load_template("vault-inflation-first-depositor-donation");
+    let ctx = vault_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("vault-clean", &t.clean_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_no_zero_shares_under_inflation",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Verified { .. } => {}
+        other => panic!(
+            "expected Verified on clean vault fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+// ─── init-uninitialized-uups-implementation (Wormhole class) ─────────────────
+
+fn uups_render_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+#[tokio::test]
+async fn uups_uninitialized_vulnerable_produces_counterexample() {
+    let t = load_template("init-uninitialized-uups-implementation");
+    let ctx = uups_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("uups-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_implementation_cannot_be_initialized",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {}
+        other => panic!(
+            "expected Counterexample on vulnerable UUPS fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn uups_uninitialized_clean_verifies() {
+    let t = load_template("init-uninitialized-uups-implementation");
+    let ctx = uups_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("uups-clean", &t.clean_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_implementation_cannot_be_initialized",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Verified { .. } => {}
+        other => panic!(
+            "expected Verified on clean UUPS fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}

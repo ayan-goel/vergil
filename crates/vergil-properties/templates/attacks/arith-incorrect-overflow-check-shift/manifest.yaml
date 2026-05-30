@@ -1,0 +1,72 @@
+id: arith-incorrect-overflow-check-shift
+name: Faulty checked-shift overflow guard
+category: arithmetic
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: bv
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    bit_shift_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  A bit-shift `value << k` cannot lose information — recovering by
+  shifting right by `k` must return the original input.
+
+  Formally:
+    ∀ value: (value << k) >> k == value
+
+  Phase-1 encoding (Halmos): the property is `recovered == value` where
+  `recovered = (target.shiftLeft64(value)) >> 64`. Halmos must use Z3's
+  bitvector theory to settle this (LIA cannot reason exactly about
+  shift overflow); the manifest declares `expected_theory: bv` and the
+  portfolio dispatch will escalate from LIA on UNKNOWN.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC09:2026"
+    - "Halborn Cetus post-mortem"
+  real_world:
+    - name: "Cetus Protocol"
+      year: 2025
+      loss_usd_approx: 223000000
+      chain: sui
+      url: "https://www.halborn.com/blog/post/explained-the-cetus-protocol-hack-may-2025"
+
+mitigation: |
+  Check `value < 1 << (256 - k)` (or equivalently `value >> (256 - k) == 0`)
+  before `value << k`. Prefer OpenZeppelin's `SafeCast` for any cast
+  that follows a shift, so a wrong-threshold guard cannot silently
+  truncate.
+
+engineering_notes: |
+  The canonical "why bitvector theory matters" demo. The Cetus bug
+  compared `value` against `0xFFFFFFFFFFFFFFFF << 192` — a constant
+  that equals `2^256 - 2^192`, a very loose upper bound, so values in
+  `[2^192, 2^256 - 2^192)` passed the check and overflowed the
+  subsequent `value << 64`. The correct threshold is `1 << 192`.
+
+  LIA cannot reason about the bit-level overflow exactly; Z3's BV theory
+  closes it in milliseconds. If Halmos returns UNKNOWN under LIA, the
+  portfolio dispatch (existing V1 §3.7) escalates to BV.

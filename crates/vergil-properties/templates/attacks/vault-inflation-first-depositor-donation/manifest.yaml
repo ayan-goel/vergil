@@ -1,0 +1,72 @@
+id: vault-inflation-first-depositor-donation
+name: First-depositor / donation inflation
+category: vault
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: mixed
+
+applies_to:
+  interfaces: [ERC4626]
+  primitives: [vault]
+  patterns:
+    deposit_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  A positive deposit must mint a positive number of shares — the
+  exchange rate cannot round down to zero for a non-zero asset input.
+
+  Formally:
+    ∀ deposit a > 0:
+      sharesOut(a) > 0  in every reachable state
+
+  Phase-1 encoding (Halmos): simulate the attack sequence — attacker
+  deposits 1 wei (gets 1 share), donates a large asset balance to
+  inflate the share price, then a victim's small deposit either gets
+  zero shares (vulnerable) or reverts (clean, the
+  `require(sharesOut > 0)` defense). The Halmos check follows that
+  sequence and asserts `sharesOut > 0`.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC07:2026"
+    - "OpenZeppelin ERC4626 inflation docs"
+  real_world:
+    - name: "ERC-4626 inflation class (multiple early vaults)"
+      year: 2022
+      chain: ethereum
+      url: "https://blog.openzeppelin.com/a-novel-defense-against-erc4626-inflation-attacks"
+
+mitigation: |
+  Use OpenZeppelin's virtual-shares offset (the `_decimalsOffset()`
+  override in their ERC4626 base, since v4.9) — share math becomes
+  `assets * (totalShares + 1) / (totalAssets + 10**offset)`, which
+  bounds the manipulation by the attacker's donation cost. As a
+  defense-in-depth, require `sharesOut > 0` in the deposit path so
+  no asset is ever absorbed without a corresponding share.
+
+engineering_notes: |
+  Phase-1 encoding bounds the donation amount (< 2^128) so the solver
+  stays tractable. The clean fixture's `require(sharesOut > 0)` is
+  the minimum defense; the full OpenZeppelin virtual-offset mitigation
+  is more thorough but harder to encode in a single check. A V2
+  enhancement is to ship a parallel clean fixture using OZ's
+  virtual-share pattern and a multi-target check.

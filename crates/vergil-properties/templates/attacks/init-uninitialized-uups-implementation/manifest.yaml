@@ -1,0 +1,79 @@
+id: init-uninitialized-uups-implementation
+name: Uninitialized UUPS logic contract
+category: initialization
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    uups_proxy: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  An implementation contract behind a UUPS proxy must not be directly
+  initializable — the implementation constructor must disable the
+  initializer so that calls landing on the logic (rather than the
+  proxy) fail.
+
+  Formally:
+    ∀ implementation Impl:
+      reachable(Impl.initialize from external caller) ⇒ revert
+
+  Phase-1 encoding (Halmos): a separate Attacker contract attempts to
+  initialize a freshly-deployed implementation. The vulnerable fixture
+  has no constructor guard, so the attacker becomes owner and could
+  upgrade the proxy that depends on it. The clean fixture sets the
+  initialized flag in the constructor (`_disableInitializers`-style),
+  blocking direct initialization.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC10:2026"
+    - "OpenZeppelin UUPS advisory"
+  real_world:
+    - name: "Wormhole uninitialized-implementation advisory"
+      year: 2022
+      loss_usd_approx: 10000000
+      chain: ethereum
+      url: "https://blog.openzeppelin.com/wormhole-uninitialized-proxy-bugfix-review"
+
+mitigation: |
+  In the implementation contract's constructor, call
+  `_disableInitializers()` (OpenZeppelin Initializable v4.4+) so the
+  logic contract's `initialized` flag is set at deploy time and the
+  initializer is permanently locked on the logic-contract address.
+  Calls intended for initialization land on the proxy (which has its
+  own `initialized` flag) and are processed there.
+
+engineering_notes: |
+  The Phase-1 encoding does not model the full proxy — it focuses on
+  the *implementation reachability* invariant, which is the decidable
+  core of the UUPS pitfall. The full multi-contract proxy + impl
+  interaction (storage layout, _authorizeUpgrade, ERC1967 slots) is
+  V2 work; here we ship the structural defense.
+
+  Distinct from `init-unprotected-initializer` (§2.1) in two ways:
+  (a) the threat model is the implementation contract behind a proxy,
+  not a standalone contract; (b) the mitigation is constructor-time
+  flag set, not a runtime one-shot guard.

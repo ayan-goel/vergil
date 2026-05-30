@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: `value << 64` is recoverable — `(value << 64) >> 64 == value`.
+    /// Vulnerable: the wrong threshold lets values >= 2^192 pass; the shift
+    /// overflows and loses the high 64 bits, breaking recovery.
+    /// Clean: the correct threshold rejects any input that would overflow.
+    function check_shift_is_recoverable(uint256 value) public view {
+        uint256 shifted = target.shiftLeft64(value);
+        uint256 recovered = shifted >> 64;
+        assert(recovered == value);
+    }
+}

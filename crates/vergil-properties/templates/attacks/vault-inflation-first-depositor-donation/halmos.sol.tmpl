@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: under the first-depositor inflation attack sequence
+    /// (attacker deposits 1 wei, donates, victim deposits), the victim's
+    /// deposit must NOT silently round down to zero shares.
+    ///
+    /// Vulnerable: no `sharesOut > 0` guard; victim's small deposit
+    /// rounds to zero shares but their assets are consumed → cex.
+    /// Clean: `require(sharesOut > 0)` reverts the doomed deposit, so
+    /// the assertion is vacuously satisfied (the path doesn't return).
+    function check_no_zero_shares_under_inflation(
+        uint256 inflation,
+        uint256 victimDeposit
+    ) public {
+        // Bound for tractability. The Cetus-equivalent attack at scale
+        // works at much larger numbers; bounded ranges cover the
+        // demonstration without sending the solver into BV blow-up.
+        if (inflation == 0 || inflation > type(uint128).max) return;
+        if (victimDeposit == 0 || victimDeposit >= inflation) return;
+
+        // Step 1: attacker deposits 1 wei → gets 1 share.
+        target.deposit(1);
+        // Step 2: attacker donates a large amount → inflates the share price.
+        target.donate(inflation);
+        // Step 3: victim's deposit must not silently mint zero shares.
+        uint256 sharesOut = target.deposit(victimDeposit);
+        assert(sharesOut > 0);
+    }
+}
