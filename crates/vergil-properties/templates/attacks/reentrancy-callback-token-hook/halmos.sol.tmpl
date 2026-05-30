@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// Halmos encoding for `reentrancy-callback-token-hook`.
+//
+// Template variables:
+//   {{contract_name}}  — token-like contract exposing `deposit(uint256)`,
+//                        `transfer(address,uint256)`, `transferCount()`,
+//                        and calling `ITokenRecipient(to).onTokenReceived(amount)`.
+//   {{contract_path}}  — Foundry import path
+//   {{attack_id_ident}}— identifier suffix
+
+import { {{contract_name}}, ITokenRecipient } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} is ITokenRecipient {
+    {{contract_name}} public target;
+    bool public reentering;
+
+    constructor() {
+        target = new {{contract_name}}();
+        // Pre-fund so we can transfer non-zero amounts.
+        target.deposit(100);
+    }
+
+    function onTokenReceived(uint256 amount) external override {
+        if (reentering) {
+            reentering = false;
+            try target.transfer(address(this), amount) {} catch {}
+        }
+    }
+
+    /// Property: a single outer transfer can increment transferCount by
+    /// at most one. Hook-reentrant Target bumps it twice (outer + inner).
+    function check_hook_does_not_double_transfer() public {
+        uint256 c0 = target.transferCount();
+        reentering = true;
+        try target.transfer(address(this), 1) {} catch {}
+        reentering = false;
+        uint256 c1 = target.transferCount();
+        assert(c1 == c0 || c1 == c0 + 1);
+    }
+}

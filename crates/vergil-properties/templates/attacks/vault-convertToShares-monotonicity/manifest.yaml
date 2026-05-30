@@ -1,0 +1,63 @@
+id: vault-convertToShares-monotonicity
+name: ERC-4626 convertToShares is monotone in assets
+category: vault
+severity: medium
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [ERC4626]
+  primitives: [vault-share]
+  patterns:
+    vault_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  `convertToShares(a)` is monotone non-decreasing in `a`:
+    ∀ a₁ ≤ a₂.  convertToShares(a₁) ≤ convertToShares(a₂)
+
+  A non-monotone preview function lets a depositor receive fewer shares
+  for a larger deposit, breaking the basic price-curve assumption every
+  yield aggregator on top of the vault relies on.
+
+  Phase-2 encoding (Halmos): the check samples two asset amounts a,b
+  with a < b and asserts convertToShares(a) ≤ convertToShares(b).
+  Vulnerable: a contrived discount-band breaks monotonicity (it stands
+  in for the rounding-direction bugs seen in real ERC-4626
+  implementations). Clean: the standard mulDiv-with-floor preserves
+  monotonicity.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-4626 (preview properties)"
+
+mitigation: |
+  Implement convertToShares as `assets * totalShares / totalAssets` and
+  apply rounding consistently across deposit / mint / withdraw / redeem
+  (OZ ERC4626 does this; preview parity is part of the spec).
+
+engineering_notes: |
+  The vulnerable fixture is intentionally synthetic — real non-monotone
+  bugs in production ERC-4626 implementations come from inconsistent
+  rounding direction between preview and execution (rounded-down preview,
+  rounded-up execution), which is harder to encode in a self-contained
+  fixture. The synthetic break demonstrates that the negation property
+  is well-formed and that Halmos exercises the assertion.

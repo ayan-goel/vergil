@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// Halmos encoding for `reentrancy-cross-function-state`.
+//
+// Template variables:
+//   {{contract_name}}  — contract exposing `tick()` and `step()` (both
+//                        external, both increment a shared counter), plus
+//                        `counter() returns (uint256)`. `tick` makes the
+//                        external callback; `step` is the re-entry target.
+//   {{contract_path}}  — Foundry import path
+//   {{attack_id_ident}}— identifier suffix
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    bool public reentering;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    receive() external payable {
+        if (reentering) {
+            reentering = false;
+            // Cross-function: outer entry was tick(), inner re-entry is step().
+            try target.step() {} catch {}
+        }
+    }
+
+    /// Property: a single outer tick() can increment the shared counter by
+    /// at most one. A cross-function-reentrancy-vulnerable contract
+    /// increments twice (outer tick + reentered step) and refutes the
+    /// assertion.
+    function check_cross_function_does_not_double_increment() public {
+        uint256 c0 = target.counter();
+        reentering = true;
+        try target.tick() {} catch {}
+        reentering = false;
+        uint256 c1 = target.counter();
+        assert(c1 == c0 || c1 == c0 + 1);
+    }
+}

@@ -1,0 +1,60 @@
+id: vault-totalsupply-totalassets-invariant
+name: Vault share-supply / per-user balance invariant
+category: vault
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [ERC4626, ERC20]
+  primitives: [vault-share]
+  patterns:
+    vault_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  At every reachable state, the sum of per-user share balances equals
+  `totalShares`. An accounting drift where a withdraw decrements per-user
+  balance without decrementing totalShares (or symmetrically a deposit
+  mints to per-user without bumping totalShares) is the canonical bug.
+
+  Formally (single-user reduction for tractability):
+    ∀ trace t. sharesOf[user] == totalShares
+
+  Phase-2 encoding (Halmos): single-user reduction — `check` deposits N
+  and withdraws M and asserts the invariant after both operations.
+  Vulnerable: withdraw forgets to decrement totalShares → invariant
+  violated. Clean: both decrements happen → invariant holds.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-4626"
+    - "Trail of Bits: Building Secure Vaults"
+
+mitigation: |
+  Use OpenZeppelin's `ERC4626` base — `_mint` and `_burn` both update
+  `_totalSupply`. Avoid hand-rolling share accounting.
+
+engineering_notes: |
+  Single-user reduction is the trick that keeps this invariant decidable
+  — proving the multi-user case requires summing an unbounded mapping.
+  The single-user case is the meaningful local-precondition that
+  inductively implies the global invariant.

@@ -1,0 +1,73 @@
+id: reentrancy-callback-token-hook
+name: Reentrancy via token recipient hook
+category: reentrancy
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: mixed
+
+applies_to:
+  interfaces: [ERC777, ERC721, ERC1155]
+  primitives: [any]
+  patterns:
+    external_call_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Token transfer functions that invoke a recipient hook
+  (`tokensReceived`, `onERC721Received`, `onERC1155Received`,
+  `onERC1155BatchReceived`) MUST update token accounting BEFORE the hook
+  fires, OR the calling function MUST be guarded by a shared reentrancy
+  lock that covers every transfer / mint path.
+
+  Formally:
+    ∀ trace t. ∀ hook callsite c in f:
+      accounting_writes(f) committed_before c
+
+  Phase-2 encoding (Halmos): the Target's `transfer` calls a recipient
+  hook BEFORE updating balances. The check contract implements the
+  hook and re-enters `transfer` once. Property: `transferCount <= 1`.
+  Vulnerable: hook re-enters, inner + outer both bump the counter → cex.
+  Clean: nonReentrant lock reverts the inner re-entry → counter == 1.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-777"
+    - "EIP-721"
+    - "EIP-1155"
+    - "SWC-107"
+    - "OWASP SC08:2026"
+  real_world:
+    - name: "imBTC / Uniswap V1"
+      year: 2020
+      loss_usd_approx: 300000
+      chain: ethereum
+
+mitigation: |
+  Apply checks-effects-interactions: commit balance updates BEFORE the
+  hook call. Or guard every transfer/mint path with a shared
+  `nonReentrant` lock. ERC-777 specifically is hostile-by-design here;
+  many protocols simply blacklist ERC-777 tokens.
+
+engineering_notes: |
+  Parameterized over the hook source. The minimal `ITokenRecipient`
+  interface in the fixtures stands in for `IERC777Recipient`,
+  `IERC721Receiver`, `IERC1155Receiver` — the structural pattern (hook
+  fired before accounting close) is identical across the three EIPs.

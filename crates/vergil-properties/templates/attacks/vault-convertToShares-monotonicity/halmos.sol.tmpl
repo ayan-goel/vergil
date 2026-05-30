@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: convertToShares is monotone non-decreasing in `assets`.
+    function check_convert_to_shares_monotone(uint256 a, uint256 b) public {
+        if (a > type(uint96).max || b > type(uint96).max) return;
+        if (a >= b) return;
+        uint256 sa = target.convertToShares(a);
+        uint256 sb = target.convertToShares(b);
+        assert(sb >= sa);
+    }
+}

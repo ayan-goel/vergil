@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: a direct donation does not shift the share-conversion rate.
+    /// Sampled as: convertToShares(unit) is identical before / after donate.
+    function check_rate_stable_under_donation(uint256 donation) public {
+        if (donation == 0 || donation > type(uint96).max) return;
+        target.deposit(1000);
+        uint256 rateBefore = target.convertToShares(100);
+        target.donate(donation);
+        uint256 rateAfter = target.convertToShares(100);
+        assert(rateAfter == rateBefore);
+    }
+}

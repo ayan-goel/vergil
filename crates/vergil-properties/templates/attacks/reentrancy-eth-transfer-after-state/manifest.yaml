@@ -1,0 +1,77 @@
+id: reentrancy-eth-transfer-after-state
+name: ETH-transfer reentrancy with state update after the call
+category: reentrancy
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: mixed
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    external_call_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  In any function that transfers value (ETH or a token) to an external
+  party, every state mutation tracking that transfer must commit BEFORE
+  the value transfer's external call site.
+
+  Formally:
+    ∀ trace t. ∀ withdraw f. ∀ value-transfer site v in f:
+      accounting_writes_required_by(v) committed_before v
+
+  Phase-2 encoding (Halmos): the Target's `withdraw(amount)` decrements
+  the caller's balance AFTER the external callback. The check contract's
+  receive() re-enters withdraw once. Property: `totalDrained <= 1 wei`
+  (the deposited amount). Vulnerable uses an `unchecked` block on the
+  balance decrement, so the outer decrement wraps instead of panicking
+  on underflow — the drain succeeds, refuting the property. Clean
+  applies CEI ordering: balance is decremented BEFORE the call, so the
+  inner re-entry's balance check rejects.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-107"
+    - "OWASP SC08:2026"
+    - "DASP Top 10 #1"
+  real_world:
+    - name: "The DAO"
+      year: 2016
+      loss_usd_approx: 60000000
+      chain: ethereum
+      url: "https://www.coindesk.com/learn/understanding-the-dao-attack/"
+
+mitigation: |
+  Apply Checks-Effects-Interactions strictly: every accounting decrement
+  associated with a value transfer must precede the external call site.
+  When CEI is infeasible (e.g. the call's return value is required for
+  bookkeeping), guard with `nonReentrant`.
+
+engineering_notes: |
+  Distinct from Phase-1's 4.1 (`reentrancy-single-function-cei`) — that
+  template uses a generic counter and an unguarded callback; this one
+  models the DAO-shape balance accounting + the `unchecked` block that
+  removes 0.8's underflow panic. The `unchecked` block is the key
+  ingredient: without it Solidity 0.8+ rolls back the outer
+  transaction on underflow, masking the drain. Real DAO bug ran on
+  pre-0.8 Solidity (Solidity 0.4.x) where arithmetic was unchecked by
+  default.

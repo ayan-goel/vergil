@@ -1,0 +1,63 @@
+id: vault-zero-share-deposit
+name: Vault deposit silently mints zero shares
+category: vault
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [ERC4626]
+  primitives: [vault-share]
+  patterns:
+    vault_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Every successful `deposit(assets)` returns a positive share amount.
+  A deposit that returns zero shares is a silent loss for the depositor.
+
+  Formally:
+    ∀ trace t. ∀ deposit(assets):
+      assets > 0 ∧ deposit returns sharesOut ⇒ sharesOut > 0
+
+  Phase-2 encoding (Halmos): the attacker deposits a tiny amount and
+  then donates a much larger amount (inflating the share price); a
+  victim's next deposit, smaller than the inflated price, would round
+  to zero shares. Vulnerable: no `require(sharesOut > 0)` — refuted.
+  Clean: explicit positivity check — verified.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-4626"
+    - "OpenZeppelin ERC-4626 inflation defense"
+
+mitigation: |
+  Add `require(sharesOut > 0, "zero shares")` to `deposit` and `mint`.
+  OpenZeppelin's ERC-4626 implementation incorporates virtual shares
+  to push the inflation attack's cost out of reach.
+
+engineering_notes: |
+  Sibling of Phase-1's `vault-inflation-first-depositor-donation` (5.1)
+  — same underlying invariant but framed as a precondition on `deposit`
+  rather than the donation attack's exploit shape. Shipping both per
+  `notes/attack-patterns.md` because the bench reports treat them
+  separately (one is a defensive structural check, the other is an
+  end-to-end attack scenario).

@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: after deposit + withdraw, the single user's share
+    /// balance equals totalShares (single-user reduction of the global
+    /// invariant Σ sharesOf == totalShares).
+    function check_supply_matches_per_user_balance(
+        uint256 d,
+        uint256 w
+    ) public {
+        if (d == 0 || d > type(uint96).max) return;
+        if (w == 0 || w > d) return;
+        target.deposit(d);
+        target.withdraw(w);
+        assert(target.sharesOf(address(this)) == target.totalShares());
+    }
+}

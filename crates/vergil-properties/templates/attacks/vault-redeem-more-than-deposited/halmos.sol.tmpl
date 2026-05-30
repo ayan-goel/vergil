@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: when redeem is called with shares > sharesOf[caller],
+    /// the call MUST revert.
+    function check_redeem_more_than_owned_reverts(uint256 d, uint256 r) public {
+        if (d == 0 || d > type(uint96).max) return;
+        if (r <= d || r > type(uint128).max) return;
+        target.deposit(d);
+        bool succeeded;
+        try target.redeem(r) {
+            succeeded = true;
+        } catch {
+            succeeded = false;
+        }
+        assert(!succeeded);
+    }
+}

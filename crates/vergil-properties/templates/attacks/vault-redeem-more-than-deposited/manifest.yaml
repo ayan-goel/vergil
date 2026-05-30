@@ -1,0 +1,63 @@
+id: vault-redeem-more-than-deposited
+name: Vault redeem caps shares at caller's balance
+category: vault
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [ERC4626]
+  primitives: [vault-share]
+  patterns:
+    vault_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  `redeem(shares, ...)` reverts when `shares > sharesOf[owner]`. The
+  attack class is a vault that lets the caller burn more shares than
+  they own — by underflow (pre-0.8) or by missing the precondition
+  entirely.
+
+  Formally:
+    ∀ trace. ∀ redeem(shares, owner):
+      shares > sharesOf[owner] ⇒ revert
+
+  Phase-2 encoding (Halmos): the check deposits N, requests redeem(R)
+  with R > N, asserts the call reverted. Vulnerable: no precondition,
+  the call succeeds → assertion of revert is refuted. Clean:
+  `require(shares <= sharesOf[owner])` reverts → assertion holds.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-4626"
+
+mitigation: |
+  Use OpenZeppelin's `ERC4626.redeem` — it routes through `_burn` which
+  reverts on insufficient balance via `_balances[from] -= shares` under
+  0.8's checked arithmetic. Don't bypass with `unchecked` blocks.
+
+engineering_notes: |
+  This template's "revert assertion" inverts the usual encoding —
+  rather than asserting an invariant in the post-state, the check
+  uses a try/catch around redeem and asserts `succeeded == false`.
+  When clean's redeem reverts, the catch-block is hit; when vulnerable's
+  redeem succeeds, the success-branch flips an `actuallySucceeded`
+  flag and the assertion fails.

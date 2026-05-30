@@ -1,0 +1,71 @@
+id: vault-donation-exchange-rate-manipulation
+name: Direct asset donation shifts share price
+category: vault
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [ERC4626]
+  primitives: [vault-share]
+  patterns:
+    vault_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  The vault's exchange-rate computation MUST read internal accounting
+  (a `totalAssets` storage slot maintained by `deposit` / `withdraw`),
+  NOT the asset balance derivable from external observation
+  (`address(this).balance`, `asset.balanceOf(self)`, etc.). Otherwise a
+  direct donation — selfdestruct, ERC-20 transfer, or rebasing-token
+  rebase — shifts the share price.
+
+  Formally:
+    ∀ trace t. ∀ donate(amount):
+      pre  := exchangeRate(t)
+      post := exchangeRate(donate(t, amount))
+      post == pre
+
+  Phase-2 encoding (Halmos): the check deposits a baseline, samples a
+  donation amount, calls the vulnerable `donate` (which represents a
+  direct asset transfer outside the deposit path), and asserts the
+  exchange rate is unchanged. Vulnerable: `donate` bumps `totalAssets`
+  used in the rate → rate shifts → cex. Clean: `donate` is a no-op
+  (direct transfers are not credited to internal accounting) → verified.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-4626 (security considerations)"
+    - "OpenZeppelin ERC-4626 virtual offset"
+
+mitigation: |
+  Maintain `totalAssets` as a tracked storage slot updated only on
+  `deposit` and `withdraw`. Don't compute exchange rate from
+  `asset.balanceOf(self)` or `address(this).balance`. OpenZeppelin's
+  ERC-4626 implementation uses the tracked-slot approach.
+
+engineering_notes: |
+  Sibling of Phase-1's `vault-inflation-first-depositor-donation` (5.1)
+  but framed as the structural defensive property (rate-stability under
+  donation) rather than the end-to-end inflation attack. The `donate`
+  function in the fixtures stands in for the direct asset transfer
+  channel (which can't be modeled in the bare scaffold's ETH/balance
+  abstraction without harness extensions).

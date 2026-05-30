@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: a positive-asset deposit returns at least one share.
+    function check_positive_deposit_mints_positive_shares(uint256 victimAssets) public {
+        // Inflate the share price first (close cousin of 5.1).
+        if (victimAssets == 0 || victimAssets > type(uint96).max) return;
+        target.deposit(1);
+        target.donate(type(uint64).max);
+        // Only the interesting (inflated, small-victim) range matters.
+        if (victimAssets > 1000) return;
+        uint256 sharesOut = target.deposit(victimAssets);
+        assert(sharesOut > 0);
+    }
+}

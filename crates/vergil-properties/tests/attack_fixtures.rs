@@ -1079,3 +1079,184 @@ async fn uups_uninitialized_clean_verifies() {
         ),
     }
 }
+
+// ─── Phase 2 Slice 4: Categories 4 + 5 batch (Reentrancy + Vault) ────────────
+
+// All Slice 4 templates use the same simple ctx shape as Slice 1, so the
+// existing `slice1_check` helper applies directly.
+
+// 4.2 reentrancy-cross-function-state
+#[tokio::test]
+async fn reentrancy_cross_function_vulnerable_cex() {
+    slice1_check(
+        "reentrancy-cross-function-state",
+        "check_cross_function_does_not_double_increment",
+        "rxf-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn reentrancy_cross_function_clean_verified() {
+    slice1_check(
+        "reentrancy-cross-function-state",
+        "check_cross_function_does_not_double_increment",
+        "rxf-clean",
+        false,
+    )
+    .await;
+}
+
+// 4.3 reentrancy-callback-token-hook
+#[tokio::test]
+async fn reentrancy_token_hook_vulnerable_cex() {
+    slice1_check(
+        "reentrancy-callback-token-hook",
+        "check_hook_does_not_double_transfer",
+        "rth-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn reentrancy_token_hook_clean_verified() {
+    slice1_check(
+        "reentrancy-callback-token-hook",
+        "check_hook_does_not_double_transfer",
+        "rth-clean",
+        false,
+    )
+    .await;
+}
+
+// 4.5 reentrancy-eth-transfer-after-state
+#[tokio::test]
+async fn reentrancy_eth_after_state_vulnerable_cex() {
+    slice1_check(
+        "reentrancy-eth-transfer-after-state",
+        "check_no_double_drain",
+        "etas-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn reentrancy_eth_after_state_clean_verified() {
+    slice1_check(
+        "reentrancy-eth-transfer-after-state",
+        "check_no_double_drain",
+        "etas-clean",
+        false,
+    )
+    .await;
+}
+
+// 5.2 vault-zero-share-deposit
+#[tokio::test]
+async fn vault_zero_share_vulnerable_cex() {
+    slice1_check(
+        "vault-zero-share-deposit",
+        "check_positive_deposit_mints_positive_shares",
+        "vzs-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn vault_zero_share_clean_verified() {
+    slice1_check(
+        "vault-zero-share-deposit",
+        "check_positive_deposit_mints_positive_shares",
+        "vzs-clean",
+        false,
+    )
+    .await;
+}
+
+// 5.3 vault-totalsupply-totalassets-invariant
+#[tokio::test]
+async fn vault_supply_invariant_vulnerable_cex() {
+    slice1_check(
+        "vault-totalsupply-totalassets-invariant",
+        "check_supply_matches_per_user_balance",
+        "vsi-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn vault_supply_invariant_clean_verified() {
+    slice1_check(
+        "vault-totalsupply-totalassets-invariant",
+        "check_supply_matches_per_user_balance",
+        "vsi-clean",
+        false,
+    )
+    .await;
+}
+
+// 5.4 vault-convertToShares-monotonicity
+#[tokio::test]
+async fn vault_monotone_vulnerable_cex() {
+    slice1_check(
+        "vault-convertToShares-monotonicity",
+        "check_convert_to_shares_monotone",
+        "vmn-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn vault_monotone_clean_verified() {
+    slice1_check(
+        "vault-convertToShares-monotonicity",
+        "check_convert_to_shares_monotone",
+        "vmn-clean",
+        false,
+    )
+    .await;
+}
+
+// 5.5 vault-redeem-more-than-deposited
+#[tokio::test]
+async fn vault_redeem_overage_vulnerable_cex() {
+    slice1_check(
+        "vault-redeem-more-than-deposited",
+        "check_redeem_more_than_owned_reverts",
+        "vro-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn vault_redeem_overage_clean_verified() {
+    slice1_check(
+        "vault-redeem-more-than-deposited",
+        "check_redeem_more_than_owned_reverts",
+        "vro-clean",
+        false,
+    )
+    .await;
+}
+
+// 5.6 vault-donation-exchange-rate-manipulation
+#[tokio::test]
+async fn vault_donation_rate_vulnerable_cex() {
+    slice1_check(
+        "vault-donation-exchange-rate-manipulation",
+        "check_rate_stable_under_donation",
+        "vdr-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn vault_donation_rate_clean_verified() {
+    slice1_check(
+        "vault-donation-exchange-rate-manipulation",
+        "check_rate_stable_under_donation",
+        "vdr-clean",
+        false,
+    )
+    .await;
+}

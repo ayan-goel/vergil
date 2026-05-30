@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// Halmos encoding for `reentrancy-eth-transfer-after-state`.
+//
+// Template variables:
+//   {{contract_name}}  — contract with `deposit(uint256)`,
+//                        `withdraw(uint256)`, `totalDrained()` getter,
+//                        and a hook callback to msg.sender via `call("")`.
+//   {{contract_path}}  — Foundry import path
+//   {{attack_id_ident}}— identifier suffix
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    bool public reentering;
+
+    constructor() {
+        target = new {{contract_name}}();
+        target.deposit(1);
+    }
+
+    /// The "value transfer" callback in the modeled CEI violation.
+    fallback() external payable {
+        if (reentering) {
+            reentering = false;
+            try target.withdraw(1) {} catch {}
+        }
+    }
+    receive() external payable {
+        if (reentering) {
+            reentering = false;
+            try target.withdraw(1) {} catch {}
+        }
+    }
+
+    /// Property: total drained MUST equal the deposit (1 wei) — the
+    /// re-entry must not enable a double-withdrawal.
+    function check_no_double_drain() public {
+        uint256 t0 = target.totalDrained();
+        reentering = true;
+        try target.withdraw(1) {} catch {}
+        reentering = false;
+        uint256 t1 = target.totalDrained();
+        assert(t1 <= t0 + 1);
+    }
+}

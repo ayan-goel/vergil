@@ -1,0 +1,77 @@
+id: reentrancy-cross-function-state
+name: Cross-function reentrancy
+category: reentrancy
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: mixed
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    external_call_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  When two state-changing functions share an invariant (a single counter,
+  a balance map, a vault accounting pair), every reentrant call from
+  function A's external-callback site to function B must either revert
+  or preserve the invariant.
+
+  Formally:
+    ∀ trace t. ∀ external call c in f_A:
+      reentrant_call(c → f_B) ⇒ invariant_post == invariant_pre + Δ_expected
+
+  Phase-2 encoding (Halmos): the check contract sets a `reentering`
+  flag, invokes the target's f_A (which makes an external call), and
+  the receive() hook attempts a single re-entry into f_B (the
+  cross-function call). The assertion bounds the shared counter's net
+  increment to at most one; a vulnerable contract without a shared
+  reentrancy guard increments twice (outer f_A + reentered f_B),
+  refuting the assertion.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-107"
+    - "OWASP SC08:2026"
+  real_world:
+    - name: "Cream Finance"
+      year: 2021
+      loss_usd_approx: 130000000
+      chain: ethereum
+      url: "https://medium.com/cream-finance/c-r-e-a-m-finance-post-mortem-amp-exploit-6ceb20a630c5"
+
+mitigation: |
+  Apply OpenZeppelin's `nonReentrant` modifier to BOTH functions sharing
+  the invariant (single shared lock, not per-function). Or eliminate the
+  external call from f_A entirely — the cross-function class is
+  invisible to per-function guards that only catch direct re-entry.
+
+engineering_notes: |
+  Distinct from Phase-1's `reentrancy-single-function-cei` (4.1) — the
+  re-entry target is a DIFFERENT function from the entry point. A
+  per-function guard on the entry function alone doesn't prevent the
+  attack; the guard must be shared across the two functions.
+
+  Cream Finance (Aug 2021) is the standard reference: attacker borrowed
+  AMP via Cream's lendingPool, the AMP `_callPostTransferHooks` callback
+  re-entered a different borrow function before debt accounting closed,
+  draining liquidity.
