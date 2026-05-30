@@ -1,4 +1,5 @@
 pub mod bench;
+pub mod catalog;
 pub mod corpus;
 pub mod doctor;
 pub mod init;

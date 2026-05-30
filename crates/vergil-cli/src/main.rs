@@ -89,8 +89,30 @@ enum Command {
         #[command(subcommand)]
         action: CorpusAction,
     },
+    /// Inspect the V1.5 attack-pattern catalog (templates/attacks/)
+    Catalog {
+        #[command(subcommand)]
+        action: CatalogAction,
+    },
     /// Check that toolchain dependencies (solc, halmos, forge, z3, cvc5, slither) are installed
     Doctor,
+}
+
+#[derive(Subcommand)]
+enum CatalogAction {
+    /// List loaded attack templates with id, severity, decidability, category
+    List {
+        /// Restrict to a single category (e.g. `access`, `reentrancy`, `arithmetic`)
+        #[arg(long)]
+        category: Option<String>,
+    },
+    /// Print the full manifest (English negation property, mitigation, references) for one attack
+    Show {
+        /// Attack-pattern id (snake-case, matches the template directory name)
+        id: String,
+    },
+    /// Load every template and report any schema, lint, or missing-file errors. Non-zero exit on failure.
+    Validate,
 }
 
 #[derive(Subcommand)]
@@ -160,6 +182,11 @@ fn main() -> ExitCode {
         Command::Prove { artifact, solver } => commands::prove::run_with_solver(artifact, solver),
         Command::Bench => commands::bench::run(),
         Command::Corpus { .. } => commands::corpus::run(),
+        Command::Catalog { action } => match action {
+            CatalogAction::List { category } => commands::catalog::run_list(category),
+            CatalogAction::Show { id } => commands::catalog::run_show(id),
+            CatalogAction::Validate => commands::catalog::run_validate(),
+        },
         Command::Doctor => commands::doctor::run(),
     };
     match result {

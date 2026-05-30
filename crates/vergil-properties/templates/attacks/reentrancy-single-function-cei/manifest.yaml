@@ -1,0 +1,77 @@
+id: reentrancy-single-function-cei
+name: Single-function reentrancy / CEI violation
+category: reentrancy
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: mixed
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    external_call_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  After every external call in a state-changing function, no further state
+  changes to the function's tracked storage occur (the Checks-Effects-
+  Interactions discipline).
+
+  Formally:
+    ∀ trace t. ∀ external call c in f:
+      writes(f) before c ⇒ post-call reentrant state == expected
+
+  Phase-1 encoding (Halmos): the check contract sets a `reentering` flag,
+  invokes the target's state-changing function (which makes an external
+  callback to this contract), and the receive() hook attempts a single
+  re-entry. The assertion bounds the state-change count to at most one;
+  a vulnerable contract without a reentrancy guard produces two
+  increments, refuting the assertion.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-107"
+    - "OWASP SC08:2026"
+    - "Slither reentrancy-eth"
+  real_world:
+    - name: "The DAO"
+      year: 2016
+      loss_usd_approx: 60000000
+      chain: ethereum
+      url: "https://www.coindesk.com/learn/understanding-the-dao-attack/"
+
+mitigation: |
+  Apply the Checks-Effects-Interactions ordering — every state change
+  precedes every external call. Or apply OpenZeppelin's `ReentrancyGuard`
+  via the `nonReentrant` modifier; the guard sets a lock before `_;` and
+  releases it after, refusing every re-entry attempt.
+
+engineering_notes: |
+  The encoding mirrors the V1 conformance template
+  `reentrancy-nonreentrant-guard-blocks-reentry`, recast as the negation
+  of an attack — the check contract is the attacker. The vulnerable
+  fixture has no guard so the receive() callback's re-entry succeeds and
+  the counter is incremented twice; the clean fixture's nonReentrant
+  modifier reverts the re-entry, so only the outer call increments.
+
+  Both fixtures use a counter as the "tracked storage" because it is the
+  cheapest state for Halmos to reason about. A withdrawal-style fixture
+  with balance accounting is the V2 generalization.

@@ -194,3 +194,69 @@ async fn arith_overflow_clean_verifies() {
         ),
     }
 }
+
+// ─── reentrancy-single-function-cei ──────────────────────────────────────────
+
+fn reentrancy_render_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("action", "action"),
+        ("getter", "counter"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+#[tokio::test]
+async fn reentrancy_vulnerable_produces_counterexample() {
+    let t = load_template("reentrancy-single-function-cei");
+    let ctx = reentrancy_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("reentrancy-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_action_does_not_double_increment",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {
+            // Expected: no guard, the receive() callback re-enters, counter
+            // increments twice, assertion (c1 <= c0+1) fails.
+        }
+        other => panic!(
+            "expected Counterexample on vulnerable reentrancy fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn reentrancy_clean_verifies() {
+    let t = load_template("reentrancy-single-function-cei");
+    let ctx = reentrancy_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("reentrancy-clean", &t.clean_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_action_does_not_double_increment",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Verified { .. } => {
+            // Expected: nonReentrant guard reverts re-entry; counter
+            // increments at most once.
+        }
+        other => panic!(
+            "expected Verified on clean reentrancy fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}

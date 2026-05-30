@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// SMTChecker encoding for `reentrancy-single-function-cei`.
+//
+// SMTChecker's CHC mode models reentrant external calls via primed
+// post-call state variables — see the Solidity docs on `model checker
+// targets reentrant`. The harness below imports the contract under test;
+// SMTChecker analyzes its public functions for reentrancy directly.
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract SmtCheck_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    function exercise() public {
+        target.{{action}}();
+    }
+}

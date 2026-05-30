@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// Halmos encoding for `reentrancy-single-function-cei`.
+//
+// Template variables:
+//   {{contract_name}}  — contract exposing `{{action}}()` (no args, external)
+//                        and `{{getter}}() returns (uint256)`
+//   {{contract_path}}  — Foundry import path
+//   {{action}}         — state-changing function under test
+//   {{getter}}         — read of the tracked storage slot
+//   {{attack_id_ident}}— identifier suffix
+//
+// The check contract is the attacker — its receive() callback re-enters
+// the target's action when the reentering flag is set.
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    bool public reentering;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    receive() external payable {
+        if (reentering) {
+            // Single re-entry attempt; clear the flag so we don't recurse
+            // arbitrarily deep (a guard-blocked attempt is what we measure).
+            reentering = false;
+            try target.{{action}}() {} catch {}
+        }
+    }
+
+    /// Property: a single outer call increments the tracked counter by at
+    /// most one. A reentry-vulnerable contract increments twice (outer +
+    /// reentered inner) and refutes the assertion.
+    function check_{{action}}_does_not_double_increment() public {
+        uint256 c0 = target.{{getter}}();
+        reentering = true;
+        try target.{{action}}() {} catch {}
+        reentering = false;
+        uint256 c1 = target.{{getter}}();
+        assert(c1 == c0 || c1 == c0 + 1);
+    }
+}
