@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// Halmos encoding for `access-missing-modifier-state-change`.
+//
+// Template variables:
+//   {{contract_name}}  — the Solidity contract under test (must expose
+//                        `{{setter}}(uint256)` and `{{getter}}() returns (uint256)`)
+//   {{contract_path}}  — Foundry import path (e.g. `src/Target.sol`)
+//   {{setter}}         — the state-changing function under test
+//   {{getter}}         — the public getter for the protected slot
+//   {{attack_id_ident}}— suffix used to disambiguate generated identifiers
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptMutation({{contract_name}} t, uint256 v) external returns (bool) {
+        try t.{{setter}}(v) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Attack: an unauthorized caller (the Attacker contract) tries to mutate
+    /// protected state. Property: if the attempt did not revert, the value
+    /// must be unchanged.
+    function check_unauthorized_caller_cannot_mutate(uint256 newValue) public {
+        uint256 before = target.{{getter}}();
+        bool succeeded = attacker.attemptMutation(target, newValue);
+        if (succeeded) {
+            assert(target.{{getter}}() == before);
+        }
+    }
+}

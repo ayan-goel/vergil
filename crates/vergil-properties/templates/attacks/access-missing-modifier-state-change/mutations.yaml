@@ -1,0 +1,7 @@
+# Phase-1 placeholder. Real Gambit mutation-coverage validation lands at
+# the Phase 2 mid-checkpoint (per SPEC §11.2). Until then the schema is
+# documented but the `expected_mutants` list is intentionally empty — the
+# structural defense for Phase 1 is the vulnerable/clean fixture pair.
+
+schema_version: 1
+expected_mutants: []

@@ -15,11 +15,19 @@
 //!     SPEC §3.9 — Vergil distributes the catalog as part of the binary),
 //!   - manifests whose declared file paths escape the template directory.
 
+pub mod attack_catalog;
 pub mod catalog;
 pub mod embed;
 pub mod manifest;
 pub mod retrieval;
+pub mod template_render;
 
+pub use attack_catalog::{
+    activate, ActivationResult, AppliesTo as AttackAppliesTo, AttackCatalog, AttackEncoding,
+    AttackError, AttackFixtures, AttackManifest, AttackProvenance, AttackRequires, AttackTemplate,
+    Decidability, ExpectedSolver, ExpectedTheory, ModifierPresence, RealWorldExploit, Severity,
+    SkippedTemplate, SmtStatus, StaticFacts,
+};
 pub use catalog::{
     Catalog, CostClass, EncodingPaths, PropertyManifest, PropertyTemplate, Provenance,
     StorageSlotReq, TemplateError, Tier,
@@ -27,3 +35,4 @@ pub use catalog::{
 pub use embed::{EmbedError, Embedder, MockEmbedder, VoyageEmbedder};
 pub use manifest::{validate, ManifestError, ValidationReport};
 pub use retrieval::{RetrievalError, RetrievedTemplate, Retriever};
+pub use template_render::{render, RenderContext, RenderError};
