@@ -1,0 +1,33 @@
+id: input-amount-bounded-by-balance
+name: Withdraw amount unbounded by caller's balance
+category: input-validation
+severity: high
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: lia}
+
+applies_to: {interfaces: [any], primitives: [token, vault], patterns: {withdraw_present: true}}
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Caller-supplied withdrawal amounts are bounded by the caller's own
+  balance.
+
+  Phase-2 encoding (Halmos): the check calls `withdraw(amount)` where
+  amount exceeds the caller's balance. Vulnerable: succeeds (balance
+  underflows or silently overdrafts). Clean: rejects.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["OWASP SC04:2026"]
+  real_world:
+    - name: "Generic over-withdraw class"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  `require(amount <= balanceOf[msg.sender])` before any debit.

@@ -1,0 +1,38 @@
+id: input-zero-address-check
+name: Missing zero-address check on parameter
+category: input-validation
+severity: medium
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: lia}
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns: {address_parameter_present: true}
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Generic address parameters reject `address(0)` upfront (sibling of
+  `access-missing-zero-address-check-admin` but applied generically).
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["OWASP SC04:2026"]
+  real_world:
+    - name: "Generic operational-loss class"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  Validate all address parameters with `require(a != address(0))`.
+
+engineering_notes: |
+  Sibling of §1.7 — kept separate per attack-patterns.md §8.2 because
+  the bench reports treat admin-zero-address and generic-zero-address
+  as distinct findings.

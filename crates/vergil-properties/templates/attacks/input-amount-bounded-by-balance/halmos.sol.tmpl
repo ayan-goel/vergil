@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    constructor() { target = new {{contract_name}}(); }
+
+    /// Property: a withdrawal exceeding the caller's balance must revert.
+    /// The check contract has a balance of 0 (never deposited), so any
+    /// positive withdrawal must fail.
+    function check_overdraft_rejected(uint256 amount) public {
+        if (amount == 0) return;
+        try target.withdraw(amount) {
+            assert(false);
+        } catch {}
+    }
+}

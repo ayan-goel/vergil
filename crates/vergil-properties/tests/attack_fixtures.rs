@@ -952,6 +952,76 @@ async fn fee_calc_rounding_zero_clean_verified() {
     .await;
 }
 
+// ─── Phase 2 Slice 5: Category 8 batch (Input Validation) ────────────────────
+
+#[tokio::test]
+async fn zero_address_check_vulnerable_cex() {
+    slice1_check(
+        "input-zero-address-check",
+        "check_register_rejects_zero_address",
+        "izac-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn zero_address_check_clean_verified() {
+    slice1_check(
+        "input-zero-address-check",
+        "check_register_rejects_zero_address",
+        "izac-clean",
+        false,
+    )
+    .await;
+}
+
+// input-array-length-mismatch deferred: Solidity 0.8+ OOB panic on the
+// short-array branch makes vulnerable and clean both revert from the
+// caller's view, so Halmos can't decisively distinguish. Re-encode with
+// a partial-application model in a focused later slice.
+
+#[tokio::test]
+async fn deadline_future_vulnerable_cex() {
+    slice1_check(
+        "input-time-bounds-deadline-future",
+        "check_executor_rejects_past_deadline",
+        "dlf-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn deadline_future_clean_verified() {
+    slice1_check(
+        "input-time-bounds-deadline-future",
+        "check_executor_rejects_past_deadline",
+        "dlf-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn amount_bounded_by_balance_vulnerable_cex() {
+    slice1_check(
+        "input-amount-bounded-by-balance",
+        "check_overdraft_rejected",
+        "abb-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn amount_bounded_by_balance_clean_verified() {
+    slice1_check(
+        "input-amount-bounded-by-balance",
+        "check_overdraft_rejected",
+        "abb-clean",
+        false,
+    )
+    .await;
+}
+
 // ─── init-uninitialized-uups-implementation (Wormhole class) ─────────────────
 
 fn uups_render_ctx(attack_id_ident: &str) -> RenderContext {

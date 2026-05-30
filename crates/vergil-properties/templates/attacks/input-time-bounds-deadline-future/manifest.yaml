@@ -1,0 +1,33 @@
+id: input-time-bounds-deadline-future
+name: Missing deadline-in-future check
+category: input-validation
+severity: high
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: lia}
+
+applies_to: {interfaces: [any], primitives: [any], patterns: {deadline_param_present: true}}
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Deadlines passed in by callers must be in the future.
+
+  Phase-2 encoding (Halmos): the check calls `executeWithDeadline(0)`
+  (a deadline of zero — always in the past). Vulnerable accepts; clean
+  rejects.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["OWASP SC04:2026"]
+  real_world:
+    - name: "Permit / signature-deadline class"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  `require(deadline >= block.timestamp, "expired")` at the entry of
+  every deadline-bearing path (permit, swap, claim).

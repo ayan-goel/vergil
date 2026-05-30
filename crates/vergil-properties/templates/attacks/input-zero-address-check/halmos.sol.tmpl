@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    constructor() { target = new {{contract_name}}(); }
+
+    function check_register_rejects_zero_address() public {
+        try target.register(address(0)) returns (uint256) {
+            assert(false);
+        } catch {}
+    }
+}
