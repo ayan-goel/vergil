@@ -181,25 +181,100 @@ clock.
 
 ## What the V1.5 corpus DOES prove
 
-Within the documented limitations above, the corpus proves:
+A narrow set of things, honestly stated:
 
-1. **The 50 shipped templates that have a historical exploit in the
-   corpus all catch them.** No template ships with a known-broken
-   encoding for its named bug class.
-2. **The Halmos symbolic-execution backend correctly resolves each
-   template's negation property against PoC-shaped contracts** (not
-   just the integration suite's narrow fixtures).
-3. **The catalog's per-template `provenance.real_world` entries are
-   real** — every PoC validates a referenced incident, so the
-   provenance metadata is grounded.
-4. **One of the 10 reproductions was wrong on the first try and the
-   test caught it.** The corpus is a working falsification system.
+1. **10 of the 50 shipped templates are paired with a real historical
+   incident reproduction, and Halmos returns Counterexample on each.**
+   The remaining 40 templates have planted-bug fixtures and `provenance.real_world`
+   metadata but no PoC mapping — they're not exercised by the
+   corpus at all.
 
-What the corpus does NOT prove (V2 work):
-- That Vergil catches exploits the catalog doesn't have templates
-  for (out of scope).
-- That Vergil catches the *full-protocol* exploited contract, not
-  just a single-contract bug-shape reduction (a real gap).
-- That a template would catch a future variant the catalog author
-  didn't anticipate (this is the soundness question; only V2's
-  vendored independent reproductions can begin to answer it).
+2. **Roughly half the PoCs add real state surface; the other half are
+   essentially renamed fixtures.** Honest breakdown (by `diff` against
+   each template's `vulnerable.sol`):
+
+   - **Genuinely broader** (added state vars, mappings, or functions):
+     The DAO (`balanceOf` mapping + `deposit`), Audius (extra
+     `quorumThreshold` + `emergencyMode` + setter), Wormhole (extra
+     `chainId` + `guardianSetHash`), Cream Finance (extra
+     `borrowedBalanceOf` mapping), Cetus (unused `liquidityOf`
+     mapping).
+   - **Essentially renamed fixtures** (same code structure, different
+     contract / function names + different comment strings + different
+     revert messages): King of Ether ↔ `dos-push-payment-failure`
+     fixture, imBTC ↔ `reentrancy-callback-token-hook` fixture, Hedgey
+     ↔ `logic-approval-not-revoked-after-cancel` fixture, Beanstalk ↔
+     `flashloan-balance-dependent-state` fixture, BeautyChain (unused
+     `balances` mapping, otherwise identical).
+
+   For the renamed-fixture PoCs, the corpus test mostly verifies that
+   Halmos handles the rename — which is trivially true, since solc
+   compiles the rebrand the same way. The actual independence test
+   only applies to the genuinely-broader 5.
+
+   Combined with the binding rigidity gap above (function names
+   template-driven, not history-driven), the surface area being
+   "tested" by the corpus is narrower than the 10-PoC count suggests.
+
+3. **One false negative on the corpus has been found and fixed in
+   the work-to-date** — my first Cetus reproduction used the correct
+   overflow threshold (accidentally writing a secure contract). The
+   test driver returned `Verified`, the test panicked with FALSE
+   NEGATIVE, and I rewrote the PoC to use Cetus's actual buggy
+   threshold. The cex appeared. **This is N=1 evidence the
+   falsification system functions; it is not evidence the system
+   would catch a systematic class of encoding errors.**
+
+4. **The `provenance.real_world` mapping on those 10 templates is
+   grounded by a passing test.** Provenance metadata on the other
+   40 templates is unverified by the corpus (the manifests reference
+   ~30 incidents in total across all 50 templates).
+
+## What the V1.5 corpus does NOT prove
+
+Honestly cataloguing the gaps:
+
+- **That my templates and PoCs are author-independent.** They aren't —
+  same author, same week of work. The 10/10 green result is
+  consistent with both (a) "the templates correctly encode their bug
+  classes" AND (b) "the templates and PoCs share enough latent shape
+  that the templates would fail against a truly independent
+  reproduction." The Cetus finding is one data point against (b) but
+  doesn't refute it. V2's vendored DeFiHackLabs / DeFiVulnLabs
+  reproductions are the only way to distinguish.
+
+  Specifically: 9 of 10 PoCs passed on first attempt. Under hypothesis
+  (a) that's expected. Under hypothesis (b) it's *also* expected,
+  because I'd unconsciously shape the PoC to fit the template I
+  already wrote. The data alone can't separate these.
+
+- **That the 40 templates without PoCs catch their named exploits.**
+  No PoC, no validation. The integration fixture suite confirms each
+  refutes its own planted-bug fixture, but that's a same-author
+  test.
+
+- **That a template catches a future variant the catalog author did
+  not anticipate.** This is the soundness question, and the V1.5
+  corpus does not address it. Only V2's independent reproductions
+  begin to; only deployment against real-world unaudited contracts
+  (Phase 4+ product surface) fully tests it.
+
+- **That a multi-contract protocol exploit reproduces under the
+  bug-shape reduction.** The PoCs are single-contract reductions;
+  the actual exploits ran in 5-40 contract protocol contexts the
+  reductions don't model.
+
+- **That the catalog catches exploits without a corresponding
+  template at all.** Out of scope — the catalog is finite by design.
+
+## TL;DR
+
+The corpus is a **necessary** validation step — it caught one real
+encoding error and grounds 10 of 50 templates against historical
+incidents — but it's **not a sufficient** one. The 10/10 green
+result should be read as "the corpus passed; here is what that
+proves and doesn't prove," not as "Vergil's catalog provably catches
+$1.18B in historical losses." The right confidence level for the
+V1.5 product story is: *templates pair to real bug classes, fire on
+broader-state reproductions of those classes, and one self-FN has
+already been caught and fixed.* Anything stronger has to wait for V2.
