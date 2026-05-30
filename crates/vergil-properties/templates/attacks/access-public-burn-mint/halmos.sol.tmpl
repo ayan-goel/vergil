@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// Halmos encoding for `access-public-burn-mint`.
+//
+// Template variables:
+//   {{contract_name}}  — token contract under test (exposes
+//                        `mint(address,uint256)` and `totalSupply()`)
+//   {{contract_path}}  — Foundry import path
+//   {{attack_id_ident}}— identifier suffix
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptMint({{contract_name}} t, address to, uint256 amount) external returns (bool) {
+        try t.mint(to, amount) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Property: an unauthorized caller cannot inflate totalSupply via mint.
+    /// Vulnerable: no role check, so mint succeeds and totalSupply grows.
+    /// Clean: onlyOwner reverts; supply unchanged.
+    function check_unauthorized_mint_cannot_inflate_supply(address to, uint256 amount) public {
+        uint256 before = target.totalSupply();
+        bool succeeded = attacker.attemptMint(target, to, amount);
+        if (succeeded) {
+            assert(target.totalSupply() == before);
+        }
+    }
+}

@@ -260,3 +260,61 @@ async fn reentrancy_clean_verifies() {
         ),
     }
 }
+
+// ─── access-public-burn-mint ─────────────────────────────────────────────────
+
+fn mint_render_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+#[tokio::test]
+async fn public_burn_mint_vulnerable_produces_counterexample() {
+    let t = load_template("access-public-burn-mint");
+    let ctx = mint_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("mint-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_unauthorized_mint_cannot_inflate_supply",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {}
+        other => panic!(
+            "expected Counterexample on vulnerable mint fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn public_burn_mint_clean_verifies() {
+    let t = load_template("access-public-burn-mint");
+    let ctx = mint_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("mint-clean", &t.clean_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_unauthorized_mint_cannot_inflate_supply",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Verified { .. } => {}
+        other => panic!(
+            "expected Verified on clean mint fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}

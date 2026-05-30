@@ -1,0 +1,3 @@
+# access-public-burn-mint
+
+Detects unprotected `mint` / `burn` in token contracts — the supply-inflation class. The canonical recent instance is **Hacken HAI** (Oct 2025, ~$170K, BSC/Ethereum) — a leaked bridge key minted 900M tokens and dumped them; the underlying flaw was an unguarded mint that any caller with key access could exercise. Vergil's negation property requires that every supply-changing call be made by an authorized principal; the Halmos encoding spins up a non-owner Attacker contract and asserts that any non-reverting mint attempt leaves `totalSupply` unchanged. See `manifest.yaml` for references (SWC-105, OWASP SC01:2026) and the catalog entry `notes/attack-patterns.md` §1.8.
