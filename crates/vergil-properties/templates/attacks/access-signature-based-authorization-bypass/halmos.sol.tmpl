@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptAuthorize({{contract_name}} t, bytes32 h, uint8 v, bytes32 r, bytes32 s) external returns (bool) {
+        try t.authorize(h, v, r, s) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Property: invalid signatures (which cause ecrecover to return 0)
+    /// cannot grant authorization, even if the contract's authorized
+    /// signer is uninitialized.
+    function check_invalid_signature_does_not_authorize(bytes32 h, uint8 v, bytes32 r, bytes32 s) public {
+        bool succeeded = attacker.attemptAuthorize(target, h, v, r, s);
+        if (succeeded) {
+            assert(!target.authorized());
+        }
+    }
+}

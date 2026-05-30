@@ -1,0 +1,56 @@
+id: access-role-escalation-self-grant
+name: Self-service privilege escalation
+category: access
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [AccessControl]
+  primitives: [access-controlled-generic]
+  patterns:
+    role_grant_present: true
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Granting a privileged role requires the caller to hold that role's admin
+  role.
+
+  Formally: ∀ grantRole(r, a): r ∈ privileged ⇒ caller ∈ roleAdmin(r)
+
+  Phase-2 encoding (Halmos): a non-admin Attacker contract tries to grant
+  itself a privileged role. Vulnerable: the path lacks the role-admin
+  check; the grant succeeds and `hasRole(MINTER, attacker) == true`.
+  Clean: the role-admin check reverts.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-105"
+    - "OWASP SC01:2026"
+  real_world:
+    - name: "AccessControl misconfiguration (recurrent class)"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  Use OpenZeppelin's `AccessControl` whose `grantRole(role, account)`
+  internally requires `hasRole(getRoleAdmin(role), msg.sender)`. Verify
+  the admin role hierarchy at deploy time.
+
+engineering_notes: |
+  Cousin of `access-missing-modifier-state-change` framed around role
+  grants instead of generic state mutation. Same Attacker pattern.

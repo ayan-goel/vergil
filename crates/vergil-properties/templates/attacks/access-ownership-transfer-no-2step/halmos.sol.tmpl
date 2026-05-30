@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: a single transferOwnership(newOwner) call must NOT strip
+    /// the current owner without an acceptance step.
+    /// Vulnerable: one-step transfer overwrites owner immediately.
+    /// Clean: two-step transfer sets pendingOwner; owner unchanged until accepted.
+    function check_owner_not_stripped_in_single_step(address newOwner) public {
+        address ownerBefore = target.owner();
+        if (ownerBefore != address(this)) return; // vacuous
+        if (newOwner == address(this)) return; // vacuous (no-op transfer)
+        try target.transferOwnership(newOwner) {
+            // After the single call the legitimate owner (the check
+            // contract) must still be in control.
+            assert(target.owner() == address(this));
+        } catch {}
+    }
+}

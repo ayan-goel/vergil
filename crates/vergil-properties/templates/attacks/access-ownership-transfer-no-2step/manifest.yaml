@@ -1,0 +1,61 @@
+id: access-ownership-transfer-no-2step
+name: Single-step ownership transfer
+category: access
+severity: medium
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [Ownable]
+  primitives: [access-controlled-generic]
+  patterns:
+    ownership_transfer_present: true
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Ownership transitions require explicit acceptance by the incoming owner
+  (two-step ownership). A single call cannot atomically transfer to an
+  unrecoverable address.
+
+  Formally:
+    transferOwnership sets pendingOwner; acceptOwnership requires
+    msg.sender == pendingOwner.
+
+  Phase-2 encoding (Halmos): the check contract is the owner. It calls
+  transferOwnership(arbitrary). For the clean (two-step) fixture, owner
+  remains unchanged until acceptOwnership runs from the new owner; for
+  the vulnerable (one-step) fixture, owner is overwritten immediately —
+  permitting a typo'd-zero / wrong-address transfer to land irrecoverably.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC01:2026"
+    - "OpenZeppelin Ownable2Step"
+  real_world:
+    - name: "Recurrent operational-loss class"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  Use OpenZeppelin's `Ownable2Step` — `transferOwnership` sets a
+  `pendingOwner`; only the pending owner can `acceptOwnership`.
+
+engineering_notes: |
+  The check exercises the same trick as `init-unprotected-initializer`:
+  the check contract is the legitimate first owner, the attempt to
+  transfer to an arbitrary address must not strip the check contract's
+  ownership without the two-step gate.

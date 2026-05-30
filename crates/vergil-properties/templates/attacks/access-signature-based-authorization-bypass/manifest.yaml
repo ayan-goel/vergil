@@ -1,0 +1,56 @@
+id: access-signature-based-authorization-bypass
+name: Signature-gated action with missing signer binding
+category: access
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any, bridge]
+  patterns:
+    ecrecover_present: true
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Signature-gated actions verify the recovered signer is non-zero AND in
+  the authorized set.
+
+  Formally:
+    ∀ sig-gated f: recover(msg) ∈ authorizedSigners ∧ recovered ≠ address(0)
+
+  Phase-2 encoding (Halmos): an Attacker passes an arbitrary (likely
+  invalid) signature. ecrecover returns address(0); the vulnerable
+  fixture compares against an uninitialized `authorizedSigner` (also 0)
+  and grants access. The clean fixture rejects the zero signer first.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC01:2026"
+    - "SWC-117"
+  real_world:
+    - name: "Signature-bypass class (Wormhole 2022)"
+      year: 2022
+      loss_usd_approx: 326000000
+      chain: ethereum
+
+mitigation: |
+  Always check `recovered != address(0)` BEFORE comparing against the
+  authorized set. Use OpenZeppelin's `ECDSA` library; its `recover`
+  reverts on invalid signatures.
+
+engineering_notes: |
+  The crypto soundness of ecrecover itself is out of scope; this
+  template verifies the *binding* check. The vulnerable case relies on
+  `authorizedSigner == address(0)` (uninitialized state) — a common
+  pattern in proxy-initializer bugs.

@@ -591,6 +591,174 @@ async fn vault_inflation_clean_verifies() {
     }
 }
 
+// ─── Phase 2 Slice 1: Category 1 batch ───────────────────────────────────────
+
+fn cat1_simple_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+async fn slice1_check(template_id: &str, check_fn: &str, label: &str, expect_cex: bool) {
+    let t = load_template(template_id);
+    let ctx = cat1_simple_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let src = if expect_cex {
+        &t.vulnerable_source
+    } else {
+        &t.clean_source
+    };
+    let project = prepare_project(label, src, &check);
+    let result = run_simple(project.path(), check_fn, HALMOS_BUDGET).await;
+    match (expect_cex, result) {
+        (true, HalmosResult::Counterexample { .. }) => {}
+        (false, HalmosResult::Verified { .. }) => {}
+        (expected, other) => panic!(
+            "{template_id} expected {} got {other:?}\nrender dir: {}",
+            if expected {
+                "Counterexample"
+            } else {
+                "Verified"
+            },
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn unprotected_ether_withdrawal_vulnerable_cex() {
+    slice1_check(
+        "access-unprotected-ether-withdrawal",
+        "check_unauthorized_caller_cannot_drain",
+        "uew-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn unprotected_ether_withdrawal_clean_verified() {
+    slice1_check(
+        "access-unprotected-ether-withdrawal",
+        "check_unauthorized_caller_cannot_drain",
+        "uew-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn ownership_transfer_no_2step_vulnerable_cex() {
+    slice1_check(
+        "access-ownership-transfer-no-2step",
+        "check_owner_not_stripped_in_single_step",
+        "o2s-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn ownership_transfer_no_2step_clean_verified() {
+    slice1_check(
+        "access-ownership-transfer-no-2step",
+        "check_owner_not_stripped_in_single_step",
+        "o2s-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn role_escalation_self_grant_vulnerable_cex() {
+    slice1_check(
+        "access-role-escalation-self-grant",
+        "check_attacker_cannot_self_grant",
+        "res-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn role_escalation_self_grant_clean_verified() {
+    slice1_check(
+        "access-role-escalation-self-grant",
+        "check_attacker_cannot_self_grant",
+        "res-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn missing_zero_address_check_vulnerable_cex() {
+    slice1_check(
+        "access-missing-zero-address-check-admin",
+        "check_admin_setter_rejects_zero_address",
+        "zac-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn missing_zero_address_check_clean_verified() {
+    slice1_check(
+        "access-missing-zero-address-check-admin",
+        "check_admin_setter_rejects_zero_address",
+        "zac-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn unprotected_init_owner_setter_vulnerable_cex() {
+    slice1_check(
+        "access-unprotected-init-as-owner-setter",
+        "check_attacker_cannot_seize_ownership",
+        "uios-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn unprotected_init_owner_setter_clean_verified() {
+    slice1_check(
+        "access-unprotected-init-as-owner-setter",
+        "check_attacker_cannot_seize_ownership",
+        "uios-clean",
+        false,
+    )
+    .await;
+}
+
+// access-tx-origin-auth deferred: Halmos symbolizes msg.sender/tx.origin for
+// top-level check_ calls, so the phishing-proxy attack chain cannot be modeled
+// with the bare-scaffold harness — tx.origin and msg.sender both become
+// symbolic and the auth predicate doesn't decisively distinguish vulnerable
+// from clean. Re-encode in V2 with a `--symbolic-msg-sender`-aware harness.
+
+#[tokio::test]
+async fn signature_auth_bypass_vulnerable_cex() {
+    slice1_check(
+        "access-signature-based-authorization-bypass",
+        "check_invalid_signature_does_not_authorize",
+        "sba-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn signature_auth_bypass_clean_verified() {
+    slice1_check(
+        "access-signature-based-authorization-bypass",
+        "check_invalid_signature_does_not_authorize",
+        "sba-clean",
+        false,
+    )
+    .await;
+}
+
 // ─── init-uninitialized-uups-implementation (Wormhole class) ─────────────────
 
 fn uups_render_ctx(attack_id_ident: &str) -> RenderContext {

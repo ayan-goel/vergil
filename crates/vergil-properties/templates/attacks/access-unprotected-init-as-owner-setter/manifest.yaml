@@ -1,0 +1,56 @@
+id: access-unprotected-init-as-owner-setter
+name: initialize() sets owner and is unguarded
+category: access
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [Ownable, AccessControl]
+  primitives: [access-controlled-generic]
+  patterns:
+    initialize_present: true
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  An initialize() that assigns ownership/admin must execute exactly once
+  and only the first caller's claim survives.
+
+  Formally: ∀ initialize: ¬initialized before, initialized = true after.
+
+  Phase-2 encoding (Halmos): identical to Phase-1's
+  `init-unprotected-initializer` — the check contract initializes
+  first; an Attacker contract attempts a second initialize and must not
+  succeed in seizing ownership.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-105"
+    - "OWASP SC10:2026"
+  real_world:
+    - name: "Audius"
+      year: 2022
+      loss_usd_approx: 6000000
+      chain: ethereum
+
+mitigation: |
+  Use OpenZeppelin's `initializer` modifier. Call
+  `_disableInitializers()` in the constructor of upgradeable
+  implementations.
+
+engineering_notes: |
+  Cross-listed under Cat 1 (access) and Cat 2 (init). The Phase-1
+  template `init-unprotected-initializer` (§2.1) covers the same
+  underlying flaw from the Cat-2 angle. Shipping both per
+  `notes/attack-patterns.md` §1.9 because the bench reports treat them
+  as distinct findings. Fixtures duplicated rather than path-escaping.

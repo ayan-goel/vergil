@@ -1,0 +1,48 @@
+id: access-missing-zero-address-check-admin
+name: Admin/owner set to zero address
+category: access
+severity: medium
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [any, Ownable, AccessControl]
+  primitives: [any]
+  patterns:
+    admin_setter_present: true
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Admin/owner setters reject the zero address.
+
+  Formally: ∀ setAdmin(a): a ≠ address(0)
+
+  Phase-2 encoding (Halmos): the check contract (the owner) calls
+  setAdmin(address(0)). Vulnerable accepts and bricks privileged
+  control; clean rejects.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC04:2026"
+  real_world:
+    - name: "Recurrent operational-loss class"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  Add `require(a != address(0))` to every admin-setter path.
+
+engineering_notes: |
+  Overlaps with `input-zero-address-check` (8.2). Kept separate per
+  `notes/attack-patterns.md` §1.7 — this entry checks specifically the
+  admin-role assignment path.

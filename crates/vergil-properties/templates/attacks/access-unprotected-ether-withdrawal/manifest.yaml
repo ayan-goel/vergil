@@ -1,0 +1,64 @@
+id: access-unprotected-ether-withdrawal
+name: Unprotected ether/asset withdrawal
+category: access
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    value_transfer_present: true
+    no_auth_check: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Withdrawals transfer value only to authorized callers (or constrained
+  recipients).
+
+  Formally:
+    ∀ withdraw: recipient == owner ∨ msg.sender ∈ authorized
+
+  Phase-2 encoding (Halmos): an Attacker contract calls the target's
+  `drain` function. The vulnerable fixture moves an internal balance to
+  the caller without authorization; the clean fixture's `onlyOwner`
+  reverts.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-105"
+    - "OWASP SC01:2026"
+  real_world:
+    - name: "Parity Multisig (recurrent class)"
+      year: 2017
+      chain: ethereum
+
+mitigation: |
+  Gate withdrawals with `onlyOwner` / `onlyRole`. Prefer pull-payment
+  patterns where users withdraw their own balance.
+
+engineering_notes: |
+  Direct cousin of `access-missing-modifier-state-change` (1.1) — the
+  function under test is now a balance-mover rather than a generic
+  setter. Same Attacker pattern, same render context. The internal
+  `internalBalance` is the analog of `protectedValue` to keep Halmos's
+  state space identical.

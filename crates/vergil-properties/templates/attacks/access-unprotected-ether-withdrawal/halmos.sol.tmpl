@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptDrain({{contract_name}} t) external returns (bool) {
+        try t.drain() {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Property: an unauthorized caller (the Attacker contract) cannot move
+    /// the protected balance. Vulnerable: no auth, drain moves balance to
+    /// caller. Clean: onlyOwner reverts.
+    function check_unauthorized_caller_cannot_drain() public {
+        uint256 before = target.internalBalance();
+        bool succeeded = attacker.attemptDrain(target);
+        if (succeeded) {
+            assert(target.internalBalance() == before);
+        }
+    }
+}

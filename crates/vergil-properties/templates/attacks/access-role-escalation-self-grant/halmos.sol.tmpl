@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptGrant({{contract_name}} t, bytes32 role) external returns (bool) {
+        try t.grantRole(role, address(this)) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Property: a non-admin attacker cannot grant itself a privileged role.
+    function check_attacker_cannot_self_grant() public {
+        bytes32 role = target.MINTER_ROLE();
+        bool succeeded = attacker.attemptGrant(target, role);
+        if (succeeded) {
+            assert(!target.hasRole(role, address(attacker)));
+        }
+    }
+}

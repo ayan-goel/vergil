@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    constructor() { target = new {{contract_name}}(); }
+
+    /// Property: setAdmin(address(0)) must NOT brick the admin slot.
+    /// Vulnerable: the setter accepts zero and admin becomes address(0).
+    /// Clean: the setter rejects zero and admin is unchanged.
+    function check_admin_setter_rejects_zero_address() public {
+        address ownerBefore = target.admin();
+        if (ownerBefore != address(this)) return; // vacuous
+        try target.setAdmin(address(0)) {
+            // If the call succeeded, the admin must NOT be the zero address.
+            assert(target.admin() != address(0));
+        } catch {}
+    }
+}
