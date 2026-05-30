@@ -1,0 +1,71 @@
+id: input-missing-parameter-validation
+name: Missing input / caller validation on a state-changing function
+category: input-validation
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    cancel_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Functions taking external input must validate (a) the input's range
+  (e.g., id < nextId) and (b) the caller's right to act on that input
+  (e.g., msg.sender == owner of the resource).
+
+  Formally:
+    ∀ cancelPlan(id):
+      reachable(cancelPlan) ⇒
+        id ∈ validRange(plans) ∧ msg.sender ∈ authorized(id)
+
+  Phase-1 encoding (Halmos): a separate non-owner Attacker contract
+  attempts to cancel a plan the legitimate owner created. The clean
+  fixture rejects the attempt (`require(msg.sender == owner)`); the
+  vulnerable fixture does not, and the plan flips to inactive.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC04:2026"
+    - "Halborn Hedgey post-mortem"
+  real_world:
+    - name: "Hedgey Finance (joint with logic-approval-not-revoked-after-cancel)"
+      year: 2024
+      loss_usd_approx: 44700000
+      chain: ethereum
+      url: "https://www.halborn.com/blog/post/explained-the-hedgey-hack-april-2024"
+
+mitigation: |
+  On every external-facing state-changing function, validate (a) every
+  input parameter against a defined range and (b) the caller's authority
+  over the addressed resource. Prefer per-resource ownership checks
+  (`require(msg.sender == plans[id].creator)`) over a single global
+  admin gate when multiple users own distinct state.
+
+engineering_notes: |
+  Shares fixture surface with `logic-approval-not-revoked-after-cancel`
+  (both flaws were present in the Hedgey production bug). Kept as a
+  separate template because the negation property exercises a different
+  invariant — caller authorization — and the bench categories report
+  the two failures separately.

@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: after cancelPlan, the plan's allowance is zero.
+    function check_cancel_zeros_allowance(address recipient, uint256 amount) public {
+        // Halmos: this contract is the owner (deployed Target).
+        // Create a plan with a nonzero allowance.
+        if (amount == 0) return; // vacuous; skip
+        uint256 id = target.createPlan(recipient, amount);
+        target.cancelPlan(id);
+        ( , uint256 allowanceAfter, ) = target.plans(id);
+        assert(allowanceAfter == 0);
+    }
+}

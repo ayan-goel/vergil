@@ -318,3 +318,169 @@ async fn public_burn_mint_clean_verifies() {
         ),
     }
 }
+
+// ─── init-unprotected-initializer ────────────────────────────────────────────
+
+fn init_render_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+#[tokio::test]
+async fn init_unprotected_vulnerable_produces_counterexample() {
+    let t = load_template("init-unprotected-initializer");
+    let ctx = init_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("init-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_attacker_cannot_seize_ownership",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {}
+        other => panic!(
+            "expected Counterexample on vulnerable init fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn init_unprotected_clean_verifies() {
+    let t = load_template("init-unprotected-initializer");
+    let ctx = init_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("init-clean", &t.clean_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_attacker_cannot_seize_ownership",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Verified { .. } => {}
+        other => panic!(
+            "expected Verified on clean init fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+// ─── logic-approval-not-revoked-after-cancel ─────────────────────────────────
+
+fn hedgey_render_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+#[tokio::test]
+async fn approval_not_revoked_vulnerable_produces_counterexample() {
+    let t = load_template("logic-approval-not-revoked-after-cancel");
+    let ctx = hedgey_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("hedgey-allowance-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_cancel_zeros_allowance",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {}
+        other => panic!(
+            "expected Counterexample on vulnerable approval-not-revoked, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn approval_not_revoked_clean_verifies() {
+    let t = load_template("logic-approval-not-revoked-after-cancel");
+    let ctx = hedgey_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("hedgey-allowance-clean", &t.clean_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_cancel_zeros_allowance",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Verified { .. } => {}
+        other => panic!(
+            "expected Verified on clean approval-not-revoked, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+// ─── input-missing-parameter-validation ──────────────────────────────────────
+
+#[tokio::test]
+async fn input_missing_validation_vulnerable_produces_counterexample() {
+    let t = load_template("input-missing-parameter-validation");
+    let ctx = hedgey_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("hedgey-input-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_attacker_cannot_cancel",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {}
+        other => panic!(
+            "expected Counterexample on vulnerable input-validation, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn input_missing_validation_clean_verifies() {
+    let t = load_template("input-missing-parameter-validation");
+    let ctx = hedgey_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("hedgey-input-clean", &t.clean_source, &check);
+
+    let result = run_simple(
+        project.path(),
+        "check_attacker_cannot_cancel",
+        HALMOS_BUDGET,
+    )
+    .await;
+
+    match result {
+        HalmosResult::Verified { .. } => {}
+        other => panic!(
+            "expected Verified on clean input-validation, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}

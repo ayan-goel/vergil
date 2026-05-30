@@ -1,0 +1,66 @@
+id: logic-approval-not-revoked-after-cancel
+name: Stale approval after cancel
+category: logic
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [vesting, airdrop, token]
+  patterns:
+    cancel_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  A cancel path must revoke any allowance/permit it earlier granted.
+
+  Formally:
+    ∀ cancel(id): plans[id].allowance == 0 after
+
+  Phase-1 encoding (Halmos): create a plan with a non-zero allowance,
+  cancel it, then read the allowance. The vulnerable fixture's cancel
+  marks the plan inactive but leaves the allowance live; the clean
+  fixture zeros both.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC02:2026"
+    - "Halborn Hedgey post-mortem"
+  real_world:
+    - name: "Hedgey Finance"
+      year: 2024
+      loss_usd_approx: 44700000
+      chain: ethereum
+      url: "https://www.halborn.com/blog/post/explained-the-hedgey-hack-april-2024"
+
+mitigation: |
+  Every state-clearing operation (cancel, transfer-out, revoke) must
+  explicitly zero any allowances it previously granted. Prefer
+  pull-based claims so allowances never persist beyond the claim
+  transaction.
+
+engineering_notes: |
+  Pairs with `input-missing-parameter-validation`: the Hedgey contracts
+  also failed to validate the cancel caller (anyone could cancel
+  anyone's plan). Phase-1 keeps the two as separate templates so the
+  per-category bench reports distinguish allowance vs. input-validation
+  failures; the underlying fixture surface is intentionally identical.

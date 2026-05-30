@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptCancel({{contract_name}} t, uint256 id) external returns (bool) {
+        try t.cancelPlan(id) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Property: a non-owner attacker cannot flip a plan to inactive.
+    /// Vulnerable: cancelPlan has no caller check; attacker's call
+    /// succeeds and plans[id].active becomes false. Clean: the
+    /// `require(msg.sender == owner)` reverts the attacker's call.
+    function check_attacker_cannot_cancel(address recipient, uint256 amount) public {
+        if (amount == 0) return;
+        uint256 id = target.createPlan(recipient, amount);
+        ( , , bool activeBefore) = target.plans(id);
+        if (!activeBefore) return; // vacuous
+        bool succeeded = attacker.attemptCancel(target, id);
+        if (succeeded) {
+            ( , , bool activeAfter) = target.plans(id);
+            assert(activeAfter == true);
+        }
+    }
+}

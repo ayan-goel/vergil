@@ -1,0 +1,69 @@
+id: init-unprotected-initializer
+name: Public initialize() callable by anyone
+category: initialization
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    initialize_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  The initializer runs at most once and only the first caller's claim to
+  privileged state (owner / admin) survives.
+
+  Formally:
+    ∀ initialize: initialized = true after, and once true never false.
+    ∀ reachable state: caller of the second initialize is rejected.
+
+  Phase-1 encoding (Halmos): the check contract deploys the target and
+  immediately calls initialize (becoming the legitimate owner). A
+  separate Attacker contract then attempts to call initialize. The
+  attack succeeds against an unprotected initializer because the
+  attacker's call resets ownership to itself; the assertion that owner
+  is still address(check) fails.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-105"
+    - "OWASP SC10:2026"
+    - "OpenZeppelin Initializable"
+  real_world:
+    - name: "Audius"
+      year: 2022
+      loss_usd_approx: 6000000
+      chain: ethereum
+      url: "https://blog.audius.co/article/audius-governance-takeover-post-mortem-7-23-22"
+
+mitigation: |
+  Use OpenZeppelin's `Initializable` and the `initializer` modifier. Add
+  `_disableInitializers()` to the constructor of upgradeable
+  implementations so the implementation contract cannot be initialized
+  directly (see related attack: `init-uninitialized-uups-implementation`).
+
+engineering_notes: |
+  Same Attacker-contract pattern as `access-missing-modifier-state-change`.
+  The vulnerable fixture has no `initialized` flag; the clean fixture
+  guards on a `bool private initialized` set in the first call.
