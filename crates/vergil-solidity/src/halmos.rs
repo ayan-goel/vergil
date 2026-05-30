@@ -177,6 +177,13 @@ pub struct HalmosRun {
     /// for SMT re-dispatch (the dump-directory is a temp; this is the
     /// durable artifact location).
     pub smt_persist_directory: Option<PathBuf>,
+    /// Extra CLI arguments appended to the Halmos invocation, after the
+    /// built-in flags. Used by attack templates that need behaviours not
+    /// covered by the default invocation — most importantly
+    /// `--symbolic-msg-sender` for templates that distinguish `msg.sender`
+    /// from `tx.origin` (e.g. `access-tx-origin-auth`, quirk-phishing
+    /// patterns).
+    pub extra_args: Vec<String>,
 }
 
 impl HalmosRun {
@@ -189,7 +196,28 @@ impl HalmosRun {
             dump_smt2: false,
             dump_smt_directory: None,
             smt_persist_directory: None,
+            extra_args: Vec::new(),
         }
+    }
+
+    /// Append a single extra CLI argument to forward to the `halmos`
+    /// subprocess. Order is preserved and call-order matters for flag
+    /// pairs like `--solver z3`.
+    pub fn with_extra_arg(mut self, arg: impl Into<String>) -> Self {
+        self.extra_args.push(arg.into());
+        self
+    }
+
+    /// Replace all extra CLI args at once. Useful when a config builds the
+    /// list separately (e.g. from a template's `harness.extra_halmos_args`
+    /// manifest field).
+    pub fn with_extra_args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.extra_args = args.into_iter().map(Into::into).collect();
+        self
     }
 
     pub fn with_wall_clock(mut self, budget: Duration) -> Self {
@@ -252,6 +280,10 @@ pub async fn run(cfg: &HalmosRun) -> HalmosResult {
         cmd.arg("--dump-smt-queries")
             .arg("--dump-smt-directory")
             .arg(dir);
+    }
+
+    for arg in &cfg.extra_args {
+        cmd.arg(arg);
     }
 
     let result = timeout(cfg.wall_clock_budget, cmd.output()).await;
@@ -400,6 +432,27 @@ fn hex_lower(bytes: &[u8]) -> String {
 /// `tasks/plan.md`: `async fn run(project, check_fn, budget)`.
 pub async fn run_simple(project: &Path, check_fn: &str, budget: Duration) -> HalmosResult {
     let cfg = HalmosRun::new(project.to_path_buf(), check_fn.to_string()).with_wall_clock(budget);
+    run(&cfg).await
+}
+
+/// Convenience wrapper that mirrors [`run_simple`] but accepts additional
+/// CLI arguments forwarded verbatim to the `halmos` subprocess. Used by
+/// attack-template fixtures whose encodings need non-default flags
+/// (e.g. `--symbolic-msg-sender` for templates that distinguish msg.sender
+/// from tx.origin, like `access-tx-origin-auth`).
+pub async fn run_with_args<I, S>(
+    project: &Path,
+    check_fn: &str,
+    budget: Duration,
+    extra_args: I,
+) -> HalmosResult
+where
+    I: IntoIterator<Item = S>,
+    S: Into<String>,
+{
+    let cfg = HalmosRun::new(project.to_path_buf(), check_fn.to_string())
+        .with_wall_clock(budget)
+        .with_extra_args(extra_args);
     run(&cfg).await
 }
 
@@ -699,6 +752,37 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn halmos_run_with_extra_arg_stores_in_order() {
+        let cfg = HalmosRun::new(PathBuf::from("/tmp/x"), "check_foo")
+            .with_extra_arg("--symbolic-msg-sender")
+            .with_extra_arg("--solver")
+            .with_extra_arg("z3");
+        assert_eq!(
+            cfg.extra_args,
+            vec![
+                "--symbolic-msg-sender".to_string(),
+                "--solver".to_string(),
+                "z3".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn halmos_run_with_extra_args_replaces_all() {
+        let cfg = HalmosRun::new(PathBuf::from("/tmp/x"), "check_foo")
+            .with_extra_arg("--first")
+            .with_extra_args(["--symbolic-msg-sender", "--storage-layout"]);
+        assert_eq!(
+            cfg.extra_args,
+            vec![
+                "--symbolic-msg-sender".to_string(),
+                "--storage-layout".to_string(),
+            ],
+            "with_extra_args should replace, not append"
+        );
     }
 
     #[test]
