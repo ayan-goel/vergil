@@ -1,0 +1,56 @@
+id: dos-push-payment-failure
+name: Push-payment pattern halts on one recipient revert
+category: dos
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    external_call_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Funds distribution MUST NOT fail when one recipient's `call` reverts.
+  The pull-payment pattern (each recipient withdraws their own share)
+  avoids this; push-payment with `require(ok)` blocks the entire
+  distribution.
+
+  Formally:
+    ∀ trace. ∀ distribute(): one_recipient_revert ⇏ all_recipients_fail
+
+  Phase-2 encoding (Halmos): the harness uses two recipients —
+  itself (which reverts) and a benign address. Vulnerable Target's
+  `distribute` requires both succeed → caller's `claimed` flag never
+  flips → cex on `claimed == true`. Clean Target writes to a
+  per-recipient ledger; each recipient withdraws independently.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-113"
+    - "King of the Ether Throne (Apr 2016)"
+
+mitigation: |
+  Pull-payments: credit each recipient's withdrawable balance; each
+  recipient triggers their own withdraw. OpenZeppelin's PullPayment
+  base contract implements this.

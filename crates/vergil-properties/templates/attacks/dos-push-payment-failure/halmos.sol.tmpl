@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    bool public revertOnReceive;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    fallback() external {
+        if (revertOnReceive) revert("Check: refuse");
+    }
+
+    receive() external payable {
+        if (revertOnReceive) revert("Check: refuse");
+    }
+
+    /// Property: one recipient's refusal MUST NOT block another
+    /// recipient's credit.
+    function check_one_recipient_revert_does_not_halt_distribution() public {
+        revertOnReceive = true;
+        address otherRecipient = address(0xBeef);
+        try target.distribute(address(this), otherRecipient, 1) {} catch {}
+        assert(target.credited(otherRecipient) > 0);
+    }
+}

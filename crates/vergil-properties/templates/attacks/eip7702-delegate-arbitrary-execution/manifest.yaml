@@ -1,0 +1,53 @@
+id: eip7702-delegate-arbitrary-execution
+name: EIP-7702 EOA delegate may execute arbitrary code in the EOA's context
+category: emerging-eips
+severity: high
+
+decidability:
+  smt_status: document_only
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  An EIP-7702 SetCode-typed transaction installs a delegate contract's
+  code on an EOA for the duration of the transaction. Any user that
+  signs a 7702 authorization MUST trust the delegate contract's code
+  AND every contract it calls — a hostile delegate may execute
+  arbitrary code (transferFrom, approve, etc.) in the EOA's context.
+
+  No symbolic-execution encoding ships in V1.5: the analysis is
+  whole-program (the delegate's calls into the EOA's approved tokens)
+  and Halmos doesn't model the EIP-7702 SetCode transaction type.
+  Catalog entry exists so dispatch can flag the pattern for human
+  review (catalog-as-data §11.3).
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "EIP-7702"
+    - "EIP-7702 security considerations"
+
+mitigation: |
+  Audit the delegate contract's full call graph before signing a 7702
+  authorization. Limit authorization durations (per-tx if possible).
+  Wallets MUST surface the delegate's identity and trust scope at
+  signing time.
+
+engineering_notes: |
+  This is the first document_only template in the V1.5 catalog and
+  exercises the SPEC §11.3 catalog-as-data branch in
+  `AttackCatalog::load` (no halmos.sol.tmpl, no fixtures/*.sol; loader
+  branches on `smt_status: document_only` and ships empty source
+  strings). V2 can promote this to decidable once Halmos / Vergil
+  models the SetCode tx type.

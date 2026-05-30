@@ -235,8 +235,15 @@ pub struct AttackManifest {
     /// Plain English (first paragraph) + quasi-formal notation (second
     /// paragraph). The heart of the entry per `notes/attack-patterns.md` §0.1.
     pub negation_property: String,
-    pub encoding: AttackEncoding,
-    pub fixtures: AttackFixtures,
+    /// Required for `decidable` and `frontier` templates. Optional for
+    /// `document_only` templates (which ship as manifest + README only —
+    /// the catalog-as-data §11.3 model).
+    #[serde(default)]
+    pub encoding: Option<AttackEncoding>,
+    /// Required for `decidable` and `frontier` templates. Optional for
+    /// `document_only` templates.
+    #[serde(default)]
+    pub fixtures: Option<AttackFixtures>,
     pub provenance: AttackProvenance,
     pub mitigation: String,
     #[serde(default)]
@@ -479,26 +486,52 @@ fn load_template(dir: &Path) -> Result<AttackTemplate, AttackError> {
             source: e,
         })?;
 
-    // Halmos encoding (required).
-    let halmos_source = read_under(dir, &manifest.id, &manifest.encoding.halmos, false)?;
+    let is_document_only = matches!(manifest.decidability.smt_status, SmtStatus::DocumentOnly);
 
-    // SMTChecker encoding (optional; warn if decidable + absent).
-    let smtchecker_source = match &manifest.encoding.smtchecker {
-        Some(rel) => read_under(dir, &manifest.id, rel, false)?,
-        None => {
-            if matches!(manifest.decidability.smt_status, SmtStatus::Decidable) {
-                tracing::warn!(
-                    attack_id = %manifest.id,
-                    "decidable attack template ships no SMTChecker encoding; running Halmos-only"
-                );
-            }
-            String::new()
+    // Encoding: required for decidable + frontier, skipped for document_only.
+    let (halmos_source, smtchecker_source) = match (&manifest.encoding, is_document_only) {
+        (Some(enc), _) => {
+            let h = read_under(dir, &manifest.id, &enc.halmos, false)?;
+            let s = match &enc.smtchecker {
+                Some(rel) => read_under(dir, &manifest.id, rel, false)?,
+                None => {
+                    if matches!(manifest.decidability.smt_status, SmtStatus::Decidable) {
+                        tracing::warn!(
+                            attack_id = %manifest.id,
+                            "decidable attack template ships no SMTChecker encoding; running Halmos-only"
+                        );
+                    }
+                    String::new()
+                }
+            };
+            (h, s)
+        }
+        (None, true) => (String::new(), String::new()),
+        (None, false) => {
+            return Err(AttackError::MissingEncoding {
+                id: manifest.id.clone(),
+                file: "encoding section in manifest".to_string(),
+                dir: dir.to_path_buf(),
+            });
         }
     };
 
-    // Fixtures (both required).
-    let vulnerable_source = read_under(dir, &manifest.id, &manifest.fixtures.vulnerable, true)?;
-    let clean_source = read_under(dir, &manifest.id, &manifest.fixtures.clean, true)?;
+    // Fixtures: required for decidable + frontier, skipped for document_only.
+    let (vulnerable_source, clean_source) = match (&manifest.fixtures, is_document_only) {
+        (Some(fx), _) => {
+            let v = read_under(dir, &manifest.id, &fx.vulnerable, true)?;
+            let c = read_under(dir, &manifest.id, &fx.clean, true)?;
+            (v, c)
+        }
+        (None, true) => (String::new(), String::new()),
+        (None, false) => {
+            return Err(AttackError::MissingFixture {
+                id: manifest.id.clone(),
+                file: "fixtures section in manifest".to_string(),
+                dir: dir.to_path_buf(),
+            });
+        }
+    };
 
     Ok(AttackTemplate {
         manifest,
@@ -644,7 +677,7 @@ mitigation: Test mitigation.
         assert_eq!(m.decidability.smt_status, SmtStatus::Decidable);
         assert_eq!(m.decidability.expected_theory, ExpectedTheory::Uf);
         // (snake_case rename: `UF` in fixture YAML is `uf`-rejected by serde.)
-        assert!(m.encoding.smtchecker.is_none());
+        assert!(m.encoding.as_ref().unwrap().smtchecker.is_none());
     }
 
     #[test]
@@ -724,6 +757,82 @@ patterns:
         // vulnerable.sol intentionally absent
         let err = AttackCatalog::load(tmp.path()).unwrap_err();
         assert!(matches!(err, AttackError::MissingFixture { .. }), "{err}");
+    }
+
+    /// Minimal manifest for a `document_only` template — the SPEC §11.3
+    /// catalog-as-data branch: no encoding, no fixtures, manifest only.
+    fn document_only_manifest(id: &str) -> String {
+        format!(
+            r#"id: {id}
+name: Test document-only attack
+category: access
+severity: high
+decidability:
+  smt_status: document_only
+  expected_solver: z3
+  expected_theory: uf
+applies_to:
+  interfaces: [any]
+negation_property: |
+  Documented; no auto-verification.
+provenance:
+  tier: original
+  source: vergil-test
+  license: Apache-2.0
+mitigation: Test mitigation.
+"#
+        )
+    }
+
+    #[test]
+    fn loads_document_only_template_without_encoding_or_fixtures() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("doc-only");
+        write(
+            &dir.join("manifest.yaml"),
+            &document_only_manifest("doc-only"),
+        );
+        // No halmos.sol.tmpl, no fixtures/*.sol — and the load must succeed.
+        let cat = AttackCatalog::load(tmp.path()).expect("document-only loads");
+        assert_eq!(cat.len(), 1);
+        let t = cat.get("doc-only").unwrap();
+        assert_eq!(t.manifest.decidability.smt_status, SmtStatus::DocumentOnly);
+        assert!(t.halmos_source.is_empty());
+        assert!(t.smtchecker_source.is_empty());
+        assert!(t.vulnerable_source.is_empty());
+        assert!(t.clean_source.is_empty());
+        assert!(t.manifest.encoding.is_none());
+        assert!(t.manifest.fixtures.is_none());
+    }
+
+    #[test]
+    fn decidable_without_encoding_still_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("a");
+        // decidable manifest but no encoding section
+        let manifest = format!(
+            r#"id: a
+name: Test attack
+category: access
+severity: high
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+applies_to:
+  interfaces: [any]
+negation_property: |
+  Test.
+provenance:
+  tier: original
+  source: vergil-test
+  license: Apache-2.0
+mitigation: Test.
+"#
+        );
+        write(&dir.join("manifest.yaml"), &manifest);
+        let err = AttackCatalog::load(tmp.path()).unwrap_err();
+        assert!(matches!(err, AttackError::MissingEncoding { .. }), "{err}");
     }
 
     #[test]

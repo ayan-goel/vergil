@@ -1508,3 +1508,52 @@ async fn quirk_packed_collision_clean_verified() {
     )
     .await;
 }
+
+// ─── Phase 2 Slice 9: Categories 15 + 16 batch ───────────────────────────────
+// 15.1 eip7702-delegate-arbitrary-execution ships as document-only —
+// no integration test; the load path is exercised by the lib unit test
+// `loads_document_only_template_without_encoding_or_fixtures`.
+
+// 16.1 dos-unbounded-loop-user-array
+#[tokio::test]
+async fn dos_unbounded_loop_vulnerable_cex() {
+    slice1_check(
+        "dos-unbounded-loop-user-array",
+        "check_oversized_array_rejected",
+        "dul-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn dos_unbounded_loop_clean_verified() {
+    slice1_check(
+        "dos-unbounded-loop-user-array",
+        "check_oversized_array_rejected",
+        "dul-clean",
+        false,
+    )
+    .await;
+}
+
+// 16.2 dos-push-payment-failure
+#[tokio::test]
+async fn dos_push_payment_vulnerable_cex() {
+    slice1_check(
+        "dos-push-payment-failure",
+        "check_one_recipient_revert_does_not_halt_distribution",
+        "dpp-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn dos_push_payment_clean_verified() {
+    slice1_check(
+        "dos-push-payment-failure",
+        "check_one_recipient_revert_does_not_halt_distribution",
+        "dpp-clean",
+        false,
+    )
+    .await;
+}

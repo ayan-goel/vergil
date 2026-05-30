@@ -1,0 +1,54 @@
+id: dos-unbounded-loop-user-array
+name: Unbounded loop over a user-controllable array
+category: dos
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: lia
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  Loops over arrays whose length is influenced by callers MUST cap
+  iteration at a constant the protocol can pay gas for under any
+  load. Otherwise an attacker forces the contract into an
+  out-of-gas state across calls (DoS).
+
+  Formally:
+    ∀ trace. ∀ loop over (user_array):
+      length(user_array) ≤ MAX_ITER OR loop is paginated
+
+  Phase-2 encoding (Halmos): the harness binds the array length as a
+  symbolic variable and asserts that any successful `process()` call
+  has length ≤ MAX_ITER. Vulnerable: no upper bound — large lengths
+  pass the guard → cex. Clean: explicit cap.
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-128"
+    - "OWASP SC10:2026"
+    - "GovernMental DoS (Apr 2016)"
+
+mitigation: |
+  Cap loop length; paginate; or use a pull-pattern that lets each
+  user trigger their own slot.

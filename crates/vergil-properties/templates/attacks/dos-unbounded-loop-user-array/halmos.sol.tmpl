@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: `process` MUST revert when called with array length
+    /// exceeding the protocol's per-call cap.
+    function check_oversized_array_rejected(uint256 len) public {
+        if (len <= target.MAX_ITER() || len > 2 * target.MAX_ITER()) return;
+        bool succeeded;
+        try target.process(len) {
+            succeeded = true;
+        } catch {
+            succeeded = false;
+        }
+        assert(!succeeded);
+    }
+}
