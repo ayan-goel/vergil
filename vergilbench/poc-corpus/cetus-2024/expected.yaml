@@ -1,0 +1,23 @@
+incident:
+  name: Cetus Protocol
+  year: 2024
+  loss_usd_approx: 230000000
+  chain: sui
+  reference_url: "https://x.com/CetusProtocol/status/1794193032081158615"
+
+template:
+  id: arith-incorrect-overflow-check-shift
+  check_fn: check_shift_is_recoverable
+  bindings:
+    contract_name: CetusLiquidityManager
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of the Cetus protocol exploit pattern (May 2024).
+    The `checked_shlw` function had a faulty overflow check that
+    accepted shifts which silently truncated the value. We isolate
+    the arithmetic kernel as `shiftLeft64(uint256)` and preserve
+    Cetus's broader liquidity-tracking surface so the template
+    binds through to the buggy shift, not just the shape.

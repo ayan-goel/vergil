@@ -1,0 +1,24 @@
+incident:
+  name: King of the Ether Throne
+  year: 2016
+  loss_usd_approx: 10000
+  chain: ethereum
+  reference_url: "https://www.kingoftheether.com/postmortem.html"
+
+template:
+  id: dos-push-payment-failure
+  check_fn: check_one_recipient_revert_does_not_halt_distribution
+  bindings:
+    contract_name: KingOfTheEther
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of King of the Ether Throne (Feb 2016) — the
+    earliest documented push-payment DoS. New monarch's payment to
+    the previous king failed when the previous king was a contract
+    that reverted on receive (or hit the 2300-gas stipend ceiling);
+    the entire compensateClaimant path reverted, locking funds in
+    contract limbo. Catalog template encodes the pull-payment vs
+    push-payment contrast.

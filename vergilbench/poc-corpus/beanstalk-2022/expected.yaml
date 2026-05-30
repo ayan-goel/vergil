@@ -1,0 +1,24 @@
+incident:
+  name: Beanstalk Farms
+  year: 2022
+  loss_usd_approx: 182000000
+  chain: ethereum
+  reference_url: "https://bean.money/blog/beanstalk-governance-exploit"
+
+template:
+  id: flashloan-balance-dependent-state
+  check_fn: check_flash_loaned_balance_does_not_authorize
+  bindings:
+    contract_name: BeanstalkGovernance
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of the Beanstalk governance flash-loan attack (Apr
+    2022). The attacker flash-borrowed enough BEAN3CRV-f LP tokens to
+    pass the supermajority quorum check, executed an emergency
+    proposal draining BEAN reserves to the attacker, then repaid the
+    flash loan in the same transaction. Catalog template flags spot-
+    balance reads in privileged gates; the snapshot-based clean
+    pattern is the standard mitigation (Compound COMP, Aave stkAAVE).

@@ -1,0 +1,24 @@
+incident:
+  name: Hedgey Finance
+  year: 2024
+  loss_usd_approx: 44700000
+  chain: ethereum-arbitrum
+  reference_url: "https://medium.com/hedgey-finance/post-mortem-hedgey-finance-token-claim-exploit-april-19-2024-ad36e72e0c33"
+
+template:
+  id: logic-approval-not-revoked-after-cancel
+  check_fn: check_cancel_zeros_allowance
+  bindings:
+    contract_name: HedgeyClaim
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of the Hedgey Finance claim exploit (Apr 2024). The
+    `cancelClaim` path marked the claim inactive but failed to zero
+    the per-plan allowance. The recipient retained `transferFrom`
+    rights over the underlying tokens and drained. Combined with
+    `input-missing-parameter-validation` (no caller check on
+    cancelClaim), this enabled the full $44.7M drain across Arbitrum
+    + Ethereum.

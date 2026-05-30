@@ -1,0 +1,24 @@
+incident:
+  name: imBTC / Uniswap V1
+  year: 2020
+  loss_usd_approx: 300000
+  chain: ethereum
+  reference_url: "https://defirate.com/imbtc-uniswap-hack/"
+
+template:
+  id: reentrancy-callback-token-hook
+  check_fn: check_hook_does_not_double_transfer
+  bindings:
+    contract_name: ImBTCPool
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: vergil-claude-reproduction
+  attribution: |
+    Reproduction of the imBTC / Uniswap V1 ERC-777 reentrancy (Apr
+    2020). imBTC is an ERC-777 token whose `_callPostTransferHooks`
+    invoked the recipient's `tokensReceived` callback before the
+    pool's reserve accounting closed. The attacker's recipient hook
+    re-entered Uniswap V1's exchange's `ethToTokenSwapInput`, getting
+    favorable pricing twice. Catalog template encodes the hook-before-
+    state pattern generically (ERC-777/721/1155).

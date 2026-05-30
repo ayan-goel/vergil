@@ -221,3 +221,28 @@ async fn poc_wormhole_2022() {
 async fn poc_cream_finance_2021() {
     validate_poc("cream-finance-2021").await;
 }
+
+#[tokio::test]
+async fn poc_cetus_2024() {
+    validate_poc("cetus-2024").await;
+}
+
+#[tokio::test]
+async fn poc_hedgey_2024() {
+    validate_poc("hedgey-2024").await;
+}
+
+#[tokio::test]
+async fn poc_beanstalk_2022() {
+    validate_poc("beanstalk-2022").await;
+}
+
+#[tokio::test]
+async fn poc_imbtc_uniswap_v1_2020() {
+    validate_poc("imbtc-uniswap-v1-2020").await;
+}
+
+#[tokio::test]
+async fn poc_king_of_ether_2016() {
+    validate_poc("king-of-ether-2016").await;
+}
