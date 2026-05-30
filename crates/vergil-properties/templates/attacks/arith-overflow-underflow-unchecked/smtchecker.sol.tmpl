@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// SMTChecker encoding for `arith-overflow-underflow-unchecked`.
+//
+// SMTChecker checks overflow/underflow natively via the solc invocation
+// `--model-checker-targets overflow,underflow`. The harness below is a
+// minimal pass-through that the engine analyzes alongside the target;
+// it does not need explicit assertions because SMTChecker discovers
+// arithmetic violations inside the imported contract directly.
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract SmtCheck_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    function exercise(uint256 a, uint256 b) public returns (uint256) {
+        return target.{{op}}(a, b);
+    }
+}

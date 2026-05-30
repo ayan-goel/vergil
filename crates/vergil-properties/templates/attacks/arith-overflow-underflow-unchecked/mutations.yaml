@@ -1,0 +1,5 @@
+# Phase-1 placeholder. See access-missing-modifier-state-change/mutations.yaml
+# for the rationale.
+
+schema_version: 1
+expected_mutants: []

@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+// Halmos encoding for `arith-overflow-underflow-unchecked`.
+//
+// Template variables:
+//   {{contract_name}}  — contract under test (exposes `{{op}}(uint256,uint256)`)
+//   {{contract_path}}  — Foundry import path
+//   {{op}}             — arithmetic operation under test (e.g. `add`)
+//   {{attack_id_ident}}— identifier suffix
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+
+    constructor() {
+        target = new {{contract_name}}();
+    }
+
+    /// Property: addition does not wrap. For a clean (checked) implementation,
+    /// any overflow reverts the call — the assertion is vacuously satisfied
+    /// (the test contract halts before reaching it). For the unchecked
+    /// vulnerable version, overflow returns a smaller-than-input result and
+    /// the assertion fires, producing a counterexample.
+    function check_{{op}}_does_not_wrap(uint256 a, uint256 b) public view {
+        uint256 result = target.{{op}}(a, b);
+        assert(result >= a);
+        assert(result >= b);
+    }
+}

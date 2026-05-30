@@ -139,3 +139,58 @@ async fn access_missing_modifier_clean_verifies() {
         ),
     }
 }
+
+// ─── arith-overflow-underflow-unchecked ──────────────────────────────────────
+
+fn arith_overflow_render_ctx(attack_id_ident: &str) -> RenderContext {
+    RenderContext::from_pairs([
+        ("contract_name", "Target"),
+        ("contract_path", "src/Target.sol"),
+        ("op", "add"),
+        ("attack_id_ident", attack_id_ident),
+    ])
+}
+
+#[tokio::test]
+async fn arith_overflow_vulnerable_produces_counterexample() {
+    let t = load_template("arith-overflow-underflow-unchecked");
+    let ctx = arith_overflow_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("arith-vuln", &t.vulnerable_source, &check);
+
+    let result = run_simple(project.path(), "check_add_does_not_wrap", HALMOS_BUDGET).await;
+
+    match result {
+        HalmosResult::Counterexample { .. } => {
+            // Expected: unchecked block wraps; result < a (or < b);
+            // assertion fails.
+        }
+        other => panic!(
+            "expected Counterexample on vulnerable fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn arith_overflow_clean_verifies() {
+    let t = load_template("arith-overflow-underflow-unchecked");
+    let ctx = arith_overflow_render_ctx(&ident_for(&t.manifest.id));
+    let check = render(&t.halmos_source, &ctx).expect("render halmos");
+    let project = prepare_project("arith-clean", &t.clean_source, &check);
+
+    let result = run_simple(project.path(), "check_add_does_not_wrap", HALMOS_BUDGET).await;
+
+    match result {
+        HalmosResult::Verified { .. } => {
+            // Expected: checked arithmetic reverts on overflow;
+            // post-revert paths are unreachable.
+        }
+        other => panic!(
+            "expected Verified on clean fixture, got {other:?}\n\
+             render target dir: {}",
+            project.path().display()
+        ),
+    }
+}

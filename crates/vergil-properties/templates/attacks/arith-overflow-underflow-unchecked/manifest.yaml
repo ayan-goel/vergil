@@ -1,0 +1,72 @@
+id: arith-overflow-underflow-unchecked
+name: Integer overflow/underflow in unchecked block
+category: arithmetic
+severity: critical
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: bv
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    unchecked_block_present: true
+
+requires:
+  storage_slots: []
+  modifiers: {}
+  external_call_handling: tracked
+
+negation_property: |
+  The result of every arithmetic operation must be representable in its
+  declared type.
+
+  Formally:
+    ∀ op ∈ {+, -, *, **}, ∀ a, b ∈ T:
+      result(op, a, b) representable in T ⇒ no wraparound
+
+  Phase-1 encoding (Halmos): for the canonical add(a, b), the property is
+  result >= a (which would fail when a + b overflows). The vulnerable
+  fixture uses `unchecked { return a + b; }`; the clean fixture relies on
+  Solidity 0.8+ checked arithmetic, which reverts on overflow, making the
+  assertion vacuously hold (the check function never runs to completion).
+
+encoding:
+  halmos: halmos.sol.tmpl
+  smtchecker: smtchecker.sol.tmpl
+
+fixtures:
+  vulnerable: fixtures/vulnerable.sol
+  clean: fixtures/clean.sol
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "SWC-101"
+    - "OWASP SC09:2026"
+  real_world:
+    - name: "BeautyChain (BEC) batchOverflow"
+      year: 2018
+      chain: ethereum
+      url: "https://medium.com/@peckshield/alert-new-batchoverflow-bug-in-multiple-erc20-smart-contracts-cve-2018-10299-511067db6536"
+
+mitigation: |
+  Use Solidity ≥0.8 checked arithmetic (the default outside `unchecked`
+  blocks). Every `unchecked` block must carry an explicit justification
+  comment describing why overflow cannot occur on every reachable path
+  (e.g., a prior `require` bounded the inputs).
+
+engineering_notes: |
+  Canonical bitvector demo: Z3's BV theory closes wraparound obligations
+  exactly, which LIA cannot. This template's `decidability.expected_theory`
+  is `bv` for that reason; the portfolio dispatch may escalate from LIA
+  on UNKNOWN.
+
+  SMTChecker handles overflow natively via `--model-checker-targets
+  overflow,underflow`. The smtchecker.sol.tmpl is a minimal harness that
+  the engine can analyze directly; for V1.5 Phase 1, the structural
+  defense is the Halmos check + the vulnerable/clean fixture pair.
