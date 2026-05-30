@@ -887,6 +887,71 @@ async fn function_selector_clash_clean_verified() {
     .await;
 }
 
+// ─── Phase 2 Slice 3: Category 3 batch (Arithmetic) ──────────────────────────
+
+#[tokio::test]
+async fn downcast_truncation_vulnerable_cex() {
+    slice1_check(
+        "arith-truncation-cast-downcast",
+        "check_downcast_is_lossless",
+        "dcast-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn downcast_truncation_clean_verified() {
+    slice1_check(
+        "arith-truncation-cast-downcast",
+        "check_downcast_is_lossless",
+        "dcast-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn precision_loss_divide_before_multiply_vulnerable_cex() {
+    slice1_check(
+        "arith-precision-loss-divide-before-multiply",
+        "check_no_precision_loss",
+        "pldbm-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn precision_loss_divide_before_multiply_clean_verified() {
+    slice1_check(
+        "arith-precision-loss-divide-before-multiply",
+        "check_no_precision_loss",
+        "pldbm-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn fee_calc_rounding_zero_vulnerable_cex() {
+    slice1_check(
+        "arith-fee-calc-rounding-zero",
+        "check_fee_positive_for_positive_amount",
+        "fee-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn fee_calc_rounding_zero_clean_verified() {
+    slice1_check(
+        "arith-fee-calc-rounding-zero",
+        "check_fee_positive_for_positive_amount",
+        "fee-clean",
+        false,
+    )
+    .await;
+}
+
 // ─── init-uninitialized-uups-implementation (Wormhole class) ─────────────────
 
 fn uups_render_ctx(attack_id_ident: &str) -> RenderContext {

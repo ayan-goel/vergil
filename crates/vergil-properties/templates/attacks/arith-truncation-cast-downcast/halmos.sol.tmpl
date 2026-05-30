@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    constructor() { target = new {{contract_name}}(); }
+
+    /// Property: downcastTo128(x) is recoverable.
+    function check_downcast_is_lossless(uint256 x) public view {
+        uint128 truncated = target.downcastTo128(x);
+        assert(uint256(truncated) == x);
+    }
+}

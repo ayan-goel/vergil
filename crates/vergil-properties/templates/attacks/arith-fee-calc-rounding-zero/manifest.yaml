@@ -1,0 +1,37 @@
+id: arith-fee-calc-rounding-zero
+name: Fee rounds to zero
+category: arithmetic
+severity: low
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: lia}
+
+applies_to:
+  interfaces: [any]
+  primitives: [amm, vault]
+  patterns: {fee_calc_present: true}
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  For amounts above a defined threshold, `fee(amount) > 0`.
+
+  Phase-2 encoding (Halmos): the check exposes `feeFor(amount)`.
+  Vulnerable: `fee = amount * RATE / 10000` rounds to 0 for amount < 10000.
+  Clean: floors the fee at 1.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["OWASP SC07:2026"]
+  real_world:
+    - name: "Recurrent fee-rounding class"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  Add a minimum-fee floor (`max(computed, MIN_FEE)`) on every fee
+  calculation.

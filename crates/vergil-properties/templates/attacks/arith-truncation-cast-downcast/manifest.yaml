@@ -1,0 +1,44 @@
+id: arith-truncation-cast-downcast
+name: Unsafe downcast truncation
+category: arithmetic
+severity: high
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: bv}
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns: {downcast_present: true}
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Casts from `uintN` to `uintM` (M < N) reject inputs that would lose bits.
+
+  Formally: ∀ downcast(x, T): x ≤ max(T)
+
+  Phase-2 encoding (Halmos): the check verifies that the result of
+  `downcastTo128(x)` is recoverable — `uint256(downcastTo128(x)) == x`.
+  Vulnerable: bare cast truncates high bits; recovery fails. Clean:
+  require rejects out-of-range inputs.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["OWASP SC09:2026", "OpenZeppelin SafeCast"]
+  real_world:
+    - name: "Recurrent downcast class"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  OpenZeppelin's SafeCast library, or an inline `require(x <= type(uintN).max)`
+  before every cast.
+
+engineering_notes: |
+  Sibling of `arith-incorrect-overflow-check-shift` — both exercise the
+  BV theory on truncation/overflow boundaries.

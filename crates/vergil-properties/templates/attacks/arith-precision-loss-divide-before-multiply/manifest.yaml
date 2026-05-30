@@ -1,0 +1,42 @@
+id: arith-precision-loss-divide-before-multiply
+name: Divide-before-multiply truncation
+category: arithmetic
+severity: medium
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: lia}
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns: {division_present: true}
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Multiply-before-divide preserves precision: `(a*b)/c` is at least as
+  precise as `(a/c)*b`.
+
+  Formally: for non-negative a, b, c with c > 0:
+    (a/c)*b <= (a*b)/c
+
+  Phase-2 encoding (Halmos): the check exposes `compute(a, b, c)`. The
+  vulnerable contract does `(a/c)*b`; the clean contract does `(a*b)/c`.
+  The check asserts that bound a < c and b > 0 → `compute` produces a
+  non-zero result (vulnerable: 0 because a/c = 0; clean: positive).
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["OWASP SC07:2026"]
+  real_world:
+    - name: "Recurrent precision-loss audit class"
+      year: 2023
+      chain: ethereum
+
+mitigation: |
+  Reorder operations to multiply before dividing, or use OpenZeppelin's
+  `Math.mulDiv`.

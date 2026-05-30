@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    constructor() { target = new {{contract_name}}(); }
+
+    /// Property: for any positive transfer amount, the fee is positive.
+    function check_fee_positive_for_positive_amount(uint256 amount) public view {
+        if (amount == 0 || amount > type(uint128).max) return;
+        uint256 fee = target.feeFor(amount);
+        assert(fee > 0);
+    }
+}

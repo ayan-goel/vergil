@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    constructor() { target = new {{contract_name}}(); }
+
+    /// Property: when a < c, b > 0, b < c < 2^128: the result must be > 0.
+    /// Vulnerable (divide-before-multiply): a/c == 0 → result == 0 → cex.
+    /// Clean ((a*b)/c): result == (a*b)/c, which is > 0 when a*b >= c.
+    function check_no_precision_loss(uint256 a, uint256 b, uint256 c) public view {
+        if (c == 0 || c > type(uint128).max) return;
+        if (b == 0 || b > type(uint128).max) return;
+        if (a == 0 || a >= c) return;          // require a < c so vuln returns 0
+        if (a * b < c) return;                  // require a*b >= c so clean returns > 0
+        uint256 r = target.compute(a, b, c);
+        assert(r > 0);
+    }
+}
