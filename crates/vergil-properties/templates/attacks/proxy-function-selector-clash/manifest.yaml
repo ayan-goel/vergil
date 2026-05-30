@@ -1,0 +1,46 @@
+id: proxy-function-selector-clash
+name: Proxy admin selector clashes with impl function
+category: initialization
+severity: medium
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: uf}
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns: {transparent_proxy: true}
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  The set of admin function selectors is disjoint from the set of
+  implementation function selectors.
+
+  Phase-2 encoding (Halmos): both functions modify the same protected
+  state through different selectors. The check verifies that calling
+  the impl-side selector does NOT route to the admin path.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["OWASP SC10:2026"]
+  real_world:
+    - name: "Transparent-proxy selector-clash class"
+      year: 2020
+      chain: ethereum
+
+mitigation: |
+  Use OpenZeppelin's TransparentUpgradeableProxy admin separation, or
+  the diamond pattern's selector-based routing with explicit disjoint
+  selector sets.
+
+engineering_notes: |
+  Solidity does not allow two functions with the same selector in one
+  contract, so the encoding here is a thin structural model — the
+  vulnerable fixture exposes an admin function with NO auth check; the
+  clean fixture gates it. The "selector clash" framing tells the user
+  what to look for; the actual check is a generic missing-auth detector.

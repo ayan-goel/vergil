@@ -1,0 +1,41 @@
+id: proxy-unprotected-upgrade-function
+name: upgradeTo lacks authorization
+category: initialization
+severity: critical
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: uf}
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns: {uups_proxy: true}
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Upgrade calls only succeed for authorized callers.
+
+  Formally: ∀ upgrade: msg.sender ∈ upgradeAdmin
+
+  Phase-2 encoding (Halmos): a non-owner Attacker attempts upgradeTo.
+  Vulnerable: no auth on _authorizeUpgrade; the implementation pointer
+  flips. Clean: onlyOwner-style guard reverts.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "Slither unprotected-upgrade"
+    - "OWASP SC10:2026"
+  real_world:
+    - name: "ERC1967 automated upgrade campaign"
+      year: 2025
+      chain: ethereum
+
+mitigation: |
+  Override `_authorizeUpgrade(address)` with an explicit auth check
+  (`onlyOwner`, `onlyRole(UPGRADER_ROLE)`).

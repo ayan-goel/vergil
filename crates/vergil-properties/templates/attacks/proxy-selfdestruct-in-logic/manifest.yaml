@@ -1,0 +1,42 @@
+id: proxy-selfdestruct-in-logic
+name: Reachable selfdestruct in logic contract
+category: initialization
+severity: critical
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: uf}
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns: {selfdestruct_present: true, upgradeable: true}
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  selfdestruct is unreachable for an unauthorized caller.
+
+  Phase-2 encoding (Halmos): an Attacker attempts to invoke `destruct`.
+  Vulnerable: any caller may; the implementation flag flips. Clean:
+  onlyOwner rejects.
+
+  Severity context (EIP-6780, Cancun): cross-transaction selfdestruct
+  no longer deletes code post-fork; the post-EIP-6780 risk is reduced
+  but re-initialization and storage-collision seizure remain live.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["SWC-106", "Slither suicidal", "OWASP SC10:2026"]
+  real_world:
+    - name: "Parity Multisig"
+      year: 2017
+      loss_usd_approx: 280000000
+      chain: ethereum
+
+mitigation: |
+  Remove `selfdestruct` from upgradeable logic. If retained, gate with
+  a multi-sig + timelock.

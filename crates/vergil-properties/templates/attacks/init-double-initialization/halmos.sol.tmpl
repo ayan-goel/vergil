@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptInitialize({{contract_name}} t) external returns (bool) {
+        try t.initialize() {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        // The check contract becomes the legitimate first initializer.
+        target.initialize();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Property: after a second initialize attempt by the attacker, the
+    /// owner must still be the legitimate first caller (the check contract).
+    function check_attacker_cannot_seize_ownership() public {
+        address ownerBefore = target.owner();
+        // sanity: the check contract IS the owner after constructor init
+        if (ownerBefore != address(this)) {
+            // Vacuous path; ignore.
+            return;
+        }
+        bool succeeded = attacker.attemptInitialize(target);
+        if (succeeded) {
+            // The attempt did not revert. Ownership must NOT have moved
+            // to the attacker (or anywhere else).
+            assert(target.owner() == address(this));
+        }
+    }
+}

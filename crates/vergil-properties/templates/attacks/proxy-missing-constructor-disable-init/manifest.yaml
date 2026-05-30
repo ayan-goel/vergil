@@ -1,0 +1,51 @@
+id: proxy-missing-constructor-disable-init
+name: Implementation lacks _disableInitializers in constructor
+category: initialization
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    upgradeable_pattern: true
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  The implementation contract's constructor disables its own initializer.
+  Without this guard, the implementation contract is initializable
+  directly (the attack class behind `init-uninitialized-uups-implementation`).
+
+  Formally:
+    constructor ⇒ initialized == true on the implementation
+
+  Phase-2 encoding (Halmos): an Attacker calls initialize() on the
+  freshly-deployed contract. Vulnerable: no constructor disable, so the
+  call succeeds and the attacker owns the implementation. Clean:
+  constructor sets initialized = true; initialize() reverts.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC10:2026"
+    - "OpenZeppelin Initializable"
+
+mitigation: |
+  Call `_disableInitializers()` in the implementation contract's
+  constructor (OpenZeppelin Initializable ≥ 4.4).
+
+engineering_notes: |
+  Close cousin of `init-uninitialized-uups-implementation` (2.2) —
+  same fixture shape, distinguished only by the framing (UUPS-specific
+  vs general upgradeable). Kept separate per attack-patterns.md §2.4
+  because the bench reports treat them distinctly.

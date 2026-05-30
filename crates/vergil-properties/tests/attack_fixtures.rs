@@ -759,6 +759,134 @@ async fn signature_auth_bypass_clean_verified() {
     .await;
 }
 
+// ─── Phase 2 Slice 2: Category 2 batch (Init & Proxy) ────────────────────────
+
+#[tokio::test]
+async fn missing_constructor_disable_init_vulnerable_cex() {
+    slice1_check(
+        "proxy-missing-constructor-disable-init",
+        "check_implementation_cannot_be_initialized",
+        "mcdi-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn missing_constructor_disable_init_clean_verified() {
+    slice1_check(
+        "proxy-missing-constructor-disable-init",
+        "check_implementation_cannot_be_initialized",
+        "mcdi-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn reinitialization_after_upgrade_vulnerable_cex() {
+    slice1_check(
+        "init-reinitialization-after-upgrade",
+        "check_migrate_does_not_unlock_initializer",
+        "riu-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn reinitialization_after_upgrade_clean_verified() {
+    slice1_check(
+        "init-reinitialization-after-upgrade",
+        "check_migrate_does_not_unlock_initializer",
+        "riu-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn unprotected_upgrade_function_vulnerable_cex() {
+    slice1_check(
+        "proxy-unprotected-upgrade-function",
+        "check_unauthorized_caller_cannot_upgrade",
+        "uuf-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn unprotected_upgrade_function_clean_verified() {
+    slice1_check(
+        "proxy-unprotected-upgrade-function",
+        "check_unauthorized_caller_cannot_upgrade",
+        "uuf-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn selfdestruct_in_logic_vulnerable_cex() {
+    slice1_check(
+        "proxy-selfdestruct-in-logic",
+        "check_unauthorized_caller_cannot_destruct",
+        "sdl-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn selfdestruct_in_logic_clean_verified() {
+    slice1_check(
+        "proxy-selfdestruct-in-logic",
+        "check_unauthorized_caller_cannot_destruct",
+        "sdl-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn double_initialization_vulnerable_cex() {
+    slice1_check(
+        "init-double-initialization",
+        "check_attacker_cannot_seize_ownership",
+        "dinit-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn double_initialization_clean_verified() {
+    slice1_check(
+        "init-double-initialization",
+        "check_attacker_cannot_seize_ownership",
+        "dinit-clean",
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn function_selector_clash_vulnerable_cex() {
+    slice1_check(
+        "proxy-function-selector-clash",
+        "check_admin_selector_protected",
+        "fsc-vuln",
+        true,
+    )
+    .await;
+}
+#[tokio::test]
+async fn function_selector_clash_clean_verified() {
+    slice1_check(
+        "proxy-function-selector-clash",
+        "check_admin_selector_protected",
+        "fsc-clean",
+        false,
+    )
+    .await;
+}
+
 // ─── init-uninitialized-uups-implementation (Wormhole class) ─────────────────
 
 fn uups_render_ctx(attack_id_ident: &str) -> RenderContext {

@@ -1,0 +1,44 @@
+id: init-double-initialization
+name: initialize callable twice
+category: initialization
+severity: high
+
+decidability: {smt_status: decidable, expected_solver: z3, expected_theory: uf}
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns: {initialize_present: true}
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  initialize() executes at most once — the one-shot guard never allows
+  a second call to land.
+
+  Phase-2 encoding (Halmos): the check contract calls initialize.
+  Vulnerable: the second call by an Attacker also lands and overwrites
+  configuration. Clean: rejected.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references: ["OWASP SC10:2026"]
+  real_world:
+    - name: "Re-initialization class (Audius-adjacent)"
+      year: 2022
+      chain: ethereum
+
+mitigation: |
+  OpenZeppelin's `initializer` modifier or a hand-rolled
+  `bool initialized` flag set once and never reset.
+
+engineering_notes: |
+  Same negation property as Phase 1's 2.1 init-unprotected-initializer.
+  Per attack-patterns.md §2.8 the distinction (guard absent vs. guard
+  ineffective) does not require a separate fixture; we ship a thin
+  alias here so the bench reports both categories.

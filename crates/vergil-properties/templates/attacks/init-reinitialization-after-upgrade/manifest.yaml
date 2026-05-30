@@ -1,0 +1,50 @@
+id: init-reinitialization-after-upgrade
+name: initialized flag reset enables re-init
+category: initialization
+severity: high
+
+decidability:
+  smt_status: decidable
+  expected_solver: z3
+  expected_theory: uf
+
+applies_to:
+  interfaces: [any]
+  primitives: [any]
+  patterns:
+    reinitializer_present: true
+
+requires: {storage_slots: [], modifiers: {}, external_call_handling: tracked}
+
+negation_property: |
+  Once `initialized` is true, no migration path may reset it to false.
+
+  Formally: ∀ reinit-version n: n > maxConsumedVersion
+
+  Phase-2 encoding (Halmos): the check contract initializes the target,
+  then calls migrate(). For vulnerable: migrate() resets `initialized`;
+  an Attacker re-initializes and seizes ownership. For clean: migrate()
+  preserves the monotonic flag.
+
+encoding: {halmos: halmos.sol.tmpl, smtchecker: smtchecker.sol.tmpl}
+fixtures: {vulnerable: fixtures/vulnerable.sol, clean: fixtures/clean.sol}
+
+provenance:
+  tier: original
+  source: vergil-original
+  license: Apache-2.0
+  references:
+    - "OWASP SC10:2026"
+  real_world:
+    - name: "Nexera/AllianceBlock"
+      year: 2024
+      loss_usd_approx: 440000
+      chain: bsc
+
+mitigation: |
+  Use OpenZeppelin's `reinitializer(n)` with strictly increasing `n`;
+  never set `_initialized` back to a lower value.
+
+engineering_notes: |
+  Same Attacker pattern as Phase 1's 2.1, with an additional migrate()
+  call in the check sequence to expose the reset.

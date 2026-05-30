@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptUpgrade({{contract_name}} t, address newImpl) external returns (bool) {
+        try t.upgradeTo(newImpl) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    function check_unauthorized_caller_cannot_upgrade(address newImpl) public {
+        address before = target.implementation();
+        bool succeeded = attacker.attemptUpgrade(target, newImpl);
+        if (succeeded) {
+            assert(target.implementation() == before);
+        }
+    }
+}

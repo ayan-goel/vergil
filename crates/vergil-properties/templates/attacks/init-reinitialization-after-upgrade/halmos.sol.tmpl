@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptInitialize({{contract_name}} t) external returns (bool) {
+        try t.initialize() {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        target.initialize();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Property: after migrate(), the initializer remains locked.
+    function check_migrate_does_not_unlock_initializer() public {
+        target.migrate();
+        bool succeeded = attacker.attemptInitialize(target);
+        if (succeeded) {
+            assert(target.owner() == address(this));
+        }
+    }
+}

@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
+
+import { {{contract_name}} } from "{{contract_path}}";
+
+contract Attacker_{{attack_id_ident}} {
+    function attemptInitialize({{contract_name}} t) external returns (bool) {
+        try t.initialize() {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+contract Check_{{attack_id_ident}} {
+    {{contract_name}} public target;
+    Attacker_{{attack_id_ident}} public attacker;
+
+    constructor() {
+        target = new {{contract_name}}();
+        attacker = new Attacker_{{attack_id_ident}}();
+    }
+
+    /// Property: a freshly-deployed implementation contract cannot be
+    /// initialized directly by an outside caller. The vulnerable fixture
+    /// has no constructor disable, so the attacker's call succeeds and
+    /// owns the implementation. The clean fixture sets `initialized` in
+    /// the constructor, so any subsequent initialize call reverts.
+    function check_implementation_cannot_be_initialized() public {
+        bool succeeded = attacker.attemptInitialize(target);
+        if (succeeded) {
+            assert(target.owner() != address(attacker));
+        }
+    }
+}
