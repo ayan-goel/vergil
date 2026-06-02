@@ -483,7 +483,14 @@ async fn run_stage1(
     }
     let synthesizer = providers.synthesizer.clone().unwrap();
     let extractor = providers.extractor.clone().unwrap_or_else(|| synthesizer.clone());
-    let synth_cfg = SynthesisConfig::for_tests();
+    // Phase 6 cost-controlled synthesis: samples=1 (V1 default is 16 for
+    // CEGIS but Phase 6 fans out across many candidates instead, so the
+    // budget per-candidate is tight). Catalog_intent additionally
+    // overrides samples_per_intent for its branch.
+    let synth_cfg = SynthesisConfig {
+        samples: 1,
+        ..SynthesisConfig::default_for_anthropic()
+    };
 
     let contract_source = read_contract_source(&fp.contract_sources);
     let scaffold = crate::commands::verify::resolve_scaffold(
