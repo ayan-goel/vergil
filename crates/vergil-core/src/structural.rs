@@ -188,6 +188,10 @@ pub fn extract_from_structural(
     all.extend(ap_high);
     low.extend(ap_low);
 
+    let (cs_high, cs_low) = mine_conservation(sources, layouts);
+    all.extend(cs_high);
+    low.extend(cs_low);
+
     split_by_confidence(all, low, cfg)
 }
 
@@ -1294,6 +1298,228 @@ fn make_access_policy_candidate(
     }
 }
 
+// ─── Miner 4: Conservation ───────────────────────────────────────────
+
+/// Mine conservation candidates. For each external/public function: scan
+/// the body for paired mapping operations on the same mapping —
+/// `<m>[<idx1>] -= <expr>` followed by `<m>[<idx2>] += <expr>` (or the
+/// reverse). When the operand expressions match textually, emit one
+/// candidate per (mapping, function) pair at 0.65 with intent_text
+/// "<m>[<idx1>] + <m>[<idx2>] preserved across <fn>".
+///
+/// The 0.65 confidence reflects the conservation heuristic's
+/// fragility: textual operand-matching catches the canonical ERC-20
+/// transfer shape but misses three-way splits, partial conservations,
+/// and operations broken across helper functions.
+pub fn mine_conservation(
+    sources: &[(PathBuf, String)],
+    _layouts: &[StorageLayout],
+) -> (Vec<StructuralCandidate>, Vec<LowConfidenceFinding>) {
+    let mut high: Vec<StructuralCandidate> = Vec::new();
+    let low: Vec<LowConfidenceFinding> = Vec::new();
+
+    for (path, source) in sources {
+        for sig in extract_signatures(source) {
+            if !is_externally_callable(&sig) {
+                continue;
+            }
+            let Some(body) = body_for(&sig.name, source) else { continue };
+            for pair in find_conservation_pairs(body) {
+                high.push(make_conservation_candidate(&sig.name, &sig.args, &pair, path));
+            }
+        }
+    }
+
+    (high, low)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ConservationPair {
+    mapping: String,
+    debit_index: String,
+    credit_index: String,
+    /// Operand expression (the amount moved). Same on both sides.
+    operand: String,
+}
+
+/// Find pairs of paired mapping ops in a single body. Each pair is
+/// `<m>[idx1] -= e; <m>[idx2] += e;` (or the swap). Skips matches where
+/// the operand differs textually.
+fn find_conservation_pairs(body: &str) -> Vec<ConservationPair> {
+    let stripped = strip_comments(body);
+    let ops = scan_mapping_ops(&stripped);
+    let mut out = Vec::new();
+    let mut used: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    for (i, a) in ops.iter().enumerate() {
+        if used.contains(&i) {
+            continue;
+        }
+        if a.op != "-=" {
+            continue;
+        }
+        for (j, b) in ops.iter().enumerate().skip(i + 1) {
+            if used.contains(&j) {
+                continue;
+            }
+            if b.op != "+=" || b.mapping != a.mapping || b.operand.trim() != a.operand.trim() {
+                continue;
+            }
+            out.push(ConservationPair {
+                mapping: a.mapping.clone(),
+                debit_index: a.index.clone(),
+                credit_index: b.index.clone(),
+                operand: a.operand.clone(),
+            });
+            used.insert(i);
+            used.insert(j);
+            break;
+        }
+    }
+    out
+}
+
+#[derive(Debug, Clone)]
+struct MappingOp {
+    mapping: String,
+    index: String,
+    op: String,
+    operand: String,
+}
+
+/// Scan a function body for `<ident>[<idx>] <op> <operand>;` statements
+/// where `<op>` is `+=` or `-=`.
+fn scan_mapping_ops(body: &str) -> Vec<MappingOp> {
+    let mut out = Vec::new();
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        // Find next identifier followed by `[`.
+        while i < bytes.len() && !is_ident_byte(bytes[i]) {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        let id_start = i;
+        while i < bytes.len() && is_ident_byte(bytes[i]) {
+            i += 1;
+        }
+        let id_end = i;
+        // Optional whitespace then `[`.
+        let mut j = i;
+        while j < bytes.len() && (bytes[j] as char).is_whitespace() {
+            j += 1;
+        }
+        if j >= bytes.len() || bytes[j] != b'[' {
+            continue;
+        }
+        let bracket_open = j;
+        let Some(bracket_close) = match_bracket(body, bracket_open) else {
+            i = bracket_open + 1;
+            continue;
+        };
+        let index_str = &body[bracket_open + 1..bracket_close];
+        // Optional whitespace then `+=` or `-=`.
+        let mut k = bracket_close + 1;
+        while k < bytes.len() && (bytes[k] as char).is_whitespace() {
+            k += 1;
+        }
+        if k + 1 >= bytes.len() {
+            i = bracket_close + 1;
+            continue;
+        }
+        let op = if &bytes[k..k + 2] == b"+=" {
+            "+="
+        } else if &bytes[k..k + 2] == b"-=" {
+            "-="
+        } else {
+            i = bracket_close + 1;
+            continue;
+        };
+        let mut m = k + 2;
+        while m < bytes.len() && (bytes[m] as char).is_whitespace() {
+            m += 1;
+        }
+        // Operand runs to the next `;`.
+        let Some(semi_rel) = body[m..].find(';') else {
+            i = m;
+            continue;
+        };
+        let operand = body[m..m + semi_rel].trim().to_string();
+        out.push(MappingOp {
+            mapping: body[id_start..id_end].to_string(),
+            index: index_str.trim().to_string(),
+            op: op.to_string(),
+            operand,
+        });
+        i = m + semi_rel + 1;
+    }
+    out
+}
+
+fn match_bracket(s: &str, open_idx: usize) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut depth = 0usize;
+    for (i, b) in bytes.iter().enumerate().skip(open_idx) {
+        match *b {
+            b'[' => depth += 1,
+            b']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn make_conservation_candidate(
+    fn_name: &str,
+    fn_args: &str,
+    pair: &ConservationPair,
+    _path: &std::path::Path,
+) -> StructuralCandidate {
+    let call_args = forward_arg_names(fn_args);
+    // Local conservation: the two touched entries sum to their
+    // pre-value. Indices reference variables in scope (writer's args +
+    // msg.sender) — they evaluate the same way in the check body.
+    let halmos = format!(
+        "function check_conservation_{mapping}_via_{fn_name}{sig} public {{\n    \
+         uint256 pre = token.{mapping}({debit_idx}) + token.{mapping}({credit_idx});\n    \
+         try token.{fn_name}({call_args}) {{}} catch {{ return; }}\n    \
+         uint256 post = token.{mapping}({debit_idx}) + token.{mapping}({credit_idx});\n    \
+         assert(post == pre);\n}}\n",
+        mapping = pair.mapping,
+        fn_name = fn_name,
+        sig = fn_args,
+        debit_idx = pair.debit_index,
+        credit_idx = pair.credit_index,
+        call_args = call_args,
+    );
+    StructuralCandidate {
+        spec: SpecCandidate {
+            name: format!("check_conservation_{}_via_{}", pair.mapping, fn_name),
+            halmos,
+            smtchecker: String::new(),
+            template_ref: None,
+            intent_satisfied: false,
+            source: Source::Structural,
+            intent_text: Some(format!(
+                "{m}[{d}] + {m}[{c}] preserved across {fn} (operand: {op})",
+                m = pair.mapping,
+                d = pair.debit_index,
+                c = pair.credit_index,
+                fn = fn_name,
+                op = pair.operand,
+            )),
+        },
+        confidence: 0.65,
+        miner: StructuralMiner::Conservation,
+    }
+}
+
 // ─── shared helpers ──────────────────────────────────────────────────
 
 fn strip_comments(source: &str) -> String {
@@ -1839,6 +2065,68 @@ mod tests {
 
         let h = modifiers_of("h", src);
         assert!(h.contains(&"noModifier".to_string()), "{h:?}");
+    }
+
+    // ─── Conservation miner (S4) ─────────────────────────────────────
+
+    #[test]
+    fn conservation_transfer_emits_pair_per_function() {
+        let (path, src) = fixture("conservation_transfer.sol");
+        let (high, _low) = mine_conservation(&[(path, src)], &[]);
+        let xfer_cands: Vec<&StructuralCandidate> = high
+            .iter()
+            .filter(|c| c.spec.name.contains("via_transfer"))
+            .collect();
+        assert_eq!(
+            xfer_cands.len(),
+            1,
+            "expected one conservation candidate for transfer: {:#?}",
+            high
+        );
+        let c = xfer_cands[0];
+        assert_eq!(c.miner, StructuralMiner::Conservation);
+        assert!((c.confidence - 0.65).abs() < 1e-3);
+        assert!(
+            c.spec.halmos.contains("token.balanceOf(msg.sender)"),
+            "halmos missing debit index: {}",
+            c.spec.halmos
+        );
+        assert!(
+            c.spec.halmos.contains("token.balanceOf(to)"),
+            "halmos missing credit index: {}",
+            c.spec.halmos
+        );
+        assert!(c.spec.halmos.contains("assert(post == pre)"));
+    }
+
+    #[test]
+    fn conservation_mint_no_candidate() {
+        let (path, src) = fixture("conservation_mint.sol");
+        let (high, _) = mine_conservation(&[(path, src)], &[]);
+        assert!(
+            high.iter().all(|c| !c.spec.name.contains("via_mint")),
+            "mint must not yield conservation: {:#?}",
+            high
+        );
+    }
+
+    #[test]
+    fn scan_mapping_ops_finds_paired_assignments() {
+        let body = "balanceOf[a] -= n; balanceOf[b] += n;";
+        let ops = scan_mapping_ops(body);
+        assert_eq!(ops.len(), 2);
+        assert_eq!(ops[0].mapping, "balanceOf");
+        assert_eq!(ops[0].index, "a");
+        assert_eq!(ops[0].op, "-=");
+        assert_eq!(ops[1].index, "b");
+        assert_eq!(ops[1].op, "+=");
+    }
+
+    #[test]
+    fn find_conservation_pairs_rejects_mismatched_operands() {
+        let body = "balanceOf[a] -= amount; balanceOf[b] += other;";
+        let pairs = find_conservation_pairs(body);
+        assert!(pairs.is_empty(), "mismatched operands should not pair");
     }
 
     fn mock_layout(
