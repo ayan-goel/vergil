@@ -1,3 +1,4 @@
+pub mod layout;
 pub mod markdown;
 pub mod text;
 

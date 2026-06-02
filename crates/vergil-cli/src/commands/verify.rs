@@ -288,9 +288,9 @@ fn emit_phase1_proof(project: &Path, intent: &str, report: &VerifyReport) -> Res
         },
     };
 
-    let out_dir = project.join("vergil-out");
-    std::fs::create_dir_all(&out_dir).map_err(|e| format!("mkdir vergil-out: {e}"))?;
-    let out = out_dir.join("proof.json");
+    crate::output::layout::ensure_tree(project)
+        .map_err(|e| format!("ensure vergil-out tree: {e}"))?;
+    let out = crate::output::layout::top_level_proof_json(project);
     let body =
         serde_json::to_string_pretty(&proof).map_err(|e| format!("serialize proof.json: {e}"))?;
     std::fs::write(&out, body).map_err(|e| format!("write {}: {e}", out.display()))?;
@@ -322,7 +322,7 @@ fn emit_counterexample_files(
     report: &VerifyReport,
 ) -> Result<(), u8> {
     let mut any = false;
-    let out_dir = project.join("vergil-out").join("counterexamples");
+    let out_dir = crate::output::layout::counterexamples_dir(project);
     for outcome in &report.properties {
         let Verdict::Counterexample { .. } = &outcome.result.verdict else {
             continue;

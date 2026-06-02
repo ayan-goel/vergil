@@ -357,11 +357,12 @@ pub struct IntentRun {
 /// * [`IntentError::Serialize`] — proof.json / candidates.json serialization
 ///   failed (effectively unreachable for our own types).
 pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentError> {
-    let out_dir = spec.project.join("vergil-out");
-    std::fs::create_dir_all(&out_dir)?;
+    // V1.5 Phase 6 Slice 4: the intent path uses the shared layout
+    // helper so the tier-aware tree is consistent with everything
+    // Slice 8 layers on top.
+    crate::output::layout::ensure_tree(&spec.project)?;
+    let out_dir = crate::output::layout::vergil_out(&spec.project);
     std::fs::create_dir_all(out_dir.join("spec"))?;
-    std::fs::create_dir_all(out_dir.join("smt"))?;
-    std::fs::create_dir_all(out_dir.join("counterexamples"))?;
 
     let tracer = TraceRecorder::open(&out_dir, default_env_secrets())
         .await
@@ -476,7 +477,7 @@ pub async fn run_intent(spec: IntentRun) -> Result<(CegisRun, PathBuf), IntentEr
 
     // Serialize CegisRun → ProofArtifact.
     let proof = build_proof_artifact(&spec.project, &spec.intent, &run, wall_clock_ms)?;
-    let proof_path = out_dir.join("proof.json");
+    let proof_path = crate::output::layout::top_level_proof_json(&spec.project);
     let json =
         serde_json::to_string_pretty(&proof).map_err(|e| IntentError::Serialize(format!("{e}")))?;
     std::fs::write(&proof_path, json)?;
