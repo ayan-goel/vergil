@@ -1,5 +1,6 @@
 pub mod catalog_intent;
 pub mod cegis;
+pub mod confirm;
 pub mod critique;
 pub mod diagnosis;
 pub mod fingerprint;
