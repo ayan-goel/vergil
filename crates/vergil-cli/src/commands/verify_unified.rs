@@ -587,18 +587,19 @@ async fn run_stage1(
 
     // Structural oracle — deterministic, no LLM, no provider Arcs.
     // Wrapped in an async block so it joins symmetrically with the
-    // three LLM oracles. Slice 0 ships an empty stub; Slices 1-5 add
-    // real miners and source-loading.
+    // three LLM oracles. Loads each contract source + runs solc
+    // storage-layout in parallel; any per-file failure is logged and the
+    // miner runs against whatever succeeded.
     let structural_cfg = StructuralConfig::default();
+    let structural_sources = load_structural_sources(&fp.contract_sources);
+    let structural_source_paths: Vec<PathBuf> = structural_sources
+        .iter()
+        .map(|(p, _)| p.clone())
+        .collect();
     let struct_fut = async move {
-        // Slice 0: pass empty inputs; the stub returns an empty report.
-        // The next slice extends this to load (path, source_text) pairs
-        // from `fp.contract_sources` and the per-contract solc
-        // StorageLayout via `vergil_solidity::storage::StorageRun`.
-        let sources: Vec<(std::path::PathBuf, String)> = Vec::new();
-        let layouts: Vec<vergil_solidity::storage::StorageLayout> = Vec::new();
+        let layouts = load_storage_layouts(&structural_source_paths).await;
         Ok::<_, vergil_core::synthesis::SynthesisError>(extract_from_structural(
-            &sources,
+            &structural_sources,
             &layouts,
             &structural_cfg,
         ))
@@ -876,6 +877,40 @@ fn read_contract_source(sources: &[PathBuf]) -> String {
         if let Ok(s) = std::fs::read_to_string(p) {
             out.push_str(&s);
             out.push('\n');
+        }
+    }
+    out
+}
+
+/// Load each contract source as a `(path, text)` pair. Reads that fail
+/// (missing file, permission denied) are dropped with a warning — the
+/// structural miner runs against whatever loaded. V1.5 Phase 5 Slice 1.
+fn load_structural_sources(paths: &[PathBuf]) -> Vec<(PathBuf, String)> {
+    let mut out = Vec::with_capacity(paths.len());
+    for p in paths {
+        match std::fs::read_to_string(p) {
+            Ok(s) => out.push((p.clone(), s)),
+            Err(e) => tracing::warn!("structural: skip {} ({e})", p.display()),
+        }
+    }
+    out
+}
+
+/// Run solc `--combined-json storage-layout` against each source file
+/// and collect every resulting layout. Per-file failures (missing solc,
+/// pragma mismatch, parser error) are logged and skipped — the miner
+/// runs against whatever succeeded. V1.5 Phase 5 Slice 1.
+async fn load_storage_layouts(
+    paths: &[PathBuf],
+) -> Vec<vergil_solidity::storage::StorageLayout> {
+    use vergil_solidity::storage::{run_simple, StorageResult};
+    let mut out = Vec::new();
+    for p in paths {
+        match run_simple(p, std::time::Duration::from_secs(30)).await {
+            StorageResult::Ok(mut layouts) => out.append(&mut layouts),
+            StorageResult::Error(e) => {
+                tracing::warn!("structural: solc storage-layout failed for {}: {e}", p.display());
+            }
         }
     }
     out
