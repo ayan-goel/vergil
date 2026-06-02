@@ -281,6 +281,7 @@ fn fixture_erc20_broken() -> StratifiedInputs {
             name: "EIP-7702 EOA delegate may execute arbitrary code".into(),
         }],
         phase5_structural_pending: true,
+        low_confidence_structural: vec![],
     }
 }
 
@@ -324,6 +325,7 @@ fn fixture_erc20_clean() -> StratifiedInputs {
         per_template_failures: vec![],
         document_only_templates: vec![],
         phase5_structural_pending: true,
+        low_confidence_structural: vec![],
     }
 }
 

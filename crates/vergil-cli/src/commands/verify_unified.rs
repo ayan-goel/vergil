@@ -74,8 +74,8 @@ use crate::output::cex_sink::{CexSink, CounterexampleRecord};
 use crate::output::layout;
 use crate::output::verdict::{
     format_verdict, AvailableOraclesSummary, DocumentOnlyTemplate, FingerprintSummary, Headline,
-    PerTemplateFailureSummary, PropertyOutcome, PropertyVerdict, SkippedTemplateSummary,
-    StratifiedInputs,
+    LowConfidenceStructuralSummary, PerTemplateFailureSummary, PropertyOutcome, PropertyVerdict,
+    SkippedTemplateSummary, StratifiedInputs,
 };
 
 /// Knobs the binary's clap layer projects into the runner. Owned to
@@ -381,7 +381,8 @@ pub async fn run(args: UnifiedVerifyArgs) -> Result<RunReport, UnifiedVerifyErro
             })
             .unwrap_or_default(),
         document_only_templates,
-        phase5_structural_pending: true,
+        phase5_structural_pending: structural_is_pending(&stage1),
+        low_confidence_structural: low_confidence_structural_summaries(&stage1),
     };
     let verdict_out = format_verdict(strat);
 
@@ -880,6 +881,37 @@ fn read_contract_source(sources: &[PathBuf]) -> String {
         }
     }
     out
+}
+
+/// V1.5 Phase 5 Slice 6 — flip the "structural pending" placeholder
+/// when the oracle produced ≥1 candidate. The placeholder still fires
+/// when the structural pass ran but emitted nothing (interface-only
+/// contract, all-uninitialized state, etc.) so the user knows the
+/// oracle didn't find anything in the source — not that it's missing
+/// from the build.
+fn structural_is_pending(stage1: &Stage1Outputs) -> bool {
+    match &stage1.structural {
+        Some(r) => r.candidates.is_empty(),
+        None => true,
+    }
+}
+
+/// V1.5 Phase 5 Slice 6 — project Phase-5 `LowConfidenceFinding`s into
+/// the verdict layer's `LowConfidenceStructuralSummary` shape. Empty
+/// when the oracle didn't run or had no below-threshold findings.
+fn low_confidence_structural_summaries(stage1: &Stage1Outputs) -> Vec<LowConfidenceStructuralSummary> {
+    let Some(r) = stage1.structural.as_ref() else {
+        return Vec::new();
+    };
+    r.low_confidence_findings
+        .iter()
+        .map(|f| LowConfidenceStructuralSummary {
+            miner: f.miner.id().to_string(),
+            description: f.description.clone(),
+            confidence: f.confidence.clone(),
+            fn_or_var: f.fn_or_var.clone(),
+        })
+        .collect()
 }
 
 /// Load each contract source as a `(path, text)` pair. Reads that fail

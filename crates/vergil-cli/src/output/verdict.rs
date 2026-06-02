@@ -130,6 +130,20 @@ pub struct DocumentOnlyTemplate {
     pub name: String,
 }
 
+/// V1.5 Phase 5 — a structural miner finding with confidence below the
+/// `cfg.min_confidence` threshold. NOT submitted to the solver; the
+/// verdict surfaces it under "Suggested additional invariants" so the
+/// user knows the miner had a hunch worth manual review.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LowConfidenceStructuralSummary {
+    /// Miner that produced this finding (e.g. `"invariant-constants"`).
+    pub miner: String,
+    pub description: String,
+    /// Stringified `"0.55"` etc. — kept as String for snapshot stability.
+    pub confidence: String,
+    pub fn_or_var: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StratifiedInputs {
     /// Absolute project path. Reproduce section emits a
@@ -140,11 +154,21 @@ pub struct StratifiedInputs {
     pub skipped_templates: Vec<SkippedTemplateSummary>,
     pub per_template_failures: Vec<PerTemplateFailureSummary>,
     pub document_only_templates: Vec<DocumentOnlyTemplate>,
-    /// Phase 5 (structural mining) NOOP marker. Always `true` for
-    /// V1.5 Phase 6 — the "Not checked" section names structural
-    /// mining as a deferred oracle. Phase 5 lands later and flips
-    /// this to `false`.
+    /// Phase 5 (structural mining) NOOP marker. Set to `true` when the
+    /// structural oracle either didn't run or produced zero candidates;
+    /// in that case the "Not checked" section names structural mining
+    /// as a deferred oracle. Set to `false` once Phase 5 emits ≥1
+    /// candidate — the "Not checked" placeholder is then suppressed
+    /// because the user can see the structural-source candidates
+    /// directly in §1 Proven / §2 Refuted.
     pub phase5_structural_pending: bool,
+    /// V1.5 Phase 5 — below-threshold structural findings, surfaced in
+    /// the report's "Suggested additional invariants" section. Empty
+    /// when the miner produced no low-confidence findings (the
+    /// pre-Phase-5 default, preserved via `#[serde(default)]` so prior
+    /// proof artifacts deserialize cleanly).
+    #[serde(default)]
+    pub low_confidence_structural: Vec<LowConfidenceStructuralSummary>,
 }
 
 /// Phase 6 three-state headline. SPEC §3.6.
@@ -229,6 +253,33 @@ impl VerdictOutput {
             }
         }
 
+        // V1.5 Phase 5 — Suggested additional invariants (below-
+        // threshold structural findings). Skipped when empty so the
+        // pre-Phase-5 report layout is preserved.
+        if !v.low_confidence_structural.is_empty() {
+            out.push_str(&format!(
+                "## Suggested additional invariants ({})\n\n",
+                v.low_confidence_structural.len()
+            ));
+            out.push_str(
+                "_Mined by structural analysis at low confidence; \
+                 NOT auto-verified. Review and promote to a manual \
+                 intent if you want them in the next run._\n\n",
+            );
+            for f in &v.low_confidence_structural {
+                let target = f
+                    .fn_or_var
+                    .as_deref()
+                    .map(|t| format!(" `{t}`"))
+                    .unwrap_or_default();
+                out.push_str(&format!(
+                    "- **{}** (confidence {}){target}: {}\n",
+                    f.miner, f.confidence, f.description,
+                ));
+            }
+            out.push('\n');
+        }
+
         // §3 Not checked — ALWAYS present
         out.push_str("## Not checked\n\n");
         render_not_checked(&mut out, v, &self.headline);
@@ -264,6 +315,7 @@ impl VerdictOutput {
             "per_template_failures": self.inputs.per_template_failures,
             "document_only_templates": self.inputs.document_only_templates,
             "phase5_structural_pending": self.inputs.phase5_structural_pending,
+            "low_confidence_structural": self.inputs.low_confidence_structural,
             "reproduce": format!(
                 "vergil prove {}/vergil-out/proof.json",
                 self.inputs.project_path
@@ -555,6 +607,7 @@ mod tests {
             per_template_failures: Vec::new(),
             document_only_templates: Vec::new(),
             phase5_structural_pending: true,
+            low_confidence_structural: Vec::new(),
         }
     }
 
@@ -673,6 +726,65 @@ mod tests {
             report.contains("Structural mining (Phase 5)"),
             "Phase 5 pending marker missing: {report}"
         );
+    }
+
+    #[test]
+    fn low_confidence_structural_section_renders_when_present() {
+        // V1.5 Phase 5 Slice 6 — when the structural miner emits
+        // below-threshold findings, the verdict adds a "Suggested
+        // additional invariants" section between Refuted and Not-checked.
+        let mut inputs = empty_inputs("/p");
+        inputs.phase5_structural_pending = false;
+        inputs.low_confidence_structural = vec![
+            LowConfidenceStructuralSummary {
+                miner: "invariant-constants".into(),
+                description: "totalSupply written only in constructor; \
+                    value depends on constructor arg — verify invariance manually"
+                    .into(),
+                confidence: "0.55".into(),
+                fn_or_var: Some("totalSupply".into()),
+            },
+        ];
+        let report = format_verdict(inputs).report_md();
+        assert!(
+            report.contains("## Suggested additional invariants (1)"),
+            "missing low-confidence header: {report}"
+        );
+        assert!(report.contains("NOT auto-verified"));
+        assert!(report.contains("invariant-constants"));
+        assert!(report.contains("confidence 0.55"));
+        assert!(report.contains("`totalSupply`"));
+        assert!(report.contains("verify invariance manually"));
+    }
+
+    #[test]
+    fn low_confidence_structural_section_absent_when_empty() {
+        // Empty findings → section is skipped (preserves pre-Phase-5
+        // report layout for older runs / mock-LLM tests).
+        let inputs = empty_inputs("/p");
+        let report = format_verdict(inputs).report_md();
+        assert!(
+            !report.contains("Suggested additional invariants"),
+            "section should not appear when empty: {report}"
+        );
+    }
+
+    #[test]
+    fn phase5_placeholder_suppressed_when_oracle_emitted_candidates() {
+        // V1.5 Phase 5 Slice 6 — once phase5_structural_pending=false
+        // the "Structural mining (Phase 5) — not yet implemented"
+        // marker MUST NOT appear in Not-checked. The structural
+        // candidates themselves appear in §1 Proven / §2 Refuted.
+        let mut inputs = empty_inputs("/p");
+        inputs.phase5_structural_pending = false;
+        inputs.properties = vec![verified("check_invariant_DECIMALS", Source::Structural, Tier::ZeroConfig)];
+        let report = format_verdict(inputs).report_md();
+        assert!(
+            !report.contains("Structural mining (Phase 5)"),
+            "placeholder must disappear once oracle emits: {report}"
+        );
+        // Verify the property does appear under Proven.
+        assert!(report.contains("source: structural"), "missing structural property: {report}");
     }
 
     #[test]
