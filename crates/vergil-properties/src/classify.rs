@@ -189,6 +189,8 @@ pub fn classify(
     let mut matches = Vec::new();
     matches.extend(classify_tokens(source, layouts));
     matches.extend(classify_vault(source, layouts));
+    matches.extend(classify_amm(source, layouts));
+    matches.extend(classify_lending(source, layouts));
     PrimitiveClassification { matches }
 }
 
@@ -341,6 +343,121 @@ pub fn classify_vault(source: &str, _layouts: &[StorageLayout]) -> Vec<Primitive
     let confidence = if signals.len() >= 2 { 0.95 } else { 0.70 };
     vec![PrimitiveMatch {
         primitive: Primitive::Vault,
+        confidence,
+        signals,
+    }]
+}
+
+// ─── Classifier 3: AMM ───────────────────────────────────────────────
+
+/// AMM (automated market maker) classifier. Three signals:
+///
+/// 1. **Swap surface**: any `function swap*` (covers `swap`,
+///    `swapXForY`, `swapExactTokensForTokens`, etc.).
+/// 2. **Reserves storage**: state vars matching `reserve[01XY]?` /
+///    `reserves[01]?` — the constant-product AMM canonical shape.
+/// 3. **Contract name**: `contract AMM` or `contract <name>Pair`.
+///
+/// 2+ signals → 0.90. 1 signal → 0.65 (swap alone is too common to
+/// activate on).
+pub fn classify_amm(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+    if has_function_starting_with(source, "swap") {
+        signals.push("swap* function present".into());
+    }
+    if has_reserves_storage(source) {
+        signals.push("reserves storage (reserve0/1 or reserveX/Y)".into());
+    }
+    if source.contains("contract AMM") || contains_pair_contract(source) {
+        signals.push("AMM / Pair contract name".into());
+    }
+    if signals.is_empty() {
+        return Vec::new();
+    }
+    let confidence = if signals.len() >= 2 { 0.90 } else { 0.65 };
+    vec![PrimitiveMatch {
+        primitive: Primitive::Amm,
+        confidence,
+        signals,
+    }]
+}
+
+fn has_function_starting_with(source: &str, prefix: &str) -> bool {
+    let needle = format!("function {prefix}");
+    source.contains(&needle)
+}
+
+fn has_reserves_storage(source: &str) -> bool {
+    // Look for state-var declarations with the canonical names.
+    for name in [
+        "reserve0", "reserve1", "reserveX", "reserveY", "reserves0", "reserves1",
+    ] {
+        // Quick check: any uint declaration referencing the name.
+        if source.contains(name) {
+            // Ensure it's a state-var-ish context (uint or public).
+            let near_uint = source.contains(&format!("uint256 public {name}"))
+                || source.contains(&format!("uint256 {name}"))
+                || source.contains(&format!("uint128 public {name}"))
+                || source.contains(&format!("uint128 {name}"))
+                || source.contains(&format!("public {name}"));
+            if near_uint {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn contains_pair_contract(source: &str) -> bool {
+    // `contract FooPair {` — common Uniswap-V2 derived-pair pattern.
+    let mut i = 0;
+    while let Some(rel) = source[i..].find("contract ") {
+        let start = i + rel + "contract ".len();
+        let rest = &source[start..];
+        let end = rest.find(|c: char| c == ' ' || c == '{').unwrap_or(rest.len());
+        let name = &rest[..end];
+        if name.ends_with("Pair") && name.len() > "Pair".len() {
+            return true;
+        }
+        i = start;
+    }
+    false
+}
+
+// ─── Classifier 4: Lending market ────────────────────────────────────
+
+/// Lending-market classifier. Three canonical signals:
+///
+/// - `function borrow` present
+/// - `function repay` present
+/// - `function liquidate` present
+///
+/// All three → 0.90. Two of three → 0.65.
+pub fn classify_lending(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+    if has_function_starting_with(source, "borrow") {
+        signals.push("borrow() surface".into());
+    }
+    if has_function_starting_with(source, "repay") {
+        signals.push("repay() surface".into());
+    }
+    if has_function_starting_with(source, "liquidate") {
+        signals.push("liquidate() surface".into());
+    }
+    if signals.is_empty() {
+        return Vec::new();
+    }
+    let confidence = if signals.len() >= 3 {
+        0.90
+    } else if signals.len() == 2 {
+        0.65
+    } else {
+        // A lone `borrow()` is too noisy — many non-lending contracts
+        // borrow flash loans. Don't emit at all.
+        return Vec::new();
+    };
+    vec![PrimitiveMatch {
+        primitive: Primitive::LendingMarket,
         confidence,
         signals,
     }]
@@ -630,6 +747,69 @@ mod tests {
         // `MyERC4626` is a contract name, not a parent.
         let src = "contract MyERC4626 { }";
         assert!(!has_inheritance_of(src, "ERC4626"));
+    }
+
+    // ─── AMM + lending classifiers (S3) ──────────────────────────────
+
+    #[test]
+    fn classify_amm_high_confidence_on_examples_amm() {
+        let src = example_source("amm-constant-product/src/AMM.sol");
+        let matches = classify_amm(&src, &[]);
+        let amm = matches.iter().find(|m| m.primitive == Primitive::Amm).expect("amm");
+        assert!((amm.confidence - 0.90).abs() < 1e-3, "expected 0.90, got {}", amm.confidence);
+        assert!(amm.signals.len() >= 2, "expected 2+ signals: {:#?}", amm.signals);
+    }
+
+    #[test]
+    fn classify_amm_low_confidence_on_single_signal() {
+        // A contract with `function swap()` only — no reserves, no Pair
+        // name — should land at 0.65 (below threshold; surfaced only).
+        let src = "contract X { function swap(uint256 x) external returns (uint256) { return x; } }";
+        let matches = classify_amm(src, &[]);
+        assert_eq!(matches.len(), 1);
+        assert!((matches[0].confidence - 0.65).abs() < 1e-3);
+    }
+
+    #[test]
+    fn classify_amm_no_match_on_erc20() {
+        let src = example_source("erc20/src/Token.sol");
+        let matches = classify_amm(&src, &[]);
+        assert!(matches.is_empty(), "ERC20 should not classify as AMM: {matches:#?}");
+    }
+
+    #[test]
+    fn classify_lending_high_confidence_on_examples_lending() {
+        let src = example_source("lending/src/Lending.sol");
+        let matches = classify_lending(&src, &[]);
+        let lend = matches
+            .iter()
+            .find(|m| m.primitive == Primitive::LendingMarket)
+            .expect("lending");
+        assert!((lend.confidence - 0.90).abs() < 1e-3, "got {}", lend.confidence);
+        assert_eq!(lend.signals.len(), 3);
+    }
+
+    #[test]
+    fn classify_lending_partial_match_at_065() {
+        let src = "contract L { function borrow(uint256 n) external {} function repay(uint256 n) external {} }";
+        let matches = classify_lending(src, &[]);
+        assert_eq!(matches.len(), 1);
+        assert!((matches[0].confidence - 0.65).abs() < 1e-3);
+    }
+
+    #[test]
+    fn classify_lending_single_signal_drops_to_zero() {
+        // Lone `borrow()` is too noisy (flash-loan callers); don't emit.
+        let src = "contract X { function borrow(uint256 n) external {} }";
+        let matches = classify_lending(src, &[]);
+        assert!(matches.is_empty(), "expected no lending match: {matches:#?}");
+    }
+
+    #[test]
+    fn classify_lending_no_match_on_erc20() {
+        let src = example_source("erc20/src/Token.sol");
+        let matches = classify_lending(&src, &[]);
+        assert!(matches.is_empty(), "ERC20 should not classify as lending: {matches:#?}");
     }
 
     #[test]
