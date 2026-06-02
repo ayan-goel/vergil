@@ -505,9 +505,7 @@ fn contains_pair_contract(source: &str) -> bool {
     while let Some(rel) = source[i..].find("contract ") {
         let start = i + rel + "contract ".len();
         let rest = &source[start..];
-        let end = rest
-            .find(|c: char| c == ' ' || c == '{')
-            .unwrap_or(rest.len());
+        let end = rest.find([' ', '{']).unwrap_or(rest.len());
         let name = &rest[..end];
         if name.ends_with("Pair") && name.len() > "Pair".len() {
             return true;
@@ -882,12 +880,7 @@ mod tests {
     #[test]
     fn primitive_from_id_round_trips() {
         for p in Primitive::all() {
-            assert_eq!(
-                Primitive::from_id(p.id()),
-                Some(p),
-                "round-trip for {:?}",
-                p
-            );
+            assert_eq!(Primitive::from_id(p.id()), Some(p), "round-trip for {p:?}");
         }
         assert_eq!(Primitive::from_id("not-a-primitive"), None);
         assert_eq!(Primitive::from_id(""), None);

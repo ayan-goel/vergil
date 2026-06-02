@@ -423,11 +423,7 @@ fn find_body_open(src: &str) -> Option<usize> {
     while i < bytes.len() {
         match bytes[i] {
             b'(' => paren_depth += 1,
-            b')' => {
-                if paren_depth > 0 {
-                    paren_depth -= 1;
-                }
-            }
+            b')' => paren_depth = paren_depth.saturating_sub(1),
             b'{' if paren_depth == 0 => return Some(i),
             b';' if paren_depth == 0 => return None,
             _ => {}

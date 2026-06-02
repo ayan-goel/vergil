@@ -395,7 +395,7 @@ fn scan_keyword_kind(stripped: &str, kw: &'static str) -> Vec<KeywordConstant> {
         // Backtrack from `kw_start` to the start of the declaration
         // line — first `{` / `}` / `;` / newline preceding it.
         let mut line_start = 0;
-        for (j, b) in stripped[..kw_start].as_bytes().iter().enumerate().rev() {
+        for (j, b) in stripped.as_bytes()[..kw_start].iter().enumerate().rev() {
             if matches!(*b, b'{' | b'}' | b';' | b'\n') {
                 line_start = j + 1;
                 break;
@@ -465,9 +465,7 @@ fn find_top_level_semicolon(s: &str) -> Option<usize> {
         match *b {
             b'(' => paren += 1,
             b')' => {
-                if paren > 0 {
-                    paren -= 1;
-                }
+                paren = paren.saturating_sub(1);
             }
             b';' if paren == 0 => return Some(i),
             _ => {}
@@ -555,9 +553,7 @@ fn declaration_literal(source: &str, var_name: &str) -> Option<String> {
     let mut i = 0;
     while i + needle.len() < bytes.len() {
         let rest = &stripped[i..];
-        let Some(rel) = rest.find(&needle) else {
-            return None;
-        };
+        let rel = rest.find(&needle)?;
         let after = i + rel + needle.len();
         // Make sure this isn't inside a function body — backtrack to the
         // nearest `{`/`}`/`;`/newline; if we hit `{` before `}`/`;` we're
@@ -990,8 +986,8 @@ fn skip_ws(bytes: &[u8], start: usize) -> usize {
     i
 }
 
-fn signature_for<'a>(
-    source: &'a str,
+fn signature_for(
+    source: &str,
     fn_name: &str,
 ) -> Option<vergil_solidity::signatures::FunctionSignature> {
     extract_signatures(source)
@@ -1109,7 +1105,7 @@ pub fn mine_access_policy(
                 }
                 // External writers of this var.
                 let writers = external_writers_of(source, &entry.label);
-                if writers.len() < 1 {
+                if writers.is_empty() {
                     continue;
                 }
                 // Intersection of modifier sets across all writers. An
@@ -1298,15 +1294,12 @@ fn make_access_policy_candidate(
     // alone — the user gets the structural claim, not a proof of
     // unauthorized callers being rejected.
     let halmos = format!(
-        "function check_access_{var}_via_{modifier}() public view {{\n    \
-         // Property: every external writer of {var} carries the {modifier} modifier.\n    \
+        "function check_access_{var_name}_via_{modifier}() public view {{\n    \
+         // Property: every external writer of {var_name} carries the {modifier} modifier.\n    \
          // Writers: {writers_list}.\n    \
          // Source-structural fact (Phase 5 invariant; modifier body\n    \
          // semantics not symbolically modeled here).\n    \
          assert(true);\n}}\n",
-        var = var_name,
-        modifier = modifier,
-        writers_list = writers_list,
     );
     StructuralCandidate {
         spec: SpecCandidate {
@@ -1716,17 +1709,12 @@ fn make_two_step_candidate(
 ) -> StructuralCandidate {
     let call_args = forward_arg_names(f2_args);
     let halmos = format!(
-        "function check_two_step_{f2}_requires_{f1}{sig} public {{\n    \
+        "function check_two_step_{f2}_requires_{f1}{f2_args} public {{\n    \
          // Property: {f2} must revert if {f1} (which writes the gate\n    \
          // variable `{gate}`) hasn't been called yet. Halmos\n    \
          // symbolically initializes `token` with the gate at its zero\n    \
          // value; the call should revert.\n    \
          try token.{f2}({call_args}) {{ assert(false); }} catch {{}}\n}}\n",
-        f1 = f1,
-        f2 = f2,
-        gate = gate,
-        sig = f2_args,
-        call_args = call_args,
     );
     StructuralCandidate {
         spec: SpecCandidate {
@@ -1805,9 +1793,7 @@ fn find_body_open_after_parens(src: &str) -> Option<usize> {
         match bytes[i] {
             b'(' => paren_depth += 1,
             b')' => {
-                if paren_depth > 0 {
-                    paren_depth -= 1;
-                }
+                paren_depth = paren_depth.saturating_sub(1);
             }
             b'{' if paren_depth == 0 => return Some(i),
             b';' if paren_depth == 0 => return None,
@@ -2119,7 +2105,7 @@ mod tests {
             &path,
         )];
         let (high, _low) = mine_monotonicity(&[(path, src)], &layouts);
-        assert_eq!(high.len(), 2, "expected one per writer: {:#?}", high);
+        assert_eq!(high.len(), 2, "expected one per writer: {high:#?}");
         for c in &high {
             assert_eq!(c.miner, StructuralMiner::Monotonicity);
             assert!((c.confidence - 0.85).abs() < 1e-3);
@@ -2235,8 +2221,7 @@ mod tests {
         assert_eq!(
             balance_cands.len(),
             1,
-            "expected one balance/onlyOwner candidate: {:#?}",
-            high
+            "expected one balance/onlyOwner candidate: {high:#?}"
         );
         let c = balance_cands[0];
         assert!((c.confidence - 0.80).abs() < 1e-3);
@@ -2260,8 +2245,7 @@ mod tests {
         // modifier). Intersection is empty → no candidate.
         assert!(
             !high.iter().any(|c| c.spec.name.contains("balance")),
-            "balance must NOT have an access-policy candidate: {:#?}",
-            high
+            "balance must NOT have an access-policy candidate: {high:#?}"
         );
     }
 
@@ -2301,8 +2285,7 @@ mod tests {
         assert_eq!(
             xfer_cands.len(),
             1,
-            "expected one conservation candidate for transfer: {:#?}",
-            high
+            "expected one conservation candidate for transfer: {high:#?}"
         );
         let c = xfer_cands[0];
         assert_eq!(c.miner, StructuralMiner::Conservation);
@@ -2326,8 +2309,7 @@ mod tests {
         let (high, _) = mine_conservation(&[(path, src)], &[]);
         assert!(
             high.iter().all(|c| !c.spec.name.contains("via_mint")),
-            "mint must not yield conservation: {:#?}",
-            high
+            "mint must not yield conservation: {high:#?}"
         );
     }
 
@@ -2364,11 +2346,7 @@ mod tests {
         let want = high
             .iter()
             .find(|c| c.spec.name == "check_two_step_reveal_requires_commit");
-        assert!(
-            want.is_some(),
-            "missing reveal-requires-commit: {:#?}",
-            high
-        );
+        assert!(want.is_some(), "missing reveal-requires-commit: {high:#?}");
         let c = want.unwrap();
         assert_eq!(c.miner, StructuralMiner::TwoStep);
         assert!((c.confidence - 0.65).abs() < 1e-3);
@@ -2395,7 +2373,7 @@ mod tests {
         let (high, _) = mine_two_step(&[(path, src)], &layouts);
         // setA writes `a`; useB requires `b`. The gate doesn't match
         // any writer of `b` (there is none). No candidate.
-        assert!(high.is_empty(), "expected no candidate: {:#?}", high);
+        assert!(high.is_empty(), "expected no candidate: {high:#?}");
     }
 
     #[test]
@@ -2420,7 +2398,7 @@ mod tests {
     fn mock_layout(
         contract: &str,
         vars: &[(&str, &str)],
-        path: &PathBuf,
+        path: &std::path::Path,
     ) -> vergil_solidity::storage::StorageLayout {
         use vergil_solidity::storage::{StorageEntry, StorageLayout, StorageType};
         let fname = path.file_name().unwrap().to_str().unwrap();
