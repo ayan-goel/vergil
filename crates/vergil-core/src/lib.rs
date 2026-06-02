@@ -1,6 +1,7 @@
 pub mod cegis;
 pub mod critique;
 pub mod diagnosis;
+pub mod fingerprint;
 pub mod natspec_intent;
 pub mod portfolio;
 pub mod refinement;
