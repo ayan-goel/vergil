@@ -1,5 +1,6 @@
 pub mod foundry;
 pub mod halmos;
+pub mod natspec;
 pub mod sandbox;
 pub mod signatures;
 pub mod test_parser;

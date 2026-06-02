@@ -559,72 +559,76 @@ fn match_brace(s: &str, open_idx: usize) -> Option<usize> {
     None
 }
 
-/// Replace `//` and `/* */` comments with spaces of the same length so
-/// downstream offsets remain meaningful. (We don't need the offsets here,
-/// but it keeps the scan symmetric with `strip_string_literals`.)
+/// Replace `//` and `/* */` comments with spaces. Byte offsets are
+/// preserved (each comment byte → one space byte); multi-byte UTF-8
+/// sequences in non-comment regions are copied verbatim. An earlier
+/// version pushed `bytes[i] as char` which re-encoded non-ASCII bytes
+/// as Latin-1 codepoints and corrupted offsets — see the matching
+/// note in `super::natspec::strip_comments`.
 fn strip_comments(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
     let bytes = source.as_bytes();
+    let mut out = vec![0u8; bytes.len()];
     let mut i = 0;
     while i < bytes.len() {
         if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'/' {
             while i < bytes.len() && bytes[i] != b'\n' {
-                out.push(' ');
+                out[i] = b' ';
                 i += 1;
             }
         } else if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
-            out.push(' ');
-            out.push(' ');
+            out[i] = b' ';
+            out[i + 1] = b' ';
             i += 2;
             while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-                out.push(if bytes[i] == b'\n' { '\n' } else { ' ' });
+                out[i] = if bytes[i] == b'\n' { b'\n' } else { b' ' };
                 i += 1;
             }
             if i + 1 < bytes.len() {
-                out.push(' ');
-                out.push(' ');
+                out[i] = b' ';
+                out[i + 1] = b' ';
                 i += 2;
             }
         } else {
-            out.push(bytes[i] as char);
+            out[i] = bytes[i];
             i += 1;
         }
     }
-    out
+    String::from_utf8(out).expect("strip_comments preserves UTF-8")
 }
 
-/// Replace contents of `"..."` and `'...'` string literals with spaces so
-/// a literal `assertEq` inside a revert message doesn't confuse the scanner.
+/// Replace contents of `"..."` and `'...'` string literals with spaces
+/// so a literal `assertEq` inside a revert message doesn't confuse the
+/// scanner. Same byte-preserving discipline as [`strip_comments`].
 fn strip_string_literals(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
     let bytes = source.as_bytes();
+    let mut out = vec![0u8; bytes.len()];
     let mut i = 0;
     while i < bytes.len() {
         let c = bytes[i];
         if c == b'"' || c == b'\'' {
             let quote = c;
-            out.push(c as char);
+            out[i] = c;
             i += 1;
             while i < bytes.len() && bytes[i] != quote {
                 if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    out.push(' ');
-                    out.push(' ');
+                    out[i] = b' ';
+                    out[i + 1] = b' ';
                     i += 2;
                     continue;
                 }
-                out.push(if bytes[i] == b'\n' { '\n' } else { ' ' });
+                out[i] = if bytes[i] == b'\n' { b'\n' } else { b' ' };
                 i += 1;
             }
             if i < bytes.len() {
-                out.push(bytes[i] as char);
+                out[i] = bytes[i];
                 i += 1;
             }
         } else {
-            out.push(c as char);
+            out[i] = c;
             i += 1;
         }
     }
-    out
+    String::from_utf8(out).expect("strip_string_literals preserves UTF-8")
 }
 
 #[cfg(test)]
