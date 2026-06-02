@@ -77,6 +77,21 @@ enum Command {
         /// Phase 6 target once all four zero-config oracles land).
         #[arg(long, value_enum, default_value_t = VerifyMode::Intent)]
         mode: VerifyMode,
+        /// Skip test-derived intent extraction (SPEC §3.4a / §3.7). The
+        /// flag is wired to a no-op in V1.5 Phase 4 — the extraction
+        /// pipeline (crates/vergil-core/src/tests_intent.rs) is shipped
+        /// but consumed by Phase 6's standardized workflow, not by the
+        /// Phase-1 catalog-self-test zero_config command. Pass `--no-tests`
+        /// today as forward-compat plumbing; Phase 6's stratified verdict
+        /// honors it.
+        #[arg(long)]
+        no_tests: bool,
+        /// Skip NatSpec-derived intent extraction (SPEC §3.4b / §3.7).
+        /// Same forward-compat semantics as `--no-tests` — the flag
+        /// propagates through to the extraction config; Phase 6 wires it
+        /// to the user-facing pipeline.
+        #[arg(long)]
+        no_natspec: bool,
     },
     /// Scaffold a Vergil config in the current Foundry project (stub — see docs/book/src/cli-reference.md)
     Init,
@@ -177,7 +192,28 @@ fn main() -> ExitCode {
             samples,
             min_critique_axis,
             mode,
+            no_tests,
+            no_natspec,
         } => {
+            // Phase 4 Slice 8: the flags exist per SPEC §3.7. Phase 6
+            // wires them into the standardized-workflow zero-config flow.
+            // For now (Phase 1's catalog-self-test zero_config + V1's
+            // intent path), the flags are forward-compat — log when set
+            // so users see the request was received but not yet acted on.
+            if no_tests {
+                tracing::info!(
+                    "--no-tests set — test-derived intent extraction is Phase 6 work; \
+                     V1.5 Phase 4 ships the extraction pipeline (vergil_core::tests_intent) \
+                     but does not yet wire it into `vergil verify`."
+                );
+            }
+            if no_natspec {
+                tracing::info!(
+                    "--no-natspec set — NatSpec-derived intent extraction is Phase 6 work; \
+                     V1.5 Phase 4 ships the extraction pipeline (vergil_core::natspec_intent) \
+                     but does not yet wire it into `vergil verify`."
+                );
+            }
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()
