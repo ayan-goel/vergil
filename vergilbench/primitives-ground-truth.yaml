@@ -1,0 +1,238 @@
+# V1.5 Phase 3 ground truth — primitive classification labels for the
+# 100-contract VergilBench V1.5 corpus.
+#
+# Format per SPEC §11.3:
+#   contracts:
+#     - name: <directory under vergilbench/contracts/>
+#       primitives: [<kebab-case from SPEC §3.3 taxonomy>, ...]
+#
+# Taxonomy (SPEC §3.3):
+#   token-erc20 / token-erc721 / token-erc1155 / vault / lending-market
+#   / amm / vesting / airdrop / governance / staking / bridge / oracle
+#   / access-controlled-generic
+#
+# `[]` = utility library / no primitive signal. The classifier returning
+# zero matches on these is the correct call.
+#
+# Labeled at Phase 3 Slice 5. Multi-primitive labels (e.g. an ERC20 that
+# is also Governor-compatible) carry every applicable tag; the classifier
+# match is correct if its top-confidence primitive is in the labeled vec.
+
+contracts:
+  # ─── Named reference protocols (10) ─────────────────────────────────
+  - name: amm-constant-product
+    primitives: [amm]
+  - name: erc20
+    primitives: [token-erc20]
+  - name: erc20-capped
+    primitives: [token-erc20]
+  - name: erc20-pausable
+    primitives: [token-erc20]
+  - name: erc721
+    primitives: [token-erc721]
+  - name: lending
+    primitives: [lending-market]
+  - name: ownable-counter
+    primitives: [access-controlled-generic]
+  - name: simple-multisig
+    primitives: [access-controlled-generic]
+  - name: timelock-release
+    primitives: [vesting]
+  - name: vault-4626
+    primitives: [vault]
+
+  # ─── OZ access-control standalone (7) ───────────────────────────────
+  - name: oz-access-manager
+    primitives: [access-controlled-generic]
+  - name: oz-accesscontrol
+    primitives: [access-controlled-generic]
+  - name: oz-accesscontrol-defaultadmin
+    primitives: [access-controlled-generic]
+  - name: oz-accesscontrol-enumerable
+    primitives: [access-controlled-generic]
+  - name: oz-ownable
+    primitives: [access-controlled-generic]
+  - name: oz-ownable2step
+    primitives: [access-controlled-generic]
+  - name: oz-pausable
+    primitives: [access-controlled-generic]
+
+  # ─── OZ timelock ────────────────────────────────────────────────────
+  - name: oz-timelock-controller
+    primitives: [access-controlled-generic]
+
+  # ─── OZ utility libraries (no primitive) ────────────────────────────
+  - name: oz-base64
+    primitives: []
+  - name: oz-beacon
+    primitives: []
+  - name: oz-bitmaps
+    primitives: []
+  - name: oz-checkpoints
+    primitives: []
+  - name: oz-clones
+    primitives: []
+  - name: oz-comparators
+    primitives: []
+  - name: oz-create2
+    primitives: []
+  - name: oz-deque
+    primitives: []
+  - name: oz-ecdsa
+    primitives: []
+  - name: oz-eip712
+    primitives: []
+  - name: oz-enumerablemap
+    primitives: []
+  - name: oz-enumerableset
+    primitives: []
+  - name: oz-enumerableset-uint
+    primitives: []
+  - name: oz-erc165
+    primitives: []
+  - name: oz-erc165checker
+    primitives: []
+  - name: oz-erc1967-proxy
+    primitives: []
+  - name: oz-erc2771-context
+    primitives: []
+  - name: oz-erc2981
+    primitives: []
+  - name: oz-math
+    primitives: []
+  - name: oz-merkleproof
+    primitives: []
+  - name: oz-messagehashutils
+    primitives: []
+  - name: oz-multicall
+    primitives: []
+  - name: oz-nonces
+    primitives: []
+  - name: oz-reentrancy-guard
+    primitives: []
+  - name: oz-safecast
+    primitives: []
+  - name: oz-shortstrings
+    primitives: []
+  - name: oz-signaturechecker
+    primitives: []
+  - name: oz-signedmath
+    primitives: []
+  - name: oz-storageslot
+    primitives: []
+  - name: oz-strings
+    primitives: []
+  - name: oz-transparent-proxy
+    primitives: []
+  - name: oz-uups
+    primitives: []
+
+  # ─── OZ ERC20 family (20) ───────────────────────────────────────────
+  - name: oz-erc1363
+    primitives: [token-erc20]
+  - name: oz-erc20-basic
+    primitives: [token-erc20]
+  - name: oz-erc20-blocklist
+    primitives: [token-erc20]
+  - name: oz-erc20-burnable
+    primitives: [token-erc20]
+  - name: oz-erc20-capped-burnable
+    primitives: [token-erc20]
+  - name: oz-erc20-capped-oz
+    primitives: [token-erc20]
+  - name: oz-erc20-capped-pausable
+    primitives: [token-erc20]
+  - name: oz-erc20-decimals
+    primitives: [token-erc20]
+  - name: oz-erc20-flashmint
+    primitives: [token-erc20]
+  - name: oz-erc20-flashmint-burnable
+    primitives: [token-erc20]
+  - name: oz-erc20-governance-full
+    primitives: [token-erc20, governance]
+  - name: oz-erc20-maxwallet
+    primitives: [token-erc20]
+  - name: oz-erc20-mintable-accesscontrol
+    primitives: [token-erc20]
+  - name: oz-erc20-mintable-ownable
+    primitives: [token-erc20]
+  - name: oz-erc20-pausable-oz
+    primitives: [token-erc20]
+  - name: oz-erc20-permit
+    primitives: [token-erc20]
+  - name: oz-erc20-permit-pausable
+    primitives: [token-erc20]
+  - name: oz-erc20-stablecoin
+    primitives: [token-erc20]
+  - name: oz-erc20-taxed
+    primitives: [token-erc20]
+  - name: oz-erc20-votes
+    primitives: [token-erc20, governance]
+  - name: oz-erc20-wrapper
+    primitives: [token-erc20]
+
+  # ─── OZ ERC721 family (17) ──────────────────────────────────────────
+  - name: oz-erc721-autoincrement
+    primitives: [token-erc721]
+  - name: oz-erc721-basic
+    primitives: [token-erc721]
+  - name: oz-erc721-burnable
+    primitives: [token-erc721]
+  - name: oz-erc721-burnable-enumerable
+    primitives: [token-erc721]
+  - name: oz-erc721-consecutive
+    primitives: [token-erc721]
+  - name: oz-erc721-enumerable
+    primitives: [token-erc721]
+  - name: oz-erc721-enumerable-pausable
+    primitives: [token-erc721]
+  - name: oz-erc721-full
+    primitives: [token-erc721]
+  - name: oz-erc721-maxsupply
+    primitives: [token-erc721]
+  - name: oz-erc721-mintable-pausable-ownable
+    primitives: [token-erc721]
+  - name: oz-erc721-pausable
+    primitives: [token-erc721]
+  - name: oz-erc721-royalty
+    primitives: [token-erc721]
+  - name: oz-erc721-royalty-enumerable
+    primitives: [token-erc721]
+  - name: oz-erc721-soulbound
+    primitives: [token-erc721]
+  - name: oz-erc721-uristorage
+    primitives: [token-erc721]
+  - name: oz-erc721-votes
+    primitives: [token-erc721, governance]
+  - name: oz-erc721-wrapper
+    primitives: [token-erc721]
+
+  # ─── OZ ERC1155 family (7) ──────────────────────────────────────────
+  - name: oz-erc1155-basic
+    primitives: [token-erc1155]
+  - name: oz-erc1155-burnable
+    primitives: [token-erc1155]
+  - name: oz-erc1155-full
+    primitives: [token-erc1155]
+  - name: oz-erc1155-pausable
+    primitives: [token-erc1155]
+  - name: oz-erc1155-supply
+    primitives: [token-erc1155]
+  - name: oz-erc1155-supply-burnable
+    primitives: [token-erc1155]
+  - name: oz-erc1155-uristorage
+    primitives: [token-erc1155]
+
+  # ─── OZ ERC4626 family (3) ──────────────────────────────────────────
+  - name: oz-erc4626-capped
+    primitives: [vault]
+  - name: oz-erc4626-fees
+    primitives: [vault]
+  - name: oz-erc4626-vault
+    primitives: [vault]
+
+  # ─── OZ vesting (2) ─────────────────────────────────────────────────
+  - name: oz-vesting-wallet
+    primitives: [vesting]
+  - name: oz-vesting-wallet-cliff
+    primitives: [vesting]
