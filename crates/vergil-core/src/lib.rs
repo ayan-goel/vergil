@@ -1,3 +1,4 @@
+pub mod catalog_intent;
 pub mod cegis;
 pub mod critique;
 pub mod diagnosis;
