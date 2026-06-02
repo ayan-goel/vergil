@@ -12,21 +12,28 @@
 
 pragma solidity ^0.8.20;
 
+/// @notice Minimal ERC-4626 tokenized vault used as a verification
+///         reference contract. Single-file implementation with inline
+///         share-token accounting so Halmos can reason about share /
+///         asset conversions without modeling an external ERC-20.
+/// @custom:security Share-asset conversions floor (OZ-style); the
+///                  round-trip assets → shares → assets never inflates.
 contract ERC4626 {
     // Share token state (ERC-20 surface).
     string public name = "Vault";
     string public symbol = "vSHARE";
     uint8 public constant decimals = 18;
 
+    /// @invariant totalSupply equals the sum of balanceOf[*] at all times.
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
-    // Underlying asset accounting. Real OZ uses an ERC-20 token; here a
-    // mapping suffices so Halmos doesn't have to model an external
-    // contract call. The deposit/withdraw flows still preserve the
-    // "shares × totalAssets / totalSupply" relationship that drives the
-    // monotonicity properties.
+    /// @notice Underlying asset accounting. The deposit/withdraw flows
+    ///         preserve the `shares × totalAssets / totalSupply`
+    ///         relationship that drives the monotonicity properties.
+    /// @invariant totalAssets is non-decreasing across any successful
+    ///            deposit; non-increasing across any successful redeem.
     uint256 public totalAssets;
     mapping(address => uint256) public assetBalance;
 
@@ -46,13 +53,19 @@ contract ERC4626 {
         assetBalance[mintTo] = seedAssets;
     }
 
-    // Asset-to-share conversions. Use mulDiv that floors — the standard
-    // OZ rounding for previewDeposit / previewRedeem.
+    /// @notice Convert asset amount to share amount using floor rounding.
+    /// @dev OZ-style rounding for previewDeposit. Monotone in `assets`.
+    /// @invariant convertToShares is non-decreasing in its `assets`
+    ///            argument (more assets in, never fewer shares out).
     function convertToShares(uint256 assets) public view returns (uint256) {
         if (totalSupply == 0 || totalAssets == 0) return assets;
         return (assets * totalSupply) / totalAssets;
     }
 
+    /// @notice Convert share amount to asset amount using floor rounding.
+    /// @dev OZ-style rounding for previewRedeem. Monotone in `shares`.
+    /// @invariant convertToAssets is non-decreasing in its `shares`
+    ///            argument.
     function convertToAssets(uint256 shares) public view returns (uint256) {
         if (totalSupply == 0) return shares;
         return (shares * totalAssets) / totalSupply;
