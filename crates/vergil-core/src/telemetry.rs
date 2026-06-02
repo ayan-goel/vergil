@@ -53,6 +53,11 @@ pub mod kind {
     pub const COST: &str = "cost";
     pub const WALL_CLOCK: &str = "wall_clock";
     pub const RUN_COMPLETE: &str = "run_complete";
+    /// V1.5 Phase 6 Slice 6 — emitted by the cex sink the moment a
+    /// counterexample file is written to disk. Fields: `property`
+    /// (string), `source` (one of the Source variants), `template_ref`
+    /// (optional string), `cex_file` (relative path inside vergil-out/).
+    pub const COUNTEREXAMPLE_FOUND: &str = "counterexample_found";
 }
 
 /// Telemetry sink trait. Implementations: [`JsonlSink`] (file-backed),
