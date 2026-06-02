@@ -1,0 +1,294 @@
+//! Primitive classification — V1.5 Phase 3.
+//!
+//! Replaces the Phase 1 heuristic `vergil_core::fingerprint::detect_primitives`
+//! (5 of SPEC §3.3's 13 classes, regex-only, no confidence) with a real
+//! classifier combining signature fingerprints, storage-layout
+//! fingerprints, inheritance graph, and modifier analysis.
+//!
+//! ## Output shape
+//!
+//! [`classify`] returns a [`PrimitiveClassification`] listing every
+//! matched primitive with its confidence score and a list of the
+//! human-readable signals that drove the match. Catalog activation
+//! consumes matches at or above `ClassifyConfig.min_confidence`
+//! (default 0.6 per SPEC §3.3 + §10.1's "low-confidence matches
+//! surface, never silently act"). Below-threshold matches surface
+//! in the verdict's "Suggested classification" section.
+//!
+//! ## Phase ordering
+//!
+//! Phase 3 ships in 9 slices. Slice 0 (this file's initial commit)
+//! ships the type system + empty stub; Slices 1-4 add detection logic
+//! per primitive family; Slices 5-6 ship the ground-truth bench file
+//! and regression test (SPEC §11.3 exit gate at ≥90% accuracy); Slice 7
+//! wires the classifier into Stage 0 `fingerprint` + the verdict
+//! formatter; Slice 8 closes out per CLAUDE.md.
+
+use serde::{Deserialize, Serialize};
+
+use vergil_solidity::storage::StorageLayout;
+
+/// SPEC §3.3 primitive taxonomy. Multi-match is allowed (a contract
+/// can carry several tags); per SPEC §10.1 every match carries a
+/// confidence and is surfaced or silently consumed based on the
+/// configured threshold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Primitive {
+    /// Fungible token implementing the ERC-20 interface.
+    TokenErc20,
+    /// Non-fungible token implementing the ERC-721 interface.
+    TokenErc721,
+    /// Multi-token implementing the ERC-1155 interface.
+    TokenErc1155,
+    /// ERC-4626 or 4626-shaped tokenized vault. Supersedes the
+    /// share-token aspect of an ERC-4626 contract: a vault is a vault
+    /// first; the share-side ERC-20 tag is carried separately via
+    /// `interfaces`.
+    Vault,
+    /// Lending market with borrow / repay / liquidate surface.
+    LendingMarket,
+    /// Automated market maker (constant-product or otherwise).
+    Amm,
+    /// Vesting / release schedule contract.
+    Vesting,
+    /// Merkle-claim or per-account-mapping airdrop.
+    Airdrop,
+    /// On-chain governance (Governor-shape or custom propose / vote).
+    Governance,
+    /// Staking pool with rewards accrual.
+    Staking,
+    /// Cross-chain bridge endpoint (L1 deposit or L2 withdrawal).
+    /// Verification scope per SPEC §3.3 is fingerprint-only.
+    Bridge,
+    /// Price oracle (Chainlink-shape or push/pull custom).
+    Oracle,
+    /// Catch-all for contracts with role-based access control but no
+    /// other primitive signal — surfaced at low confidence so the
+    /// catalog's access-control templates still get a chance to fire.
+    AccessControlledGeneric,
+}
+
+impl Primitive {
+    /// Stable kebab-case identifier. Pinned by SPEC §3.3 taxonomy +
+    /// the catalog manifests' `applies_to.primitives` field — do not
+    /// rename without updating both.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::TokenErc20 => "token-erc20",
+            Self::TokenErc721 => "token-erc721",
+            Self::TokenErc1155 => "token-erc1155",
+            Self::Vault => "vault",
+            Self::LendingMarket => "lending-market",
+            Self::Amm => "amm",
+            Self::Vesting => "vesting",
+            Self::Airdrop => "airdrop",
+            Self::Governance => "governance",
+            Self::Staking => "staking",
+            Self::Bridge => "bridge",
+            Self::Oracle => "oracle",
+            Self::AccessControlledGeneric => "access-controlled-generic",
+        }
+    }
+
+    /// Parse a kebab-case identifier back into a [`Primitive`]. Used by
+    /// the ground-truth YAML loader (S5) + telemetry consumers that
+    /// see the string form.
+    pub fn from_id(s: &str) -> Option<Self> {
+        Self::all().into_iter().find(|p| p.id() == s)
+    }
+
+    /// All 13 primitives in stable declaration order.
+    pub fn all() -> [Primitive; 13] {
+        [
+            Self::TokenErc20,
+            Self::TokenErc721,
+            Self::TokenErc1155,
+            Self::Vault,
+            Self::LendingMarket,
+            Self::Amm,
+            Self::Vesting,
+            Self::Airdrop,
+            Self::Governance,
+            Self::Staking,
+            Self::Bridge,
+            Self::Oracle,
+            Self::AccessControlledGeneric,
+        ]
+    }
+}
+
+/// One primitive match. Confidence is in `[0.0, 1.0]`; `signals` is
+/// the set of human-readable cues that produced the match (e.g.,
+/// `["ERC4626 inheritance", "convertToShares + convertToAssets"]`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PrimitiveMatch {
+    pub primitive: Primitive,
+    /// In `[0.0, 1.0]`. Surfaced as-is; rounded to 2dp by the verdict
+    /// formatter.
+    pub confidence: f32,
+    /// Ordered list of cues that drove the match. Stable per-classifier
+    /// so the verdict reads deterministically.
+    pub signals: Vec<String>,
+}
+
+/// Aggregated output of one classification pass.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PrimitiveClassification {
+    /// All matches, including below-threshold ones. The threshold cut
+    /// happens at consumption sites (catalog activation, verdict).
+    pub matches: Vec<PrimitiveMatch>,
+}
+
+impl PrimitiveClassification {
+    /// Top-confidence match (the most likely primitive). `None` when
+    /// the classifier had no signals to act on.
+    pub fn top(&self) -> Option<&PrimitiveMatch> {
+        self.matches
+            .iter()
+            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap_or(std::cmp::Ordering::Equal))
+    }
+
+    /// Iterate matches at or above `threshold`. The catalog activation
+    /// engine consumes this iterator (via the verdict runner's
+    /// `fingerprint_to_facts`); below-threshold matches go to the
+    /// verdict's "Suggested classification" section.
+    pub fn above(&self, threshold: f32) -> impl Iterator<Item = &PrimitiveMatch> {
+        self.matches.iter().filter(move |m| m.confidence >= threshold)
+    }
+}
+
+/// Configuration for one classification pass.
+#[derive(Debug, Clone)]
+pub struct ClassifyConfig {
+    /// Cutoff above which matches feed catalog activation. Below this,
+    /// matches surface in the verdict but do not drive automatic
+    /// activation. Default 0.6 per SPEC §3.3 + §10.1.
+    pub min_confidence: f32,
+}
+
+impl Default for ClassifyConfig {
+    fn default() -> Self {
+        Self { min_confidence: 0.6 }
+    }
+}
+
+/// Phase 3 classifier entry point. Sync + no LLM dependency — pure
+/// static analysis (regex over source + solc storage layout). Slice 0
+/// ships an empty stub; Slices 1-4 add per-primitive detection logic.
+///
+/// `source` is the joined Solidity source text (per-file content
+/// concatenated with newline separators — same shape as the Phase 1
+/// heuristic consumes).
+/// `layouts` is the per-contract solc storage layout, one entry per
+/// `<file>:<ContractName>`.
+pub fn classify(
+    _source: &str,
+    _layouts: &[StorageLayout],
+    _cfg: &ClassifyConfig,
+) -> PrimitiveClassification {
+    // Slice 0 — empty stub. Slices 1-4 populate per-primitive matchers.
+    PrimitiveClassification::default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn primitive_ids_are_stable_kebab_case() {
+        assert_eq!(Primitive::TokenErc20.id(), "token-erc20");
+        assert_eq!(Primitive::TokenErc721.id(), "token-erc721");
+        assert_eq!(Primitive::TokenErc1155.id(), "token-erc1155");
+        assert_eq!(Primitive::Vault.id(), "vault");
+        assert_eq!(Primitive::LendingMarket.id(), "lending-market");
+        assert_eq!(Primitive::Amm.id(), "amm");
+        assert_eq!(Primitive::Vesting.id(), "vesting");
+        assert_eq!(Primitive::Airdrop.id(), "airdrop");
+        assert_eq!(Primitive::Governance.id(), "governance");
+        assert_eq!(Primitive::Staking.id(), "staking");
+        assert_eq!(Primitive::Bridge.id(), "bridge");
+        assert_eq!(Primitive::Oracle.id(), "oracle");
+        assert_eq!(
+            Primitive::AccessControlledGeneric.id(),
+            "access-controlled-generic"
+        );
+    }
+
+    #[test]
+    fn primitive_all_has_all_thirteen() {
+        let v = Primitive::all();
+        assert_eq!(v.len(), 13);
+        // First / last anchor the order (catalog activation engines
+        // may pin on declaration order for stable display).
+        assert_eq!(v[0], Primitive::TokenErc20);
+        assert_eq!(v[12], Primitive::AccessControlledGeneric);
+    }
+
+    #[test]
+    fn primitive_from_id_round_trips() {
+        for p in Primitive::all() {
+            assert_eq!(Primitive::from_id(p.id()), Some(p), "round-trip for {:?}", p);
+        }
+        assert_eq!(Primitive::from_id("not-a-primitive"), None);
+        assert_eq!(Primitive::from_id(""), None);
+    }
+
+    #[test]
+    fn empty_classify_returns_no_matches() {
+        let cfg = ClassifyConfig::default();
+        let c = classify("", &[], &cfg);
+        assert!(c.matches.is_empty());
+        assert!(c.top().is_none());
+        assert_eq!(c.above(0.6).count(), 0);
+    }
+
+    #[test]
+    fn config_default_threshold_is_06() {
+        let cfg = ClassifyConfig::default();
+        assert!((cfg.min_confidence - 0.6).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn top_picks_highest_confidence_match() {
+        let c = PrimitiveClassification {
+            matches: vec![
+                PrimitiveMatch {
+                    primitive: Primitive::AccessControlledGeneric,
+                    confidence: 0.65,
+                    signals: vec!["onlyOwner".into()],
+                },
+                PrimitiveMatch {
+                    primitive: Primitive::TokenErc20,
+                    confidence: 0.95,
+                    signals: vec!["ERC20 interface".into()],
+                },
+                PrimitiveMatch {
+                    primitive: Primitive::Amm,
+                    confidence: 0.5,
+                    signals: vec!["swap()".into()],
+                },
+            ],
+        };
+        assert_eq!(c.top().map(|m| m.primitive), Some(Primitive::TokenErc20));
+        let above: Vec<_> = c.above(0.6).map(|m| m.primitive).collect();
+        assert!(above.contains(&Primitive::TokenErc20));
+        assert!(above.contains(&Primitive::AccessControlledGeneric));
+        assert!(!above.contains(&Primitive::Amm), "0.5 must be excluded at threshold 0.6");
+    }
+
+    #[test]
+    fn serde_round_trip_keeps_kebab_case() {
+        // Wire format is pinned by SPEC §3.3 + catalog manifests'
+        // applies_to.primitives field; do not let it drift.
+        let m = PrimitiveMatch {
+            primitive: Primitive::Vault,
+            confidence: 0.95,
+            signals: vec!["ERC4626 inheritance".into()],
+        };
+        let s = serde_json::to_string(&m).unwrap();
+        assert!(s.contains("\"primitive\":\"vault\""), "{s}");
+        let back: PrimitiveMatch = serde_json::from_str(&s).unwrap();
+        assert_eq!(back, m);
+    }
+}

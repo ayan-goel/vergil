@@ -17,6 +17,7 @@
 
 pub mod attack_catalog;
 pub mod catalog;
+pub mod classify;
 pub mod embed;
 pub mod manifest;
 pub mod retrieval;
