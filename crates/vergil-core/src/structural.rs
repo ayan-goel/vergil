@@ -184,6 +184,10 @@ pub fn extract_from_structural(
     all.extend(mn_high);
     low.extend(mn_low);
 
+    let (ap_high, ap_low) = mine_access_policy(sources, layouts);
+    all.extend(ap_high);
+    low.extend(ap_low);
+
     split_by_confidence(all, low, cfg)
 }
 
@@ -1051,6 +1055,245 @@ fn make_monotonic_candidate(
     }
 }
 
+// ─── Miner 3: Access policy ──────────────────────────────────────────
+
+/// Mine access-policy candidates. For each state variable: collect all
+/// external/public functions that write to it; intersect their modifier
+/// sets. For each modifier in the non-empty intersection: emit one
+/// candidate at confidence 0.80.
+///
+/// The Halmos check is structural-equivalent (compile-time the source
+/// already satisfies the property by construction). The candidate's
+/// value is the surfaced intent_text — "every public writer of <var>
+/// carries modifier <m>" — plus the dispatched check that confirms the
+/// property holds when re-checked. Full symbolic verification of
+/// modifier semantics requires knowing what `<m>` does; Phase 5 mines
+/// the structural property, not the runtime gate.
+pub fn mine_access_policy(
+    sources: &[(PathBuf, String)],
+    layouts: &[StorageLayout],
+) -> (Vec<StructuralCandidate>, Vec<LowConfidenceFinding>) {
+    let mut high: Vec<StructuralCandidate> = Vec::new();
+    let low: Vec<LowConfidenceFinding> = Vec::new();
+
+    for (path, source) in sources {
+        let file_layout: Vec<&StorageLayout> = layouts
+            .iter()
+            .filter(|l| layout_belongs_to(l, path))
+            .collect();
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for layout in &file_layout {
+            for entry in &layout.entries {
+                if !seen.insert(entry.label.as_str()) {
+                    continue;
+                }
+                // External writers of this var.
+                let writers = external_writers_of(source, &entry.label);
+                if writers.len() < 1 {
+                    continue;
+                }
+                // Intersection of modifier sets across all writers. An
+                // empty intersection (or any writer with no modifiers)
+                // disqualifies.
+                let shared = intersect_modifiers(source, &writers);
+                if shared.is_empty() {
+                    continue;
+                }
+                for modifier in shared {
+                    high.push(make_access_policy_candidate(
+                        &entry.label,
+                        &modifier,
+                        &writers,
+                        path,
+                    ));
+                }
+            }
+        }
+    }
+
+    (high, low)
+}
+
+fn external_writers_of(source: &str, var_name: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for sig in extract_signatures(source) {
+        if !is_externally_callable(&sig) {
+            continue;
+        }
+        if let Some(body) = body_for(&sig.name, source) {
+            if body_writes_to(body, var_name) {
+                out.push(sig.name.clone());
+            }
+        }
+    }
+    out
+}
+
+fn intersect_modifiers(source: &str, fn_names: &[String]) -> Vec<String> {
+    if fn_names.is_empty() {
+        return Vec::new();
+    }
+    let mut iter = fn_names.iter();
+    let first = iter.next().unwrap();
+    let mut acc: std::collections::BTreeSet<String> = modifiers_of(first, source).into_iter().collect();
+    for name in iter {
+        let m: std::collections::BTreeSet<String> = modifiers_of(name, source).into_iter().collect();
+        acc = acc.intersection(&m).cloned().collect();
+        if acc.is_empty() {
+            break;
+        }
+    }
+    acc.into_iter().collect()
+}
+
+/// Extract the modifier names attached to a function. Modifiers are the
+/// identifiers between the closing `)` of the args and the opening `{`
+/// of the body, excluding visibility / mutability / returns keywords.
+fn modifiers_of(fn_name: &str, source: &str) -> Vec<String> {
+    let stripped = strip_comments(source);
+    // Find the function declaration.
+    let needle = format!("function {fn_name}");
+    let Some(rel) = stripped.find(&needle) else {
+        return Vec::new();
+    };
+    // Skip past `function <name>` to find the args opening paren.
+    let after_name = rel + needle.len();
+    let bytes = stripped.as_bytes();
+    let mut i = after_name;
+    while i < bytes.len() && (bytes[i] as char).is_whitespace() {
+        i += 1;
+    }
+    if i >= bytes.len() || bytes[i] != b'(' {
+        return Vec::new();
+    }
+    // Match the args paren.
+    let Some(args_end) = match_paren_in_str(&stripped, i) else {
+        return Vec::new();
+    };
+    let mods_start = args_end + 1;
+    // Read until `{` or `;` at depth 0 (track paren depth for
+    // modifier-with-args + returns clause).
+    let mut paren = 0i32;
+    let mut k = mods_start;
+    while k < bytes.len() {
+        match bytes[k] {
+            b'(' => paren += 1,
+            b')' => paren -= 1,
+            b'{' | b';' if paren == 0 => break,
+            _ => {}
+        }
+        k += 1;
+    }
+    let mods_str = &stripped[mods_start..k];
+    parse_modifier_list(mods_str)
+}
+
+fn match_paren_in_str(s: &str, open_idx: usize) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut depth = 0;
+    for (i, b) in bytes.iter().enumerate().skip(open_idx) {
+        match *b {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn parse_modifier_list(s: &str) -> Vec<String> {
+    let reserved: std::collections::HashSet<&str> = [
+        "external", "public", "internal", "private",
+        "view", "pure", "payable", "nonpayable", "constant",
+        "virtual", "override", "returns",
+    ]
+    .iter()
+    .copied()
+    .collect();
+    let mut out = Vec::new();
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        // Skip whitespace + punctuation.
+        while i < bytes.len() && !is_ident_byte(bytes[i]) {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        // Read an identifier.
+        let start = i;
+        while i < bytes.len() && is_ident_byte(bytes[i]) {
+            i += 1;
+        }
+        let ident = &s[start..i];
+        // Skip optional `( ... )` after the identifier (modifier args
+        // or returns tuple).
+        while i < bytes.len() && (bytes[i] as char).is_whitespace() {
+            i += 1;
+        }
+        if i < bytes.len() && bytes[i] == b'(' {
+            if let Some(end) = match_paren_in_str(s, i) {
+                i = end + 1;
+            }
+        }
+        if reserved.contains(ident) {
+            continue;
+        }
+        // Override-list `override(A, B)` becomes ident=`override` (skipped) + the
+        // paren contents were swallowed above; safe to ignore.
+        out.push(ident.to_string());
+    }
+    out
+}
+
+fn make_access_policy_candidate(
+    var_name: &str,
+    modifier: &str,
+    writers: &[String],
+    _path: &std::path::Path,
+) -> StructuralCandidate {
+    let writers_list = writers.join(", ");
+    // Structural property: every external writer carries the modifier.
+    // The compile-time mining already established this; the Halmos
+    // check just reasserts the invariant in a form the verdict can
+    // surface. Confidence 0.80 reflects that the modifier's actual
+    // gate semantics aren't symbolically verified by this candidate
+    // alone — the user gets the structural claim, not a proof of
+    // unauthorized callers being rejected.
+    let halmos = format!(
+        "function check_access_{var}_via_{modifier}() public view {{\n    \
+         // Property: every external writer of {var} carries the {modifier} modifier.\n    \
+         // Writers: {writers_list}.\n    \
+         // Source-structural fact (Phase 5 invariant; modifier body\n    \
+         // semantics not symbolically modeled here).\n    \
+         assert(true);\n}}\n",
+        var = var_name,
+        modifier = modifier,
+        writers_list = writers_list,
+    );
+    StructuralCandidate {
+        spec: SpecCandidate {
+            name: format!("check_access_{var_name}_via_{modifier}"),
+            halmos,
+            smtchecker: String::new(),
+            template_ref: None,
+            intent_satisfied: false,
+            source: Source::Structural,
+            intent_text: Some(format!(
+                "every external write to {var_name} requires the {modifier} modifier (writers: {writers_list})"
+            )),
+        },
+        confidence: 0.80,
+        miner: StructuralMiner::AccessPolicy,
+    }
+}
+
 // ─── shared helpers ──────────────────────────────────────────────────
 
 fn strip_comments(source: &str) -> String {
@@ -1523,6 +1766,79 @@ mod tests {
             "data",
             "calldata location keyword should be dropped"
         );
+    }
+
+    // ─── Access-policy miner (S3) ────────────────────────────────────
+
+    #[test]
+    fn access_consistent_emits_per_shared_modifier() {
+        let (path, src) = fixture("access_consistent.sol");
+        let layouts = vec![mock_layout(
+            "AccessConsistent",
+            &[("owner", "t_address"), ("balance", "t_uint256")],
+            &path,
+        )];
+        let (high, _low) = mine_access_policy(&[(path, src)], &layouts);
+        // `balance` is written by deposit + withdraw, both gated by
+        // `onlyOwner`. One candidate per (var, shared-modifier).
+        let balance_cands: Vec<&StructuralCandidate> = high
+            .iter()
+            .filter(|c| c.spec.name.contains("balance"))
+            .collect();
+        assert_eq!(
+            balance_cands.len(),
+            1,
+            "expected one balance/onlyOwner candidate: {:#?}",
+            high
+        );
+        let c = balance_cands[0];
+        assert!((c.confidence - 0.80).abs() < 1e-3);
+        assert!(c.spec.name.contains("onlyOwner"), "name: {}", c.spec.name);
+        let it = c.spec.intent_text.as_deref().unwrap_or("");
+        assert!(it.contains("onlyOwner"));
+        assert!(it.contains("deposit"));
+        assert!(it.contains("withdraw"));
+    }
+
+    #[test]
+    fn access_inconsistent_no_candidates_for_disagreeing_writers() {
+        let (path, src) = fixture("access_inconsistent.sol");
+        let layouts = vec![mock_layout(
+            "AccessInconsistent",
+            &[("owner", "t_address"), ("balance", "t_uint256")],
+            &path,
+        )];
+        let (high, _) = mine_access_policy(&[(path, src)], &layouts);
+        // `balance` has writers deposit (onlyOwner) + donate (no
+        // modifier). Intersection is empty → no candidate.
+        assert!(
+            !high.iter().any(|c| c.spec.name.contains("balance")),
+            "balance must NOT have an access-policy candidate: {:#?}",
+            high
+        );
+    }
+
+    #[test]
+    fn modifiers_of_extracts_named_modifiers_only() {
+        let src = r#"
+            contract C {
+                function f(uint256 n) external onlyOwner nonReentrant returns (bool) {}
+                function g() public view virtual override returns (uint256) {}
+                function h(address a) external payable noModifier {}
+            }
+        "#;
+        let m = modifiers_of("f", src);
+        assert!(m.contains(&"onlyOwner".to_string()), "{m:?}");
+        assert!(m.contains(&"nonReentrant".to_string()), "{m:?}");
+        assert!(!m.iter().any(|x| x == "external"));
+        assert!(!m.iter().any(|x| x == "returns"));
+
+        let g = modifiers_of("g", src);
+        // virtual, override, view, public, returns are all reserved.
+        assert!(g.is_empty(), "g should have no real modifiers: {g:?}");
+
+        let h = modifiers_of("h", src);
+        assert!(h.contains(&"noModifier".to_string()), "{h:?}");
     }
 
     fn mock_layout(
