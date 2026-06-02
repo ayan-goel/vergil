@@ -255,6 +255,15 @@ pub fn classify_tokens(source: &str, _layouts: &[StorageLayout]) -> Vec<Primitiv
     if has_public_balanceof && has_function_transfer && has_public_allowance && !has_erc721_shape {
         detected.insert("ERC20".to_string());
     }
+    // Minimal-ERC20 fallback: tokens that don't carry allowance /
+    // transferFrom (capped or pausable minimal-bench fixtures) still
+    // qualify if they expose `transfer + balanceOf + totalSupply`.
+    let has_totalsupply = source.contains("public totalSupply") || source.contains("totalSupply()")
+        || source.contains("uint256 public totalSupply");
+    if has_function_transfer && has_public_balanceof && has_totalsupply && !has_erc721_shape {
+        detected.insert("ERC20".to_string());
+        interface_signals.push("minimal ERC20: transfer + balanceOf + totalSupply");
+    }
     if has_erc721_shape {
         detected.insert("ERC721".to_string());
     }
@@ -264,6 +273,69 @@ pub fn classify_tokens(source: &str, _layouts: &[StorageLayout]) -> Vec<Primitiv
     }
     if has_erc4626_shape {
         detected.insert("ERC4626".to_string());
+    }
+
+    // Inheritance-based detection — OZ-derived contracts often only
+    // declare `is ERC20` (etc.) and inherit the actual transfer/
+    // approve/balanceOf surface from the parent. Without this, every
+    // OZ wrapper contract classifies as <none>.
+    let erc20_parents = [
+        "ERC20",
+        "ERC20Burnable",
+        "ERC20Capped",
+        "ERC20Pausable",
+        "ERC20Permit",
+        "ERC20Votes",
+        "ERC20Wrapper",
+        "ERC20FlashMint",
+        "ERC1363",
+        "ERC20PresetMinterPauser",
+        "ERC20PresetFixedSupply",
+    ];
+    let erc721_parents = [
+        "ERC721",
+        "ERC721Burnable",
+        "ERC721Enumerable",
+        "ERC721Pausable",
+        "ERC721URIStorage",
+        "ERC721Votes",
+        "ERC721Wrapper",
+        "ERC721Royalty",
+        "ERC721Consecutive",
+        "ERC721Holder",
+    ];
+    let erc1155_parents = [
+        "ERC1155",
+        "ERC1155Burnable",
+        "ERC1155Pausable",
+        "ERC1155Supply",
+        "ERC1155URIStorage",
+        "ERC1155Holder",
+    ];
+
+    for parent in erc20_parents {
+        if has_inheritance_of(source, parent) {
+            detected.insert("ERC20".into());
+            interface_signals.push("inherits OZ ERC20-family");
+            break;
+        }
+    }
+    for parent in erc721_parents {
+        if has_inheritance_of(source, parent) {
+            detected.insert("ERC721".into());
+            interface_signals.push("inherits OZ ERC721-family");
+            break;
+        }
+    }
+    for parent in erc1155_parents {
+        if has_inheritance_of(source, parent) {
+            detected.insert("ERC1155".into());
+            interface_signals.push("inherits OZ ERC1155-family");
+            break;
+        }
+    }
+    if has_inheritance_of(source, "ERC4626") {
+        detected.insert("ERC4626".into());
     }
 
     let mut out = Vec::new();
@@ -477,6 +549,19 @@ pub fn classify_lending(source: &str, _layouts: &[StorageLayout]) -> Vec<Primiti
 /// threshold otherwise.
 pub fn classify_vesting(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
     let mut signals: Vec<String> = Vec::new();
+    // Inheritance — OZ VestingWallet family.
+    for parent in ["VestingWallet", "VestingWalletCliff", "VestingWalletUpgradeable"] {
+        if has_inheritance_of(source, parent) {
+            signals.push(format!("inherits {parent}"));
+            // Inheritance alone is a strong signal — promote to high
+            // confidence.
+            return vec![PrimitiveMatch {
+                primitive: Primitive::Vesting,
+                confidence: 0.95,
+                signals,
+            }];
+        }
+    }
     if has_function_starting_with(source, "release") {
         signals.push("release() surface".into());
     }
@@ -528,8 +613,26 @@ pub fn classify_airdrop(source: &str, _layouts: &[StorageLayout]) -> Vec<Primiti
 /// castVote` OR `Governor` inheritance. Confidence 0.75.
 pub fn classify_governance(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
     let mut signals: Vec<String> = Vec::new();
-    if has_inheritance_of(source, "Governor") || has_inheritance_of(source, "GovernorBravo") {
-        signals.push("inherits Governor".into());
+    let governor_parents = [
+        "Governor",
+        "GovernorBravo",
+        "GovernorVotes",
+        "GovernorVotesQuorumFraction",
+        "GovernorTimelockControl",
+        "GovernorCountingSimple",
+        "GovernorSettings",
+    ];
+    for parent in governor_parents {
+        if has_inheritance_of(source, parent) {
+            signals.push(format!("inherits {parent}"));
+            // Inheritance is strong enough to short-circuit at high
+            // confidence.
+            return vec![PrimitiveMatch {
+                primitive: Primitive::Governance,
+                confidence: 0.90,
+                signals,
+            }];
+        }
     }
     let propose = has_function_starting_with(source, "propose");
     let cast_vote = source.contains("castVote") || source.contains("function vote(");
@@ -646,6 +749,36 @@ pub fn classify_access_controlled_generic(
         return Vec::new();
     }
     let mut signals: Vec<String> = Vec::new();
+    // Inheritance signals — OZ access-control family. These are strong
+    // enough to push the match above the threshold (0.85) when the
+    // contract is a direct wrapper around one of these classes.
+    let strong_parents = [
+        "Ownable",
+        "Ownable2Step",
+        "AccessControl",
+        "AccessControlEnumerable",
+        "AccessControlDefaultAdminRules",
+        "AccessManager",
+        "AccessManaged",
+        "Pausable",
+        "TimelockController",
+    ];
+    let mut inheritance_hit = false;
+    for parent in strong_parents {
+        if has_inheritance_of(source, parent) {
+            signals.push(format!("inherits {parent}"));
+            inheritance_hit = true;
+        }
+    }
+    // Multisig pattern fallback: confirm(uint256 txId) + confirmed[]
+    // mapping + executed[] mapping — the canonical hand-rolled
+    // multisig shape (no inheritance from a known parent).
+    if source.contains("confirm(uint256")
+        && source.contains("confirmed[")
+        && (source.contains("executed[") || source.contains("confirmationCount"))
+    {
+        signals.push("multisig confirm/confirmed/executed pattern".into());
+    }
     if source.contains("onlyOwner") || source.contains("modifier onlyOwner") {
         signals.push("onlyOwner modifier".into());
     }
@@ -655,15 +788,16 @@ pub fn classify_access_controlled_generic(
     if source.contains("hasRole(") {
         signals.push("hasRole(...) check".into());
     }
-    if source.contains("AccessControl") {
+    if source.contains("AccessControl") && !signals.iter().any(|s| s.contains("inherits")) {
         signals.push("AccessControl reference".into());
     }
     if signals.is_empty() {
         return Vec::new();
     }
+    let confidence = if inheritance_hit { 0.85 } else { 0.65 };
     vec![PrimitiveMatch {
         primitive: Primitive::AccessControlledGeneric,
-        confidence: 0.65,
+        confidence,
         signals,
     }]
 }

@@ -101,7 +101,7 @@ contracts:
   - name: oz-math
     primitives: []
   - name: oz-merkleproof
-    primitives: []
+    primitives: [airdrop]   # Real-world airdrop: claim() + MerkleProof.verify + claimed[]
   - name: oz-messagehashutils
     primitives: []
   - name: oz-multicall
