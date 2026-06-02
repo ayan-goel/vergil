@@ -1,0 +1,27 @@
+incident:
+  name: DeFiVulnLabs Hash-collisions reduction (SWC-133)
+  year: 2023
+  chain: ethereum
+  reference_url: "https://github.com/SunWeb3Sec/DeFiVulnLabs/blob/main/src/test/Hash-collisions.sol"
+
+template:
+  id: quirk-abi-encode-packed-collision
+  check_fn: check_distinct_inputs_distinct_hashes
+  bindings:
+    contract_name: Target
+    contract_path: src/Vulnerable.sol
+
+provenance:
+  source: defi-vuln-labs-vendored
+  attribution: |
+    The vulnerable `HashCollisionBug.createHash` is vendored verbatim
+    from DeFiVulnLabs/src/test/Hash-collisions.sol (MIT licensed).
+    A thin `Target` adapter exposes the template's
+    `identify(bytes,bytes)` binding by string-casting the args to
+    `bug.createHash(string,string)`. The bug behavior lives entirely
+    in the vendored contract; the adapter is a type-shape mediator
+    that cannot introduce or hide the collision.
+
+    This is V1.5's first author-independent PoC. The other 10 corpus
+    entries are catalog-author-written. See V2 plan in
+    `vergilbench/poc-corpus/README.md`.

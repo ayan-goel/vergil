@@ -246,3 +246,13 @@ async fn poc_imbtc_uniswap_v1_2020() {
 async fn poc_king_of_ether_2016() {
     validate_poc("king-of-ether-2016").await;
 }
+
+// ─── Vendored (third-party) PoCs ─────────────────────────────────────────────
+// First author-independent reproductions, vendored from DeFiVulnLabs (MIT).
+// See `vergilbench/poc-corpus/dvl-*/README.md` for vendor scope per PoC
+// and `vergilbench/poc-corpus/README.md` for the V2 plan.
+
+#[tokio::test]
+async fn poc_dvl_hash_collisions() {
+    validate_poc("dvl-hash-collisions").await;
+}

@@ -21,7 +21,9 @@ asserts the result is `Counterexample`. Anything else — `Verified`,
 `Timeout`, or any error — is a **false negative** breaching the kill
 criterion.
 
-## Shipped PoCs (10)
+## Shipped PoCs (11)
+
+### Catalog-author reproductions (10)
 
 | Incident | Year | Loss USD | Maps to template |
 |---|---|---:|---|
@@ -36,20 +38,92 @@ criterion.
 | Hedgey Finance | 2024 | $44.7M | `logic-approval-not-revoked-after-cancel` |
 | Cetus Protocol | 2024 | $230M | `arith-incorrect-overflow-check-shift` |
 
-**Total historical loss represented: ~$1.18B.**
+### Vendored from DeFiVulnLabs (1)
 
-All 10 PoCs return `Counterexample` under Halmos against their mapped
+| Source | DVL file | Maps to template |
+|---|---|---|
+| `dvl-hash-collisions` | `Hash-collisions.sol` | `quirk-abi-encode-packed-collision` |
+
+**Total historical loss represented (catalog-author rows): ~$1.18B.**
+
+All 11 PoCs return `Counterexample` under Halmos against their mapped
 templates. SPEC §11.2's zero-false-negative clause is empirically met
 on the corpus.
 
 ## Provenance
 
-The V1.5 PoCs are minimal faithful reproductions written by the
-catalog author (Claude) from publicly-documented bug patterns. They
-are NOT verbatim copies of the original on-chain contracts or
-third-party reproductions in DeFiHackLabs / DeFiVulnLabs. Each PoC's
-README cites the post-mortem URL so the mapping back to the
-historical exploit is auditable.
+The catalog-author reproductions are minimal faithful Solidity written
+by the catalog author from publicly-documented bug patterns. Each cites
+its post-mortem URL so the mapping back to the historical exploit is
+auditable.
+
+The vendored reproduction (`dvl-hash-collisions/`) uses the verbatim
+DVL contract code (MIT licensed) with a thin Vergil adapter to bridge
+template-binding rigidity. See "Vendoring experiment" below for what
+worked, what didn't, and what blocks further vendoring.
+
+## Vendoring experiment — what worked, what didn't (Nov 2024)
+
+Direct question from a project review: "Why are we using catalog-author
+reproductions instead of vendored DeFiVulnLabs / DeFiHackLabs files
+directly?" Honest answer documented here.
+
+**8 DeFiVulnLabs files probed for direct vendoring:**
+
+| DVL file | Result | Blocker |
+|---|---|---|
+| `Hash-collisions.sol` | ✅ vendored via adapter | none — pure-function bug |
+| `Visibility.sol` | ❌ not vendored | template binding rigidity (uint256 setter vs address) |
+| `Reentrancy.sol` | ❌ blocked | requires `vm.deal` cheatcode for ETH funding |
+| `ERC777-reentrancy.sol` | ❌ blocked | requires `vm.etch` to inject ERC-1820 registry bytecode |
+| `Overflow.sol` | ❌ blocked | requires `vm.deal` + Solidity 0.7.x (template runs 0.8.20) |
+| `SignatureReplay.sol` | ❌ blocked | requires `vm.sign` cheatcode |
+| `Returnvalue.sol` | ❌ blocked | uses `vm.createSelectFork("mainnet", N)` — concrete fork replay |
+| `Selfdestruct.sol` | ❌ blocked | needs SELFDESTRUCT opcode (Halmos unsupported) + ETH balance |
+| `DOS.sol` | ❌ blocked | ETH-dependent (King of Ether shape, pre-funded balances) |
+| `empty-loop.sol` | ❌ blocked | uses `vm.startPrank` + payable transfers |
+
+**Hit rate: 1 of 9 attempted, ~11%.**
+
+Pattern: DeFiVulnLabs files are designed for Foundry's `forge test`, not
+for Halmos symbolic execution. Most use `vm.*` cheatcodes (`vm.deal`,
+`vm.prank`, `vm.sign`, `vm.etch`, `vm.createSelectFork`) which Halmos's
+bare scaffold does not model. The one clean win is when the bug is in a
+pure function that requires neither state, ETH, nor cheatcodes.
+
+**The Hash-collisions win is real but limited.** The bug behavior
+(`abi.encodePacked` collision via `createHash`) lives in the verbatim
+DVL contract. A thin `Target` adapter wraps it to expose the template's
+required `identify(bytes,bytes)` binding (DVL's signature is
+`(string,string)`). Halmos's cex on the adapter traces back to the
+vendored `createHash` — so the bug surface is independent of catalog
+authorship. But it's one PoC, not ten.
+
+**What unblocks more vendoring:**
+
+1. **Halmos cheatcode emulation** (V2 harness work): if our test
+   harness intercepts `vm.deal` / `vm.prank` / `vm.sign` and converts
+   them into symbolic-execution-compatible setups, ~6 of the 8 blocked
+   DVL files become vendorable. This is a substantial harness
+   investment but it has compounding value beyond the PoC corpus.
+
+2. **Template binding flexibility** (V2 template refactor): templates
+   that hardcode function names + arg types (`identify(bytes,bytes)`,
+   `mint(address,uint256)`, `tick`/`step`/`counter`) need to be
+   refactored to accept name + type bindings. Without this, even a
+   working harness can't bind a vendored contract that uses
+   historical naming.
+
+3. **DeFiHackLabs is harder than DeFiVulnLabs.** DefiHackLabs PoCs
+   typically `vm.createSelectFork("mainnet", exploitBlock)` against
+   the actually-deployed contracts. They're attack-trace replays,
+   not symbolic verifications. Vendoring DeFiHackLabs requires
+   extracting the vulnerable contract source separately from the
+   replay machinery, which is a manual process per incident.
+
+**For V1.5 the result is:** 1 truly independent vendored PoC + 10
+catalog-author reproductions. The vendored count moves from 0/10 to
+1/11, with a documented path to scale via V2 harness work.
 
 ## Known gaps — limitations of the V1.5 corpus
 
