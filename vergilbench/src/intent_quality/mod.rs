@@ -24,8 +24,9 @@
 use std::path::{Path, PathBuf};
 
 pub mod ground_truth;
+pub mod proposed;
 
-/// Slice 6 wires the real overlay. S0-S1 ship a stub so the runner's
+/// Slice 6 wires the real overlay. S0-S2 ship a stub so the runner's
 /// `--intent-quality` flag has a callable target without behavior change.
 pub fn run_overlay(
     _corpus: &Path,
