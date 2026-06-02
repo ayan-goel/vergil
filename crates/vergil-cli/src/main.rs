@@ -136,6 +136,15 @@ enum CatalogAction {
     },
     /// Load every template and report any schema, lint, or missing-file errors. Non-zero exit on failure.
     Validate,
+    /// Run each applicable template's clean.sol fixture through Halmos to confirm
+    /// the catalog is internally sound on its demo data. This is
+    /// catalog-development infrastructure, not per-contract dispatch — per-contract
+    /// dispatch against the user's source lands in V1.5 Phase 6 via
+    /// `vergil verify` (Slice 8) and `catalog_intent.rs` (Slice 3).
+    SelfTest {
+        /// Path to the Foundry project (the dir holding foundry.toml)
+        path: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -225,7 +234,24 @@ fn main() -> ExitCode {
                 }
             };
             match mode {
-                VerifyMode::ZeroConfig => rt.block_on(commands::zero_config::run(path)),
+                VerifyMode::ZeroConfig => {
+                    // V1.5 Phase 6 Slice 0 relocated the Phase-1
+                    // catalog-self-test loop to `vergil catalog
+                    // self-test <PATH>`. Slice 8 repurposes
+                    // `verify --mode zero-config` for the Stage 1
+                    // oracle path (catalog + tests + natspec) feeding
+                    // the stratified verdict. Until Slice 8 lands,
+                    // print a redirect so users don't get a stale flow.
+                    eprintln!(
+                        "`vergil verify --mode zero-config` was relocated to \
+                         `vergil catalog self-test {}` in V1.5 Phase 6 Slice 0. \
+                         The Stage 1 oracle path that will replace this slot \
+                         lands in Phase 6 Slice 8 alongside the unified \
+                         stratified-verdict runner.",
+                        path.display()
+                    );
+                    Err(3)
+                }
                 VerifyMode::Intent => rt.block_on(commands::verify::run(
                     path,
                     properties,
@@ -239,24 +265,24 @@ fn main() -> ExitCode {
                     min_critique_axis,
                 )),
                 VerifyMode::Both => {
-                    // Phase-1 simplification: run zero-config first, then
-                    // intent if zero-config succeeded. Phase 6 lands the
-                    // unified stratified verdict.
-                    match rt.block_on(commands::zero_config::run(path.clone())) {
-                        Ok(()) => rt.block_on(commands::verify::run(
-                            path,
-                            properties,
-                            format,
-                            intent,
-                            scaffold,
-                            telemetry_json,
-                            tenant,
-                            cost_budget,
-                            samples,
-                            min_critique_axis,
-                        )),
-                        Err(code) => Err(code),
-                    }
+                    // Phase-1 simplification kept zero-config + intent
+                    // here; Phase 6 Slice 8 replaces this branch with
+                    // the unified stratified-verdict runner. For now
+                    // fall through to the V1 intent path so
+                    // `vergil verify --mode both` keeps producing a
+                    // proof artifact via the V1 CEGIS engine.
+                    rt.block_on(commands::verify::run(
+                        path,
+                        properties,
+                        format,
+                        intent,
+                        scaffold,
+                        telemetry_json,
+                        tenant,
+                        cost_budget,
+                        samples,
+                        min_critique_axis,
+                    ))
                 }
             }
         }
@@ -268,6 +294,19 @@ fn main() -> ExitCode {
             CatalogAction::List { category } => commands::catalog::run_list(category),
             CatalogAction::Show { id } => commands::catalog::run_show(id),
             CatalogAction::Validate => commands::catalog::run_validate(),
+            CatalogAction::SelfTest { path } => {
+                let rt = match tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("failed to build tokio runtime: {e}");
+                        return ExitCode::from(3);
+                    }
+                };
+                rt.block_on(commands::catalog::run_self_test(path))
+            }
         },
         Command::Doctor => commands::doctor::run(),
     };
