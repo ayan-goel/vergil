@@ -3,7 +3,7 @@ property_contract:
   name: Properties
   path: ./Properties.t.sol
   constructor_args: []
-intent: "Verify OZ Strings: toString(0) renders "0" and Strings.equal correctly distinguishes equal from unequal strings."
+intent: 'Verify OZ Strings: toString(0) renders "0" and Strings.equal correctly distinguishes equal from unequal strings.'
 provenance:
   source: openzeppelin-contracts
   version: 5.1.0

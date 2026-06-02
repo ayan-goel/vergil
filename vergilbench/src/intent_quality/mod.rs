@@ -8,15 +8,14 @@
 //! developer would have hand-written?".
 //!
 //! This module fills that gap. For each contract:
-//!   1. Load the hand-written intent from `properties.yaml`.
+//!   1. Load the hand-written intent from `properties.yaml` (this module).
 //!   2. Load the multi-oracle proposed intents from
 //!      `vergil-out/confirm/state.json`.
 //!   3. Classify both into a 9-bucket taxonomy.
 //!   4. Score per-contract recall + per-source attribution.
 //!
 //! Aggregated, the overlay reports per-taxon recall and which Stage-1
-//! oracle (catalog / tests / natspec / structural) drove each match —
-//! the data the V1.5 thesis rests on.
+//! oracle (catalog / tests / natspec / structural) drove each match.
 //!
 //! Zero LLM cost — pure structural comparison on artifacts the sweep
 //! already wrote. Builds in 8 slices per
@@ -24,13 +23,15 @@
 
 use std::path::{Path, PathBuf};
 
-/// Slice 6 wires the real overlay. S0 ships a stub so the runner's
+pub mod ground_truth;
+
+/// Slice 6 wires the real overlay. S0-S1 ship a stub so the runner's
 /// `--intent-quality` flag has a callable target without behavior change.
 pub fn run_overlay(
     _corpus: &Path,
     _contracts: &[PathBuf],
     _sweep_result: &Path,
 ) -> Result<(), String> {
-    eprintln!("[vergilbench] intent-quality overlay: stub (Slices 1-6 not yet shipped)");
+    eprintln!("[vergilbench] intent-quality overlay: stub (Slices 2-6 not yet shipped)");
     Ok(())
 }
