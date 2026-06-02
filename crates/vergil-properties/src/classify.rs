@@ -188,6 +188,7 @@ pub fn classify(
 ) -> PrimitiveClassification {
     let mut matches = Vec::new();
     matches.extend(classify_tokens(source, layouts));
+    matches.extend(classify_vault(source, layouts));
     PrimitiveClassification { matches }
 }
 
@@ -290,6 +291,87 @@ pub fn classify_tokens(source: &str, _layouts: &[StorageLayout]) -> Vec<Primitiv
         });
     }
     out
+}
+
+// ─── Classifier 2: Vault (ERC-4626) ──────────────────────────────────
+
+/// Vault classifier — multi-signal detection for ERC-4626-shaped
+/// contracts. Five recognized signals:
+///
+/// 1. **Inheritance**: `is ERC4626` / `extends ERC4626` (real
+///    derived-contract pattern).
+/// 2. **Contract name**: `contract ERC4626 {` (direct-implementation
+///    pattern, used by `examples/vault-4626`).
+/// 3. **Convert pair**: `convertToShares + convertToAssets` both
+///    present (the ERC-4626 spec's distinguishing accounting surface).
+/// 4. **`totalAssets()` getter**: explicit declaration of the function
+///    or a `function totalAssets()` signature.
+/// 5. **`asset()` getter**: explicit `function asset()` declaration.
+///
+/// 2+ signals → confidence 0.95. 1 signal → 0.70. Per SPEC §3.3, vault
+/// supersedes the share-token aspect of an ERC-4626 contract; the
+/// token classifier (Slice 1) suppresses ERC-4626 explicitly.
+pub fn classify_vault(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+
+    // Signal 1: inheritance.
+    if has_inheritance_of(source, "ERC4626") {
+        signals.push("inherits ERC4626".into());
+    }
+    // Signal 2: contract-name match (direct implementation).
+    if source.contains("contract ERC4626") || source.contains("contract Vault") {
+        signals.push("contract named ERC4626 / Vault".into());
+    }
+    // Signal 3: convert pair.
+    if source.contains("convertToShares") && source.contains("convertToAssets") {
+        signals.push("convertToShares + convertToAssets".into());
+    }
+    // Signal 4: totalAssets getter.
+    if source.contains("function totalAssets") || source.contains("totalAssets()") {
+        signals.push("totalAssets() surface".into());
+    }
+    // Signal 5: asset() getter.
+    if source.contains("function asset(") {
+        signals.push("asset() getter".into());
+    }
+
+    if signals.is_empty() {
+        return Vec::new();
+    }
+    let confidence = if signals.len() >= 2 { 0.95 } else { 0.70 };
+    vec![PrimitiveMatch {
+        primitive: Primitive::Vault,
+        confidence,
+        signals,
+    }]
+}
+
+/// Detect whether the contract declares inheritance from `parent`.
+/// Matches both `is ParentA, Parent,` and `is Parent {` styles.
+fn has_inheritance_of(source: &str, parent: &str) -> bool {
+    // Look for `is ... <parent> ...` on lines with a `contract` decl.
+    // The cheap-and-cheerful check: any `is ` followed eventually by
+    // the parent identifier within ~200 chars.
+    let mut i = 0;
+    while let Some(rel) = source[i..].find("contract ") {
+        let start = i + rel + "contract ".len();
+        let end = source.len().min(start + 300);
+        let window = &source[start..end];
+        if window.contains(parent) {
+            // Confirm the `parent` ident appears AFTER an `is` keyword
+            // in the inheritance list (not as a substring of the
+            // contract name).
+            if let Some(is_idx) = window.find(" is ") {
+                let tail = &window[is_idx + 4..];
+                let tail_end = tail.find('{').unwrap_or(tail.len());
+                if tail[..tail_end].contains(parent) {
+                    return true;
+                }
+            }
+        }
+        i = start;
+    }
+    false
 }
 
 #[cfg(test)]
@@ -476,6 +558,78 @@ mod tests {
         assert_eq!(report.top().map(|m| m.primitive), Some(Primitive::TokenErc20));
         let above: Vec<_> = report.above(0.6).map(|m| m.primitive).collect();
         assert!(above.contains(&Primitive::TokenErc20));
+    }
+
+    // ─── Vault classifier (S2) ───────────────────────────────────────
+
+    #[test]
+    fn classify_vault_high_confidence_on_examples_vault_4626() {
+        let src = example_source("vault-4626/src/ERC4626.sol");
+        let matches = classify_vault(&src, &[]);
+        let vault = matches
+            .iter()
+            .find(|m| m.primitive == Primitive::Vault)
+            .expect("expected Vault match");
+        assert!(
+            (vault.confidence - 0.95).abs() < 1e-3,
+            "expected 0.95, got {}",
+            vault.confidence
+        );
+        // Multi-signal: contract-name + convert-pair + totalAssets at least.
+        assert!(
+            vault.signals.len() >= 2,
+            "expected 2+ signals: {:#?}",
+            vault.signals
+        );
+    }
+
+    #[test]
+    fn classify_vault_low_confidence_on_single_signal() {
+        let src = fixture("vault_single_signal.sol");
+        let matches = classify_vault(&src, &[]);
+        assert_eq!(matches.len(), 1);
+        let m = &matches[0];
+        assert_eq!(m.primitive, Primitive::Vault);
+        assert!((m.confidence - 0.70).abs() < 1e-3, "expected 0.70, got {}", m.confidence);
+        assert_eq!(m.signals.len(), 1);
+    }
+
+    #[test]
+    fn classify_vault_no_match_on_erc20() {
+        let src = example_source("erc20/src/Token.sol");
+        let matches = classify_vault(&src, &[]);
+        assert!(matches.is_empty(), "ERC20 should not classify as vault: {matches:#?}");
+    }
+
+    #[test]
+    fn classify_returns_only_vault_on_erc4626() {
+        // End-to-end: an ERC-4626 contract should produce a Vault
+        // match but NO TokenErc20 match (vault-supersession).
+        let src = example_source("vault-4626/src/ERC4626.sol");
+        let report = classify(&src, &[], &ClassifyConfig::default());
+        let top = report.top().expect("expected top match");
+        assert_eq!(top.primitive, Primitive::Vault);
+        assert!(report
+            .matches
+            .iter()
+            .all(|m| m.primitive != Primitive::TokenErc20));
+    }
+
+    #[test]
+    fn has_inheritance_detects_derived_contracts() {
+        let src = r#"
+            contract Strategy is ERC4626, Ownable {}
+        "#;
+        assert!(has_inheritance_of(src, "ERC4626"));
+        assert!(has_inheritance_of(src, "Ownable"));
+        assert!(!has_inheritance_of(src, "ERC20"));
+    }
+
+    #[test]
+    fn has_inheritance_does_not_match_substrings() {
+        // `MyERC4626` is a contract name, not a parent.
+        let src = "contract MyERC4626 { }";
+        assert!(!has_inheritance_of(src, "ERC4626"));
     }
 
     #[test]
