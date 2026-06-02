@@ -53,6 +53,9 @@ use vergil_core::fingerprint::{fingerprint, Fingerprint};
 use vergil_core::natspec_intent::{
     extract_from_natspec, NatSpecIntentConfig, NatSpecIntentReport,
 };
+use vergil_core::structural::{
+    extract_from_structural, StructuralConfig, StructuralReport,
+};
 use vergil_core::synthesis::{
     RetrievedHint, Source as CoreSource, SpecCandidate, StaticAnalysisSummary, SynthesisConfig,
 };
@@ -469,6 +472,11 @@ struct Stage1Outputs {
     tests: Option<TestsIntentReport>,
     #[allow(dead_code)]
     natspec: Option<NatSpecIntentReport>,
+    /// V1.5 Phase 5 — structural-mining oracle. `Some` when the
+    /// deterministic structural pass ran (always, when Stage 1 ran at
+    /// all); `None` when no LLM providers were available so Stage 1
+    /// short-circuited entirely.
+    structural: Option<StructuralReport>,
 }
 
 async fn run_stage1(
@@ -577,7 +585,27 @@ async fn run_stage1(
         }
     };
 
-    let (cat_r, test_r, ns_r) = tokio::join!(cat_fut, test_fut, ns_fut);
+    // Structural oracle — deterministic, no LLM, no provider Arcs.
+    // Wrapped in an async block so it joins symmetrically with the
+    // three LLM oracles. Slice 0 ships an empty stub; Slices 1-5 add
+    // real miners and source-loading.
+    let structural_cfg = StructuralConfig::default();
+    let struct_fut = async move {
+        // Slice 0: pass empty inputs; the stub returns an empty report.
+        // The next slice extends this to load (path, source_text) pairs
+        // from `fp.contract_sources` and the per-contract solc
+        // StorageLayout via `vergil_solidity::storage::StorageRun`.
+        let sources: Vec<(std::path::PathBuf, String)> = Vec::new();
+        let layouts: Vec<vergil_solidity::storage::StorageLayout> = Vec::new();
+        Ok::<_, vergil_core::synthesis::SynthesisError>(extract_from_structural(
+            &sources,
+            &layouts,
+            &structural_cfg,
+        ))
+    };
+
+    let (cat_r, test_r, ns_r, struct_r) =
+        tokio::join!(cat_fut, test_fut, ns_fut, struct_fut);
 
     if !activation.templates.is_empty() {
         match cat_r {
@@ -605,6 +633,16 @@ async fn run_stage1(
             }
             Err(e) => tracing::warn!("natspec oracle failed: {e}"),
         }
+    }
+    // Structural always runs (no oracle-availability gate); the empty
+    // stub returns 0 candidates in Slice 0 so verdict shape is unchanged
+    // until Slices 1-5 populate real miners.
+    match struct_r {
+        Ok(r) => {
+            out.candidates.extend(r.candidates.clone());
+            out.structural = Some(r);
+        }
+        Err(e) => tracing::warn!("structural oracle failed: {e}"),
     }
     Ok(out)
 }

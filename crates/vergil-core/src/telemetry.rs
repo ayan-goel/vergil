@@ -58,6 +58,11 @@ pub mod kind {
     /// (string), `source` (one of the Source variants), `template_ref`
     /// (optional string), `cex_file` (relative path inside vergil-out/).
     pub const COUNTEREXAMPLE_FOUND: &str = "counterexample_found";
+    /// V1.5 Phase 5 — emitted once per `extract_from_structural` run.
+    /// Fields: `total_candidates` (high-confidence, ≥ min_confidence,
+    /// flow into the pipeline), `low_confidence_findings` (report-only),
+    /// `by_miner` (object mapping miner id → count of emitted candidates).
+    pub const STRUCTURAL_CANDIDATES_EMITTED: &str = "structural_candidates_emitted";
 }
 
 /// Telemetry sink trait. Implementations: [`JsonlSink`] (file-backed),

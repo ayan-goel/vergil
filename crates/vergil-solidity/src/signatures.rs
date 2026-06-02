@@ -320,6 +320,141 @@ pub fn synthesize_ctor_arg(ty: &str) -> Option<String> {
     }
 }
 
+/// Locate the brace-matched body of a Solidity function in `source` and
+/// return a slice **without** the enclosing braces. Returns `None` when
+/// no function by that name is found or the function has no body (e.g.,
+/// an interface declaration ending in `;`).
+///
+/// V1.5 Phase 5 — shared by every body-scanning structural miner so each
+/// one doesn't roll its own brace-matcher.
+///
+/// `fn_name` is matched on the exact identifier after the `function `
+/// keyword (so `transfer` does NOT match `transferFrom`). Comments are
+/// stripped before scanning; string literals are NOT — a literal `{` or
+/// `}` inside a Solidity string would confuse the depth counter, but in
+/// practice Solidity function bodies don't embed unmatched braces in
+/// strings (the language's revert-string convention uses parens, not
+/// braces).
+pub fn body_for<'a>(fn_name: &str, source: &'a str) -> Option<&'a str> {
+    // Strip comments first so a `// function foo()` line doesn't match.
+    // We then have to find the same byte range in the original source so
+    // we can return a borrowed slice.
+    let stripped = strip_comments(source);
+    let stripped_idx = locate_function(&stripped, fn_name)?;
+    // Project the stripped-source index back into the original source.
+    // strip_comments is a 1:1 byte mapping for non-comment bytes; we walk
+    // the original counting non-comment bytes until we hit `stripped_idx`.
+    let original_fn_idx = project_index(source, stripped_idx)?;
+    // From `function <fn_name>` find the next `{` at depth 0 (skipping
+    // the parameter parens).
+    let from_fn = &source[original_fn_idx..];
+    let open_offset = find_body_open(from_fn)?;
+    let body_open = original_fn_idx + open_offset;
+    let body_close = match_brace(source, body_open)?;
+    if body_close <= body_open + 1 {
+        return Some("");
+    }
+    Some(&source[body_open + 1..body_close])
+}
+
+fn locate_function(source: &str, fn_name: &str) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut i = 0;
+    while i + "function ".len() < bytes.len() {
+        let rest = &source[i..];
+        let rel = rest.find("function ")?;
+        let start = i + rel;
+        let after_kw = start + "function ".len();
+        // Match the identifier following `function `.
+        let mut name_end = after_kw;
+        while name_end < bytes.len() && is_ident(bytes[name_end] as char) {
+            name_end += 1;
+        }
+        let name = &source[after_kw..name_end];
+        if name == fn_name {
+            return Some(start);
+        }
+        i = name_end;
+    }
+    None
+}
+
+fn project_index(original: &str, stripped_idx: usize) -> Option<usize> {
+    // Walk `original` skipping comment runs, counting non-comment bytes.
+    let bytes = original.as_bytes();
+    let mut i = 0;
+    let mut non_comment = 0;
+    while i < bytes.len() {
+        if non_comment == stripped_idx {
+            return Some(i);
+        }
+        if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'/' {
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+        if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            i += 2;
+            while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                i += 1;
+            }
+            i += 2;
+            continue;
+        }
+        i += 1;
+        non_comment += 1;
+    }
+    if non_comment == stripped_idx {
+        Some(i)
+    } else {
+        None
+    }
+}
+
+fn find_body_open(src: &str) -> Option<usize> {
+    // Skip the parameter parens (which may themselves contain `{}` in
+    // exotic cases — they shouldn't, but track depth anyway), then find
+    // the next `{` at top level. A `;` at top level means the function
+    // has no body (interface decl).
+    let bytes = src.as_bytes();
+    let mut i = 0;
+    let mut paren_depth = 0usize;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'(' => paren_depth += 1,
+            b')' => {
+                if paren_depth > 0 {
+                    paren_depth -= 1;
+                }
+            }
+            b'{' if paren_depth == 0 => return Some(i),
+            b';' if paren_depth == 0 => return None,
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+fn match_brace(src: &str, open_idx: usize) -> Option<usize> {
+    let bytes = src.as_bytes();
+    let mut depth = 0usize;
+    for (i, b) in bytes.iter().enumerate().skip(open_idx) {
+        match *b {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 /// Render a constructor invocation argument list (without parens) for `params`,
 /// or `None` if any parameter type cannot be synthesized.
 pub fn synthesize_ctor_args(params: &[CtorParam]) -> Option<String> {
@@ -663,5 +798,107 @@ mod tests {
             }
         "#;
         assert!(detect_interfaces(src).is_empty());
+    }
+
+    // ─── body_for (V1.5 Phase 5 Slice 0) ─────────────────────────────
+
+    #[test]
+    fn body_for_simple_function() {
+        let src = r#"
+            contract C {
+                function foo() external { x = 1; }
+            }
+        "#;
+        let body = body_for("foo", src).expect("body");
+        assert!(body.contains("x = 1;"), "got body: {body:?}");
+    }
+
+    #[test]
+    fn body_for_handles_nested_braces() {
+        let src = r#"
+            contract C {
+                function foo() external {
+                    if (a > 0) { b += 1; }
+                    while (c < 10) { c++; }
+                }
+            }
+        "#;
+        let body = body_for("foo", src).expect("body");
+        assert!(body.contains("b += 1"));
+        assert!(body.contains("c++"));
+    }
+
+    #[test]
+    fn body_for_multi_line_signature() {
+        let src = r#"
+            contract C {
+                function transferFrom(
+                    address from,
+                    address to,
+                    uint256 amount
+                ) external returns (bool) {
+                    balanceOf[from] -= amount;
+                    balanceOf[to] += amount;
+                    return true;
+                }
+            }
+        "#;
+        let body = body_for("transferFrom", src).expect("body");
+        assert!(body.contains("balanceOf[from] -= amount"));
+        assert!(body.contains("balanceOf[to] += amount"));
+    }
+
+    #[test]
+    fn body_for_missing_function_returns_none() {
+        let src = "contract C { function bar() external {} }";
+        assert!(body_for("foo", src).is_none());
+    }
+
+    #[test]
+    fn body_for_does_not_match_prefix() {
+        // `transfer` must not match the start of `transferFrom`.
+        let src = r#"
+            contract C {
+                function transferFrom(address f, address t, uint256 a) external { F = 1; }
+                function transfer(address to, uint256 amount) external { T = 1; }
+            }
+        "#;
+        let body = body_for("transfer", src).expect("body");
+        assert!(body.contains("T = 1;"), "matched wrong function: {body:?}");
+        assert!(!body.contains("F = 1;"));
+    }
+
+    #[test]
+    fn body_for_skips_commented_out_function() {
+        // A commented-out function with the same name must not be picked
+        // up. The real declaration below is the one we want.
+        let src = r#"
+            contract C {
+                // function foo() external { ghost = 1; }
+                /* function foo() external { alsoGhost = 1; } */
+                function foo() external { real = 1; }
+            }
+        "#;
+        let body = body_for("foo", src).expect("body");
+        assert!(body.contains("real = 1"));
+        assert!(!body.contains("ghost"));
+    }
+
+    #[test]
+    fn body_for_interface_declaration_returns_none() {
+        // No body — bare semicolon. Should return None.
+        let src = r#"
+            interface I {
+                function foo() external returns (uint256);
+            }
+        "#;
+        assert!(body_for("foo", src).is_none());
+    }
+
+    #[test]
+    fn body_for_empty_body() {
+        let src = "contract C { function foo() external {} }";
+        let body = body_for("foo", src).expect("body");
+        assert_eq!(body, "");
     }
 }

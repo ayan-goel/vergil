@@ -7,6 +7,7 @@ pub mod fingerprint;
 pub mod natspec_intent;
 pub mod portfolio;
 pub mod refinement;
+pub mod structural;
 pub mod synthesis;
 pub mod telemetry;
 pub mod tests_intent;
