@@ -74,8 +74,9 @@ use crate::output::cex_sink::{CexSink, CounterexampleRecord};
 use crate::output::layout;
 use crate::output::verdict::{
     format_verdict, AvailableOraclesSummary, DocumentOnlyTemplate, FingerprintSummary, Headline,
-    LowConfidenceStructuralSummary, PerTemplateFailureSummary, PropertyOutcome, PropertyVerdict,
-    SkippedTemplateSummary, StratifiedInputs,
+    LowConfidencePrimitiveSummary, LowConfidenceStructuralSummary, PerTemplateFailureSummary,
+    PrimitiveClassificationSummary, PropertyOutcome, PropertyVerdict, SkippedTemplateSummary,
+    StratifiedInputs,
 };
 
 /// Knobs the binary's clap layer projects into the runner. Owned to
@@ -383,6 +384,7 @@ pub async fn run(args: UnifiedVerifyArgs) -> Result<RunReport, UnifiedVerifyErro
         document_only_templates,
         phase5_structural_pending: structural_is_pending(&stage1),
         low_confidence_structural: low_confidence_structural_summaries(&stage1),
+        primitive_classification: project_primitive_classification(&fp),
     };
     let verdict_out = format_verdict(strat);
 
@@ -679,8 +681,25 @@ fn fingerprint_to_facts(fp: &Fingerprint) -> StaticFacts {
         facts = facts.with_interface(i.clone());
     }
     facts = facts.with_primitive("any");
-    for p in &fp.primitives {
-        facts = facts.with_primitive(p.clone());
+    // V1.5 Phase 3 — prefer the classifier's `.above(0.6)` set so
+    // multi-primitive contracts (e.g. oz-erc20-votes →
+    // [token-erc20, governance]) feed every applicable tag into
+    // StaticFacts. Falls back to the legacy `primitives` vec when the
+    // classifier didn't produce any high-confidence matches (preserves
+    // Phase 1 heuristic behavior for unrecognized contracts).
+    let classifier_matches: Vec<&str> = fp
+        .primitive_classification
+        .above(0.6)
+        .map(|m| m.primitive.id())
+        .collect();
+    if !classifier_matches.is_empty() {
+        for id in classifier_matches {
+            facts = facts.with_primitive(id.to_string());
+        }
+    } else {
+        for p in &fp.primitives {
+            facts = facts.with_primitive(p.clone());
+        }
     }
     // Mirror the Phase-1 heuristic — conservatively turn every flag on
     // so activation rules that gate on `state_change_present`,
@@ -894,6 +913,30 @@ fn structural_is_pending(stage1: &Stage1Outputs) -> bool {
         Some(r) => r.candidates.is_empty(),
         None => true,
     }
+}
+
+/// V1.5 Phase 3 Slice 7 — project the Stage 0 primitive classification
+/// into the verdict layer's summary type. `None` when the classifier
+/// produced no matches (rare on real contracts; common on utility libs).
+fn project_primitive_classification(fp: &Fingerprint) -> Option<PrimitiveClassificationSummary> {
+    let top = fp.primitive_classification.top()?;
+    let low_confidence: Vec<LowConfidencePrimitiveSummary> = fp
+        .primitive_classification
+        .matches
+        .iter()
+        .filter(|m| m.confidence < 0.6 && m.primitive != top.primitive)
+        .map(|m| LowConfidencePrimitiveSummary {
+            primitive: m.primitive.id().to_string(),
+            confidence: format!("{:.2}", m.confidence),
+            signals: m.signals.join(", "),
+        })
+        .collect();
+    Some(PrimitiveClassificationSummary {
+        top: top.primitive.id().to_string(),
+        top_confidence: format!("{:.2}", top.confidence),
+        top_signals: top.signals.join(", "),
+        low_confidence,
+    })
 }
 
 /// V1.5 Phase 5 Slice 6 — project Phase-5 `LowConfidenceFinding`s into
@@ -1143,6 +1186,7 @@ mod tests {
             primitives: vec!["token-erc20".to_string()],
             available_oracles: Default::default(),
             contract_sources: Vec::new(),
+            primitive_classification: Default::default(),
         };
         let facts = fingerprint_to_facts(&fp);
         assert!(facts.interfaces.contains("ERC20"));

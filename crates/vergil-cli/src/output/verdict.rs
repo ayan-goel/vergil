@@ -130,6 +130,32 @@ pub struct DocumentOnlyTemplate {
     pub name: String,
 }
 
+/// V1.5 Phase 3 — projection of `vergil_properties::classify::
+/// PrimitiveClassification` for the verdict header. Surfaces the top
+/// match plus any below-threshold runners-up the user might want to
+/// review. `#[serde(default)]` on the field below preserves
+/// backward-compat with pre-Phase-3 proof artifacts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrimitiveClassificationSummary {
+    /// Top-confidence match's primitive id (e.g. `"vault"`).
+    pub top: String,
+    /// Stringified `"0.95"` etc. — kept as String for snapshot stability.
+    pub top_confidence: String,
+    /// Top match's signals, joined with `", "` for terse rendering.
+    pub top_signals: String,
+    /// Below-threshold matches (confidence < 0.6), surfaced as
+    /// "consider also" hints. Empty when the classifier had no
+    /// runners-up.
+    pub low_confidence: Vec<LowConfidencePrimitiveSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LowConfidencePrimitiveSummary {
+    pub primitive: String,
+    pub confidence: String,
+    pub signals: String,
+}
+
 /// V1.5 Phase 5 — a structural miner finding with confidence below the
 /// `cfg.min_confidence` threshold. NOT submitted to the solver; the
 /// verdict surfaces it under "Suggested additional invariants" so the
@@ -169,6 +195,12 @@ pub struct StratifiedInputs {
     /// proof artifacts deserialize cleanly).
     #[serde(default)]
     pub low_confidence_structural: Vec<LowConfidenceStructuralSummary>,
+    /// V1.5 Phase 3 — primitive classification (top match + low-
+    /// confidence runners-up). `None` when no classifier output was
+    /// projected (V1.5-pre-Phase-3 callers / mock data). `#[serde(default)]`
+    /// for backward-compat with prior proof artifacts.
+    #[serde(default)]
+    pub primitive_classification: Option<PrimitiveClassificationSummary>,
 }
 
 /// Phase 6 three-state headline. SPEC §3.6.
@@ -217,11 +249,29 @@ impl VerdictOutput {
             join_or_none(&v.fingerprint.primitives)
         ));
         out.push_str(&format!(
-            "Oracles available: tests={} natspec={} readme={}\n\n",
+            "Oracles available: tests={} natspec={} readme={}\n",
             v.fingerprint.available_oracles.tests,
             v.fingerprint.available_oracles.natspec,
             v.fingerprint.available_oracles.readme,
         ));
+        // V1.5 Phase 3 — Suggested classification line. Only renders
+        // when the runner attached a classification summary; pre-Phase-3
+        // proof artifacts deserialize with this field as None.
+        if let Some(c) = &v.primitive_classification {
+            out.push_str(&format!(
+                "Suggested classification: {} ({}) — signals: {}\n",
+                c.top, c.top_confidence, c.top_signals,
+            ));
+            if !c.low_confidence.is_empty() {
+                for low in &c.low_confidence {
+                    out.push_str(&format!(
+                        "  · also considered: {} ({}) — {}\n",
+                        low.primitive, low.confidence, low.signals,
+                    ));
+                }
+            }
+        }
+        out.push('\n');
 
         // §1 Proven
         let proven: Vec<&PropertyOutcome> = v
@@ -608,6 +658,7 @@ mod tests {
             document_only_templates: Vec::new(),
             phase5_structural_pending: true,
             low_confidence_structural: Vec::new(),
+            primitive_classification: None,
         }
     }
 

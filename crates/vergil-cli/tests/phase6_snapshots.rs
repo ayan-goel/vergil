@@ -282,6 +282,7 @@ fn fixture_erc20_broken() -> StratifiedInputs {
         }],
         phase5_structural_pending: true,
         low_confidence_structural: vec![],
+        primitive_classification: None,
     }
 }
 
@@ -326,6 +327,7 @@ fn fixture_erc20_clean() -> StratifiedInputs {
         document_only_templates: vec![],
         phase5_structural_pending: true,
         low_confidence_structural: vec![],
+        primitive_classification: None,
     }
 }
 
