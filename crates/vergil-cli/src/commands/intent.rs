@@ -24,7 +24,7 @@ use vergil_core::critique::{Critic, CritiqueConfig};
 use vergil_core::diagnosis::{DiagnosisConfig, Diagnostician};
 use vergil_core::portfolio::{dispatch, PortfolioConfig, Verdict};
 use vergil_core::refinement::{RefinementConfig, Refiner};
-use vergil_core::synthesis::{RetrievedHint, SpecCandidate, StaticAnalysisSummary};
+use vergil_core::synthesis::{RetrievedHint, Source as CoreSource, SpecCandidate, StaticAnalysisSummary};
 use vergil_core::telemetry::TelemetrySink;
 use vergil_llm::anthropic::AnthropicClient;
 use vergil_llm::openai::OpenAiClient;
@@ -32,7 +32,8 @@ use vergil_llm::trace::{default_env_secrets, TraceRecorder};
 use vergil_llm::{LlmProvider, ProviderId};
 use vergil_proof::schema::{
     sha256_hex, Cost, CounterexampleSummary, ManifestValidationStatus, ProofArtifact,
-    QualityMetrics, RunMeta, SourceFile, ToolchainVersions, VerifiedProperty,
+    QualityMetrics, RunMeta, Source as ProofSource, SourceFile, Tier, ToolchainVersions,
+    VerifiedProperty,
 };
 use vergil_properties::{
     Catalog, Embedder, MockEmbedder, RetrievalError, Retriever, VoyageEmbedder,
@@ -634,6 +635,8 @@ fn build_proof_artifact(
                     external_calls_ok: true,
                     warnings: o.manifest_warnings.clone(),
                 },
+                source: bridge_source(o.candidate.source),
+                tier: bridge_tier(o.candidate.source),
             }),
             _ => None,
         })
@@ -750,6 +753,38 @@ pub fn locate_templates_dir() -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Bridge `vergil_core::synthesis::Source` to its on-disk twin in
+/// `vergil_proof::schema::Source`. The match is exhaustive on the
+/// core enum so a future variant added without a proof-side mirror is
+/// a compile error, not a silent downgrade to `UserIntent`. SPEC §3.6.
+///
+/// Same helper lives in `commands/verify.rs`; lib.rs uses
+/// `#[path = "commands/intent.rs"] pub mod intent;` so a shared
+/// `commands::` helper is reachable from the binary build but not from
+/// the lib build. Inlining the bridge keeps both build contexts happy
+/// without a separate top-level utility module.
+fn bridge_source(core: CoreSource) -> ProofSource {
+    match core {
+        CoreSource::UserIntent => ProofSource::UserIntent,
+        CoreSource::AttackCatalog => ProofSource::AttackCatalog,
+        CoreSource::Conformance => ProofSource::Conformance,
+        CoreSource::Tests => ProofSource::Tests,
+        CoreSource::NatSpec => ProofSource::NatSpec,
+        CoreSource::Structural => ProofSource::Structural,
+    }
+}
+
+fn bridge_tier(core: CoreSource) -> Tier {
+    match core {
+        CoreSource::UserIntent => Tier::Intent,
+        CoreSource::AttackCatalog
+        | CoreSource::Conformance
+        | CoreSource::Tests
+        | CoreSource::NatSpec
+        | CoreSource::Structural => Tier::ZeroConfig,
+    }
 }
 
 #[cfg(test)]

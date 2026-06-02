@@ -1,4 +1,19 @@
 //! Serde types for `proof.json` — schema_version = 1 (frozen for Phase 2).
+//!
+//! V1.5 Phase 6 Slice 2 extends [`VerifiedProperty`] with two
+//! provenance fields (`tier` + `source`) needed by the stratified
+//! verdict (SPEC §3.6). Both fields carry `#[serde(default)]` so V1
+//! artifacts deserialize unchanged: missing `tier` → `Tier::Intent`,
+//! missing `source` → `Source::UserIntent`. The schema_version stays
+//! at 1 — the additions are backward-compatible, not a breaking change.
+//!
+//! The [`Source`] / [`Tier`] enums are mirrored locally rather than
+//! pulled from `vergil_core::synthesis::Source` to keep this crate
+//! lightweight (vergil-proof is the artifact-read boundary; external
+//! consumers shouldn't need the full async stack). Wire-compatible
+//! JSON: same `rename_all = "snake_case"` shape as
+//! `vergil_core::synthesis::Source`. `vergil-cli` does the conversion
+//! at the construction boundary.
 
 use serde::{Deserialize, Serialize};
 
@@ -59,6 +74,64 @@ pub struct VerifiedProperty {
     #[serde(default)]
     pub smt_query_sha256: Option<String>,
     pub manifest_validation: ManifestValidationStatus,
+    /// Tier the property landed in: zero-config (any Stage-1 oracle —
+    /// catalog, tests, NatSpec, structural, conformance) or
+    /// intent (V1 CEGIS over a user-typed `--intent` or
+    /// `properties.yaml`). V1 artifacts default to `Intent` so old
+    /// proofs deserialize with V1-correct semantics. Phase 6 SPEC §3.6.
+    #[serde(default)]
+    pub tier: Tier,
+    /// Origin of the candidate property — which Stage-1 oracle (if any)
+    /// proposed the underlying intent. V1 artifacts default to
+    /// `UserIntent`. The stratified verdict (SPEC §3.6) groups proven
+    /// properties by source. Phase 6 SPEC §3.6.
+    #[serde(default)]
+    pub source: Source,
+}
+
+/// Which Phase-6 tier a verified property landed in. V1 single-tier
+/// proofs default to `Intent` so existing artifacts re-verify with
+/// V1-correct semantics. SPEC §3.6.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Tier {
+    /// Stage 1 auto-coverage: catalog activation, tests-derived,
+    /// NatSpec-derived, structural-mined, or interface-conformance.
+    /// No user-typed intent.
+    ZeroConfig,
+    /// V1 CEGIS path over a user-typed `--intent` or
+    /// `properties.yaml` row.
+    #[default]
+    Intent,
+}
+
+/// Origin of a verified property's candidate. Mirrors
+/// `vergil_core::synthesis::Source` with the same `snake_case` JSON
+/// wire format so artifacts cross the crate boundary unchanged. V1
+/// artifacts (no `source` field) deserialize to `UserIntent` via
+/// `#[serde(default)]` on the parent struct. SPEC §3.6.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Source {
+    /// V1 path: candidate came from a user-typed `--intent` or
+    /// `properties.yaml` row. Default for V1 artifacts that predate
+    /// Phase 6's provenance tagging.
+    #[default]
+    UserIntent,
+    /// Phase 1/2 attack catalog: candidate's intent_text is the
+    /// template's `negation_property` field, fed through V1 SYNTHESIZE.
+    AttackCatalog,
+    /// V1 interface-conformance catalog (the 100-template ERC-X set).
+    Conformance,
+    /// Phase 4: candidate derived from a test assertion.
+    Tests,
+    /// Phase 4: candidate derived from a NatSpec doc-comment block.
+    NatSpec,
+    /// Phase 5: candidate derived from structural mining
+    /// (conservation / monotonicity / access-policy / invariant
+    /// constants / two-step patterns). Phase 6 reserves the variant;
+    /// Phase 5 emits SpecCandidates of this source.
+    Structural,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -173,6 +246,8 @@ mod tests {
                     external_calls_ok: true,
                     warnings: Vec::new(),
                 },
+                tier: Tier::Intent,
+                source: Source::UserIntent,
             }],
             counterexamples: Vec::new(),
             quality_metrics: QualityMetrics {
@@ -225,5 +300,96 @@ mod tests {
         assert!(s.chars().all(|c| c.is_ascii_hexdigit()));
         // Stable: same input → same hash.
         assert_eq!(sha256_hex(b"hello vergil"), s);
+    }
+
+    // ─── Phase 6 Slice 2: tier + source provenance ───────────────────────
+
+    /// V1 artifacts predate the `tier` / `source` fields. They must
+    /// deserialize cleanly with V1-correct defaults (`tier: intent`,
+    /// `source: user_intent`).
+    #[test]
+    fn v1_proof_json_without_tier_or_source_deserializes_with_defaults() {
+        let json = r#"{
+            "name": "check_balance_conservation",
+            "backend": "halmos",
+            "spec_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "template_ref": null,
+            "wall_clock_ms": 1500,
+            "smt_query_sha256": null,
+            "manifest_validation": {
+                "storage_ok": true,
+                "modifiers_ok": true,
+                "external_calls_ok": true,
+                "warnings": []
+            }
+        }"#;
+        let prop: VerifiedProperty = serde_json::from_str(json).expect("V1 round-trip");
+        assert_eq!(prop.tier, Tier::Intent, "V1 default tier must be Intent");
+        assert_eq!(
+            prop.source,
+            Source::UserIntent,
+            "V1 default source must be UserIntent"
+        );
+    }
+
+    /// Phase 6 artifacts carry explicit provenance. Round-trip must
+    /// preserve both fields verbatim (wire format = snake_case).
+    #[test]
+    fn phase6_proof_json_with_tier_and_source_round_trips() {
+        let json = r#"{
+            "name": "check_transferFrom_rejects_unauthorized",
+            "backend": "halmos",
+            "spec_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "template_ref": "access-missing-modifier-state-change",
+            "wall_clock_ms": 2200,
+            "smt_query_sha256": null,
+            "manifest_validation": {
+                "storage_ok": true,
+                "modifiers_ok": true,
+                "external_calls_ok": true,
+                "warnings": []
+            },
+            "tier": "zero-config",
+            "source": "attack_catalog"
+        }"#;
+        let prop: VerifiedProperty = serde_json::from_str(json).expect("Phase 6 round-trip");
+        assert_eq!(prop.tier, Tier::ZeroConfig);
+        assert_eq!(prop.source, Source::AttackCatalog);
+        // Re-serialize and confirm wire shape is preserved.
+        let s = serde_json::to_string(&prop).expect("serialize");
+        assert!(s.contains("\"tier\":\"zero-config\""), "{s}");
+        assert!(s.contains("\"source\":\"attack_catalog\""), "{s}");
+    }
+
+    /// The full enum surface must serialize / deserialize for every
+    /// variant — this catches a future enum-renaming-without-rename
+    /// regression.
+    #[test]
+    fn source_enum_round_trips_every_variant() {
+        let cases = [
+            (Source::UserIntent, "\"user_intent\""),
+            (Source::AttackCatalog, "\"attack_catalog\""),
+            (Source::Conformance, "\"conformance\""),
+            (Source::Tests, "\"tests\""),
+            (Source::NatSpec, "\"nat_spec\""),
+            (Source::Structural, "\"structural\""),
+        ];
+        for (variant, wire) in cases {
+            let s = serde_json::to_string(&variant).unwrap();
+            assert_eq!(s, wire, "Source::{variant:?} should serialize as {wire}");
+            let back: Source = serde_json::from_str(&s).unwrap();
+            assert_eq!(back, variant);
+        }
+    }
+
+    #[test]
+    fn tier_enum_round_trips_every_variant() {
+        let cases = [(Tier::ZeroConfig, "\"zero-config\""), (Tier::Intent, "\"intent\"")];
+        for (variant, wire) in cases {
+            let s = serde_json::to_string(&variant).unwrap();
+            assert_eq!(s, wire, "Tier::{variant:?} should serialize as {wire}");
+            let back: Tier = serde_json::from_str(&s).unwrap();
+            assert_eq!(back, variant);
+        }
     }
 }

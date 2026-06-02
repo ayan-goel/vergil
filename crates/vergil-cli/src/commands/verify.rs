@@ -211,6 +211,13 @@ fn emit_phase1_proof(project: &Path, intent: &str, report: &VerifyReport) -> Res
                     external_calls_ok: true,
                     warnings: Vec::new(),
                 },
+                // Phase-1 properties.yaml path is V1-semantics: the
+                // user supplied the properties, so tier=Intent and
+                // source=UserIntent. Phase 6 Slice 8's unified
+                // runner sets these from the underlying SpecCandidate
+                // for Stage-1 oracle properties.
+                source: vergil_proof::schema::Source::UserIntent,
+                tier: vergil_proof::schema::Tier::Intent,
             }),
             _ => None,
         })
