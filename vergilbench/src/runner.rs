@@ -47,6 +47,17 @@ struct Cli {
     /// `vergil verify --intent` run. Phase 4 Slice A9.
     #[arg(long, default_value_t = false)]
     intent: bool,
+    /// Run V1.5 zero-config mode: the multi-oracle stack (catalog + tests +
+    /// natspec + structural) per `vergil verify <c> --mode zero-config --yes`.
+    /// Mutually exclusive with --intent. Used by Phase 7's sweep.
+    #[arg(long, default_value_t = false)]
+    zero_config: bool,
+    /// After a --zero-config sweep, score each contract's proposed intents
+    /// against the hand-written intent in properties.yaml. Emits
+    /// `intent-quality.json` + `intent-quality-summary.md` next to the
+    /// timestamped sweep result. Zero additional LLM cost.
+    #[arg(long, default_value_t = false)]
+    intent_quality: bool,
     /// Aggregate USD budget for the intent sweep. The sweep aborts gracefully
     /// (recording the contracts covered) once cumulative cost reaches this.
     #[arg(long, default_value_t = 200.0)]
@@ -108,6 +119,16 @@ fn main() {
 }
 
 fn run(args: &Cli) -> Result<(), String> {
+    if args.intent && args.zero_config {
+        return Err("--intent and --zero-config are mutually exclusive".to_string());
+    }
+    if args.intent_quality && !args.zero_config {
+        return Err(
+            "--intent-quality requires --zero-config (overlay reads the multi-oracle stack's confirm/state.json)"
+                .to_string(),
+        );
+    }
+
     let contracts_dir = args.corpus.join("contracts");
     if !contracts_dir.is_dir() {
         return Err(format!(
@@ -201,6 +222,12 @@ fn run(args: &Cli) -> Result<(), String> {
                     continue;
                 }
             }
+        } else if args.zero_config {
+            // V1.5 multi-oracle stack with Stage-2 auto-confirm so the sweep
+            // is non-interactive. The unified runner writes the proposed
+            // intents to <path>/vergil-out/confirm/state.json — that's the
+            // input the intent-quality overlay reads post-sweep.
+            cmd.arg("--mode").arg("zero-config").arg("--yes");
         }
 
         let one_started = Instant::now();
@@ -223,6 +250,15 @@ fn run(args: &Cli) -> Result<(), String> {
         let (verified, cost) = if args.intent {
             (
                 parse_intent_verified(&stdout).unwrap_or(0),
+                parse_cost(&stdout).unwrap_or(0.0),
+            )
+        } else if args.zero_config {
+            // Zero-config emits the same `Summary: N verified` shape as the
+            // deterministic path; the unified runner additionally emits a
+            // `cost: $X` line aggregating LLM spend across the Stage-1
+            // oracles + synthesis + critique.
+            (
+                parse_verified_count(&stdout).unwrap_or(0),
                 parse_cost(&stdout).unwrap_or(0.0),
             )
         } else {
@@ -270,6 +306,8 @@ fn run(args: &Cli) -> Result<(), String> {
         aborted_on_budget,
         mode: if args.intent {
             "intent".to_string()
+        } else if args.zero_config {
+            "zero-config".to_string()
         } else {
             "deterministic".to_string()
         },
@@ -293,6 +331,13 @@ fn run(args: &Cli) -> Result<(), String> {
         pass_rate * 100.0,
         total_ms = agg.total_wall_clock_ms
     );
+
+    if args.intent_quality {
+        if let Err(e) = vergilbench::intent_quality::run_overlay(&args.corpus, &entries, &out) {
+            eprintln!("[vergilbench] intent-quality overlay failed: {e}");
+        }
+    }
+
     Ok(())
 }
 

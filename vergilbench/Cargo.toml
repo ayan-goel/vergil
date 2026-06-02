@@ -12,6 +12,10 @@ rust-version.workspace = true
 # via `--features integration` like the catalog's fixture tests.
 integration = []
 
+[lib]
+name = "vergilbench"
+path = "src/lib.rs"
+
 [[bin]]
 name = "vergilbench-calibration"
 path = "src/calibration.rs"
@@ -26,12 +30,12 @@ tokio = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 vergil-core = { path = "../crates/vergil-core" }
 vergil-solidity = { path = "../crates/vergil-solidity" }
 
 [dev-dependencies]
-serde_yaml = "0.9"
 tempfile = "3"
 tokio = { workspace = true }
 vergil-properties = { path = "../crates/vergil-properties" }
