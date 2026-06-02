@@ -36,7 +36,7 @@
 
 #![cfg(feature = "llm-live")]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 fn workspace_root() -> &'static Path {
@@ -91,7 +91,7 @@ fn clean_vergil_out(project: &Path) {
     }
 }
 
-fn read_proof_json(project: &PathBuf) -> serde_json::Value {
+fn read_proof_json(project: &Path) -> serde_json::Value {
     let p = project.join("vergil-out/proof.json");
     let body = std::fs::read_to_string(&p)
         .unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
