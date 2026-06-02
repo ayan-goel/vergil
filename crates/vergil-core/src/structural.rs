@@ -180,6 +180,10 @@ pub fn extract_from_structural(
     all.extend(ic_high);
     low.extend(ic_low);
 
+    let (mn_high, mn_low) = mine_monotonicity(sources, layouts);
+    all.extend(mn_high);
+    low.extend(mn_low);
+
     split_by_confidence(all, low, cfg)
 }
 
@@ -752,6 +756,301 @@ fn make_invariant_candidate(
     }
 }
 
+// ─── Miner 2: Monotonicity ───────────────────────────────────────────
+
+/// Polarity of a write to a state variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WritePolarity {
+    /// `+=`, `++`.
+    Increment,
+    /// `-=`, `--`.
+    Decrement,
+    /// `=`, `*=`, `/=`, `%=` — disqualifies monotonicity.
+    Overwrite,
+}
+
+/// Mine monotonicity candidates. For each state variable that is
+/// written by some non-constructor function AND every such write
+/// shares the same polarity (all `+=`/`++` or all `-=`/`--`), emit one
+/// candidate per writer at confidence 0.85. The Halmos check exercises
+/// the writer with symbolic args via try/catch and asserts the
+/// monotonicity invariant.
+///
+/// Overwrites (`=`, compound multiplicative/division) disqualify the
+/// variable entirely — `value = expr` could go either way, so the
+/// miner stays silent.
+pub fn mine_monotonicity(
+    sources: &[(PathBuf, String)],
+    layouts: &[StorageLayout],
+) -> (Vec<StructuralCandidate>, Vec<LowConfidenceFinding>) {
+    let mut high: Vec<StructuralCandidate> = Vec::new();
+    let low: Vec<LowConfidenceFinding> = Vec::new();
+
+    for (path, source) in sources {
+        let file_layout: Vec<&StorageLayout> = layouts
+            .iter()
+            .filter(|l| layout_belongs_to(l, path))
+            .collect();
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for layout in &file_layout {
+            for entry in &layout.entries {
+                if !seen.insert(entry.label.as_str()) {
+                    continue;
+                }
+                if is_mapping_or_array_type(layout, &entry.type_id) {
+                    continue;
+                }
+                let writers_polarities = writer_polarities(source, &entry.label);
+                // Drop constructor writes (those don't violate
+                // monotonicity post-deployment).
+                let post_ctor: Vec<&(String, WritePolarity)> = writers_polarities
+                    .iter()
+                    .filter(|(w, _)| w != "constructor")
+                    .collect();
+                if post_ctor.is_empty() {
+                    continue;
+                }
+                // Any overwrite disqualifies.
+                if post_ctor.iter().any(|(_, p)| *p == WritePolarity::Overwrite) {
+                    continue;
+                }
+                let all_inc = post_ctor
+                    .iter()
+                    .all(|(_, p)| *p == WritePolarity::Increment);
+                let all_dec = post_ctor
+                    .iter()
+                    .all(|(_, p)| *p == WritePolarity::Decrement);
+                if !all_inc && !all_dec {
+                    continue;
+                }
+                let direction = if all_inc { Direction::Inc } else { Direction::Dec };
+                // Build a per-writer Halmos candidate.
+                let writer_names: std::collections::BTreeSet<&str> =
+                    post_ctor.iter().map(|(w, _)| w.as_str()).collect();
+                for writer in writer_names {
+                    let Some(sig) = signature_for(source, writer) else { continue };
+                    if !is_externally_callable(&sig) {
+                        continue;
+                    }
+                    high.push(make_monotonic_candidate(
+                        &entry.label,
+                        writer,
+                        &sig.args,
+                        direction,
+                        path,
+                    ));
+                }
+            }
+        }
+    }
+
+    (high, low)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Direction {
+    Inc,
+    Dec,
+}
+
+impl Direction {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Inc => "inc",
+            Self::Dec => "dec",
+        }
+    }
+    fn op(self) -> &'static str {
+        match self {
+            Self::Inc => ">=",
+            Self::Dec => "<=",
+        }
+    }
+    fn english(self) -> &'static str {
+        match self {
+            Self::Inc => "monotonically increasing",
+            Self::Dec => "monotonically decreasing",
+        }
+    }
+}
+
+/// Walk every function body in `source` and return the list of
+/// (function_name, polarity) pairs for writes to `var_name`. A function
+/// that writes the variable multiple times is reported once per write
+/// (so mixed-polarity inside one function still disqualifies it). The
+/// constructor is reported with the name `"constructor"`.
+fn writer_polarities(source: &str, var_name: &str) -> Vec<(String, WritePolarity)> {
+    let mut out = Vec::new();
+    if let Some(body) = constructor_body(source) {
+        for p in scan_polarities(body, var_name) {
+            out.push(("constructor".to_string(), p));
+        }
+    }
+    for sig in extract_signatures(source) {
+        if let Some(body) = body_for(&sig.name, source) {
+            for p in scan_polarities(body, var_name) {
+                out.push((sig.name.clone(), p));
+            }
+        }
+    }
+    out
+}
+
+fn scan_polarities(body: &str, var_name: &str) -> Vec<WritePolarity> {
+    let mut out = Vec::new();
+    let bytes = body.as_bytes();
+    let needle = var_name.as_bytes();
+    let n = needle.len();
+    let mut i = 0;
+    while i + n <= bytes.len() {
+        if !is_word_boundary_at(body, i, n) || &bytes[i..i + n] != needle {
+            i += 1;
+            continue;
+        }
+        // Postfix `++` / `--` — look immediately after (allowing
+        // whitespace).
+        let after = skip_ws(bytes, i + n);
+        if after + 1 < bytes.len() {
+            let c = bytes[after];
+            if c == b'+' && bytes[after + 1] == b'+' {
+                out.push(WritePolarity::Increment);
+                i = after + 2;
+                continue;
+            }
+            if c == b'-' && bytes[after + 1] == b'-' {
+                out.push(WritePolarity::Decrement);
+                i = after + 2;
+                continue;
+            }
+            if c == b'+' && bytes[after + 1] == b'=' {
+                out.push(WritePolarity::Increment);
+                i = after + 2;
+                continue;
+            }
+            if c == b'-' && bytes[after + 1] == b'=' {
+                out.push(WritePolarity::Decrement);
+                i = after + 2;
+                continue;
+            }
+            if matches!(c, b'*' | b'/' | b'%') && bytes[after + 1] == b'=' {
+                out.push(WritePolarity::Overwrite);
+                i = after + 2;
+                continue;
+            }
+            if c == b'=' && bytes[after + 1] != b'=' && bytes[after + 1] != b'>' {
+                out.push(WritePolarity::Overwrite);
+                i = after + 1;
+                continue;
+            }
+        }
+        // Prefix `++var` / `--var` — look immediately before.
+        if i >= 2 {
+            let p1 = bytes[i - 1];
+            let p2 = bytes[i - 2];
+            if p1 == b'+' && p2 == b'+' {
+                out.push(WritePolarity::Increment);
+                i += n;
+                continue;
+            }
+            if p1 == b'-' && p2 == b'-' {
+                out.push(WritePolarity::Decrement);
+                i += n;
+                continue;
+            }
+        }
+        i += n;
+    }
+    out
+}
+
+fn skip_ws(bytes: &[u8], start: usize) -> usize {
+    let mut i = start;
+    while i < bytes.len() && (bytes[i] as char).is_whitespace() {
+        i += 1;
+    }
+    i
+}
+
+fn signature_for<'a>(
+    source: &'a str,
+    fn_name: &str,
+) -> Option<vergil_solidity::signatures::FunctionSignature> {
+    extract_signatures(source).into_iter().find(|s| s.name == fn_name)
+}
+
+fn is_externally_callable(sig: &vergil_solidity::signatures::FunctionSignature) -> bool {
+    sig.visibility == "external" || sig.visibility == "public"
+}
+
+/// Forward-the-args call form: given `"(uint256 from, uint256 to)"`,
+/// return `"from, to"`. Empty for `"()"`.
+fn forward_arg_names(args_paren: &str) -> String {
+    let inner = args_paren.trim();
+    let inner = inner
+        .strip_prefix('(')
+        .and_then(|s| s.strip_suffix(')'))
+        .unwrap_or(inner);
+    inner
+        .split(',')
+        .filter_map(|p| {
+            let p = p.trim();
+            if p.is_empty() {
+                return None;
+            }
+            // Drop `memory` / `calldata` / `storage` location keywords.
+            // The last identifier is the parameter name.
+            let toks: Vec<&str> = p.split_whitespace().collect();
+            toks.last().map(|s| (*s).to_string())
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn make_monotonic_candidate(
+    var_name: &str,
+    writer: &str,
+    writer_args: &str,
+    direction: Direction,
+    _path: &std::path::Path,
+) -> StructuralCandidate {
+    let call_args = forward_arg_names(writer_args);
+    // Halmos: exercise the writer with symbolic args; assert post-
+    // condition. try/catch absorbs reverts so they don't fail the
+    // property (a revert means no state change, which preserves
+    // monotonicity trivially).
+    let halmos = format!(
+        "function check_monotonic_{var}_{dir}_via_{writer}{sig} public {{\n    \
+         uint256 pre = token.{var}();\n    \
+         try token.{writer}({call_args}) {{}} catch {{ return; }}\n    \
+         uint256 post = token.{var}();\n    \
+         assert(post {op} pre);\n}}\n",
+        var = var_name,
+        dir = direction.label(),
+        writer = writer,
+        sig = writer_args,
+        call_args = call_args,
+        op = direction.op(),
+    );
+    StructuralCandidate {
+        spec: SpecCandidate {
+            name: format!("check_monotonic_{var_name}_{}_via_{writer}", direction.label()),
+            halmos,
+            smtchecker: String::new(),
+            template_ref: None,
+            intent_satisfied: false,
+            source: Source::Structural,
+            intent_text: Some(format!(
+                "{} is {} across calls to {}",
+                var_name,
+                direction.english(),
+                writer
+            )),
+        },
+        confidence: 0.85,
+        miner: StructuralMiner::Monotonicity,
+    }
+}
+
 // ─── shared helpers ──────────────────────────────────────────────────
 
 fn strip_comments(source: &str) -> String {
@@ -1089,17 +1388,141 @@ mod tests {
         assert!(
             report.miner_counts.contains_key(&StructuralMiner::InvariantConstants)
         );
-        // All candidates carry Source::Structural + invariant-constants template_ref.
+        // All candidates carry Source::Structural with a structural-
+        // family template_ref. (The fixture also yields a monotonicity
+        // candidate for `counter` via bump(), so the aggregator output
+        // mixes invariant-constants + monotonicity entries.)
         for c in &report.candidates {
             assert_eq!(c.source, Source::Structural);
             let t = c.template_ref.as_deref().unwrap_or("");
             assert!(
-                t.starts_with("structural:invariant-constants:"),
+                t.starts_with("structural:"),
                 "template_ref drift: {t}"
             );
         }
+        // At least one invariant-constants candidate must be present
+        // (name and symbol via Tier B).
+        assert!(
+            report
+                .candidates
+                .iter()
+                .any(|c| c
+                    .template_ref
+                    .as_deref()
+                    .unwrap_or("")
+                    .starts_with("structural:invariant-constants:")),
+            "missing invariant-constants candidate: {:?}",
+            report.candidates
+        );
         // Low-confidence has at least the totalSupply Tier C.
         assert!(!report.low_confidence_findings.is_empty());
+    }
+
+    // ─── Monotonicity miner (S2) ─────────────────────────────────────
+
+    #[test]
+    fn monotonic_counter_emits_inc_per_writer() {
+        // `count` is only `++` and `+= n` — pure-increment. The miner
+        // emits one candidate per (var, writer) pair, so two candidates
+        // for count (bump + bumpBy).
+        let (path, src) = fixture("monotonic_counter.sol");
+        let layouts = vec![mock_layout(
+            "MonotonicCounter",
+            &[("count", "t_uint256")],
+            &path,
+        )];
+        let (high, _low) = mine_monotonicity(&[(path, src)], &layouts);
+        assert_eq!(high.len(), 2, "expected one per writer: {:#?}", high);
+        for c in &high {
+            assert_eq!(c.miner, StructuralMiner::Monotonicity);
+            assert!((c.confidence - 0.85).abs() < 1e-3);
+            assert!(
+                c.spec.halmos.contains("assert(post >= pre)"),
+                "missing inc assertion: {}",
+                c.spec.halmos
+            );
+            assert!(c.spec.halmos.contains("token.count()"));
+        }
+        let names: Vec<&str> = high.iter().map(|c| c.spec.name.as_str()).collect();
+        assert!(names.iter().any(|n| n.ends_with("via_bump")));
+        assert!(names.iter().any(|n| n.ends_with("via_bumpBy")));
+    }
+
+    #[test]
+    fn monotonic_counter_halmos_forwards_args() {
+        let (path, src) = fixture("monotonic_counter.sol");
+        let layouts = vec![mock_layout(
+            "MonotonicCounter",
+            &[("count", "t_uint256")],
+            &path,
+        )];
+        let (high, _) = mine_monotonicity(&[(path, src)], &layouts);
+        let bump_by = high
+            .iter()
+            .find(|c| c.spec.name.ends_with("via_bumpBy"))
+            .expect("bumpBy candidate");
+        // The check function signature mirrors the writer's args; the
+        // call inside forwards the param name.
+        assert!(
+            bump_by.spec.halmos.contains("via_bumpBy(uint256 n)"),
+            "missing args in check sig: {}",
+            bump_by.spec.halmos
+        );
+        assert!(
+            bump_by.spec.halmos.contains("token.bumpBy(n)"),
+            "missing forwarded arg in call: {}",
+            bump_by.spec.halmos
+        );
+    }
+
+    #[test]
+    fn monotonic_negative_no_candidates() {
+        // `value` is mixed-polarity (+= in up, -= in down). No emission.
+        let (path, src) = fixture("monotonic_negative.sol");
+        let layouts = vec![mock_layout(
+            "MonotonicNegative",
+            &[("value", "t_uint256")],
+            &path,
+        )];
+        let (high, low) = mine_monotonicity(&[(path, src)], &layouts);
+        assert!(high.is_empty(), "high expected empty: {high:?}");
+        assert!(low.is_empty(), "low expected empty: {low:?}");
+    }
+
+    #[test]
+    fn write_polarity_scanner_classifies_compound_ops() {
+        let body = "x++; x += 1; --x; y -= 2;";
+        let xp = scan_polarities(body, "x");
+        assert_eq!(
+            xp,
+            vec![
+                WritePolarity::Increment, // x++
+                WritePolarity::Increment, // x +=
+                WritePolarity::Decrement, // --x
+            ]
+        );
+        let yp = scan_polarities(body, "y");
+        assert_eq!(yp, vec![WritePolarity::Decrement]);
+    }
+
+    #[test]
+    fn write_polarity_overwrite_disqualifies() {
+        let body = "x = 1; x += 2;";
+        let p = scan_polarities(body, "x");
+        assert!(p.contains(&WritePolarity::Overwrite));
+        assert!(p.contains(&WritePolarity::Increment));
+    }
+
+    #[test]
+    fn forward_arg_names_handles_locations() {
+        assert_eq!(forward_arg_names("()"), "");
+        assert_eq!(forward_arg_names("(uint256 n)"), "n");
+        assert_eq!(forward_arg_names("(address to, uint256 amount)"), "to, amount");
+        assert_eq!(
+            forward_arg_names("(bytes calldata data)"),
+            "data",
+            "calldata location keyword should be dropped"
+        );
     }
 
     fn mock_layout(
