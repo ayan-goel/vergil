@@ -75,24 +75,30 @@ fn catalog_self_test_runs_against_erc20_example() {
 }
 
 #[test]
-fn verify_mode_zero_config_prints_redirect_to_catalog_self_test() {
-    // After Phase 6 Slice 0, `vergil verify --mode zero-config` no
-    // longer runs the catalog-self-test loop. It points users at
-    // `vergil catalog self-test` until Slice 8 repurposes the flag for
-    // the Stage 1 oracle path.
+fn verify_mode_zero_config_invokes_unified_runner() {
+    // Slice 8 repurposed `verify --mode zero-config` from the Phase-1
+    // catalog-self-test loop (now at `vergil catalog self-test`) to
+    // the Stage 1 oracle path feeding the stratified verdict. We
+    // exercise that via `--list-applicable` so the test doesn't
+    // require an Anthropic API key — the short-circuit prints the
+    // fingerprint + activation summary and exits 0 without LLM calls.
     let project = workspace_root().join("examples/erc20");
     let out = vergil(&[
         "verify",
         project.to_str().expect("utf8 path"),
         "--mode",
         "zero-config",
+        "--list-applicable",
     ]);
-    let stderr = String::from_utf8_lossy(&out.stderr);
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let combined = format!("{stdout}\n{stderr}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        combined.contains("catalog self-test")
-            || combined.contains("`vergil catalog self-test`"),
-        "expected redirect to `vergil catalog self-test`:\n{combined}"
+        out.status.success(),
+        "`vergil verify --mode zero-config --list-applicable` should exit 0:\nstdout={stdout}\nstderr={stderr}"
+    );
+    assert!(
+        stdout.contains("vergil verify --list-applicable")
+            && stdout.contains("Activated attack-catalog templates"),
+        "unified runner --list-applicable output missing:\n{stdout}"
     );
 }

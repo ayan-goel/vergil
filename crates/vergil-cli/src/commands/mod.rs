@@ -6,3 +6,4 @@ pub mod init;
 pub mod intent;
 pub mod prove;
 pub mod verify;
+pub mod verify_unified;

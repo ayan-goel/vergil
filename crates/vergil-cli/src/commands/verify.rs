@@ -733,7 +733,7 @@ pub fn compute_quality_stats(run: &vergil_core::cegis::CegisRun) -> QualityStats
 ///      contracts with required ctor args need an explicit `--scaffold`.
 ///   3. If both fail, fall back to the historical `default_scaffold_for_erc20`
 ///      (preserves examples/erc20 backwards compatibility).
-fn resolve_scaffold(project: &Path, override_path: Option<&Path>) -> Result<String, String> {
+pub(crate) fn resolve_scaffold(project: &Path, override_path: Option<&Path>) -> Result<String, String> {
     if let Some(p) = override_path {
         let body = std::fs::read_to_string(p)
             .map_err(|e| format!("could not read scaffold {}: {e}", p.display()))?;

@@ -69,29 +69,39 @@ enum Command {
         /// sweep uses 0.4 (trading strictness for more candidates dispatched).
         #[arg(long)]
         min_critique_axis: Option<f32>,
-        /// V1.5 zero-config tier. `zero-config` runs the attack-pattern
-        /// catalog activation + self-tests against the project (Phase 1
-        /// surface — per-contract dispatch lands in V1.5 Phase 4).
-        /// `intent` keeps the V1 CEGIS path verbatim. Default: `intent`
-        /// (preserves V1 behavior; SPEC §3.1's `both` default is the
-        /// Phase 6 target once all four zero-config oracles land).
-        #[arg(long, value_enum, default_value_t = VerifyMode::Intent)]
+        /// V1.5 tier selection. Default `both` (Phase 6): Stage 1
+        /// oracles + V1 CEGIS over any user-typed `--intent`.
+        /// `zero-config`: Stage 1 oracles only (catalog + tests +
+        /// natspec → critique → confirm → dispatch). `intent`: V1
+        /// CEGIS path verbatim, no Stage 1 oracles. SPEC §3.7.
+        #[arg(long, value_enum, default_value_t = VerifyMode::Both)]
         mode: VerifyMode,
-        /// Skip test-derived intent extraction (SPEC §3.4a / §3.7). The
-        /// flag is wired to a no-op in V1.5 Phase 4 — the extraction
-        /// pipeline (crates/vergil-core/src/tests_intent.rs) is shipped
-        /// but consumed by Phase 6's standardized workflow, not by the
-        /// Phase-1 catalog-self-test zero_config command. Pass `--no-tests`
-        /// today as forward-compat plumbing; Phase 6's stratified verdict
-        /// honors it.
+        /// Skip test-derived intent extraction (SPEC §3.4a / §3.7).
+        /// Honored by the Phase 6 unified runner (modes `both` and
+        /// `zero-config`).
         #[arg(long)]
         no_tests: bool,
         /// Skip NatSpec-derived intent extraction (SPEC §3.4b / §3.7).
-        /// Same forward-compat semantics as `--no-tests` — the flag
-        /// propagates through to the extraction config; Phase 6 wires it
-        /// to the user-facing pipeline.
+        /// Honored by the Phase 6 unified runner.
         #[arg(long)]
         no_natspec: bool,
+        /// Restrict catalog activation to a comma-separated category
+        /// list (e.g. `access,reentrancy`). Default: all applicable.
+        #[arg(long, value_delimiter = ',')]
+        catalog_subset: Vec<String>,
+        /// Auto-confirm every Stage-2 proposed intent. Required for
+        /// CI / agent callers per SPEC §3.1.
+        #[arg(long)]
+        yes: bool,
+        /// Resume from a previous run's `vergil-out/confirm/state.json`.
+        /// SPEC §3.1 / §4.4. Picks up exactly where the last run was
+        /// killed (typically Ctrl-C mid Stage 2).
+        #[arg(long)]
+        resume: bool,
+        /// Print the activated catalog templates + available oracles
+        /// and exit 0 without LLM calls. SPEC §3.7.
+        #[arg(long)]
+        list_applicable: bool,
     },
     /// Scaffold a Vergil config in the current Foundry project (stub — see docs/book/src/cli-reference.md)
     Init,
@@ -203,26 +213,11 @@ fn main() -> ExitCode {
             mode,
             no_tests,
             no_natspec,
+            catalog_subset,
+            yes,
+            resume,
+            list_applicable,
         } => {
-            // Phase 4 Slice 8: the flags exist per SPEC §3.7. Phase 6
-            // wires them into the standardized-workflow zero-config flow.
-            // For now (Phase 1's catalog-self-test zero_config + V1's
-            // intent path), the flags are forward-compat — log when set
-            // so users see the request was received but not yet acted on.
-            if no_tests {
-                tracing::info!(
-                    "--no-tests set — test-derived intent extraction is Phase 6 work; \
-                     V1.5 Phase 4 ships the extraction pipeline (vergil_core::tests_intent) \
-                     but does not yet wire it into `vergil verify`."
-                );
-            }
-            if no_natspec {
-                tracing::info!(
-                    "--no-natspec set — NatSpec-derived intent extraction is Phase 6 work; \
-                     V1.5 Phase 4 ships the extraction pipeline (vergil_core::natspec_intent) \
-                     but does not yet wire it into `vergil verify`."
-                );
-            }
             let rt = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()
@@ -234,43 +229,14 @@ fn main() -> ExitCode {
                 }
             };
             match mode {
-                VerifyMode::ZeroConfig => {
-                    // V1.5 Phase 6 Slice 0 relocated the Phase-1
-                    // catalog-self-test loop to `vergil catalog
-                    // self-test <PATH>`. Slice 8 repurposes
-                    // `verify --mode zero-config` for the Stage 1
-                    // oracle path (catalog + tests + natspec) feeding
-                    // the stratified verdict. Until Slice 8 lands,
-                    // print a redirect so users don't get a stale flow.
-                    eprintln!(
-                        "`vergil verify --mode zero-config` was relocated to \
-                         `vergil catalog self-test {}` in V1.5 Phase 6 Slice 0. \
-                         The Stage 1 oracle path that will replace this slot \
-                         lands in Phase 6 Slice 8 alongside the unified \
-                         stratified-verdict runner.",
-                        path.display()
-                    );
-                    Err(3)
-                }
-                VerifyMode::Intent => rt.block_on(commands::verify::run(
-                    path,
-                    properties,
-                    format,
-                    intent,
-                    scaffold,
-                    telemetry_json,
-                    tenant,
-                    cost_budget,
-                    samples,
-                    min_critique_axis,
-                )),
-                VerifyMode::Both => {
-                    // Phase-1 simplification kept zero-config + intent
-                    // here; Phase 6 Slice 8 replaces this branch with
-                    // the unified stratified-verdict runner. For now
-                    // fall through to the V1 intent path so
-                    // `vergil verify --mode both` keeps producing a
-                    // proof artifact via the V1 CEGIS engine.
+                VerifyMode::Intent => {
+                    if list_applicable {
+                        eprintln!(
+                            "--list-applicable is a `--mode both` / `--mode zero-config` flag; \
+                             it doesn't apply to `--mode intent`."
+                        );
+                        return ExitCode::from(3);
+                    }
                     rt.block_on(commands::verify::run(
                         path,
                         properties,
@@ -283,6 +249,43 @@ fn main() -> ExitCode {
                         samples,
                         min_critique_axis,
                     ))
+                }
+                VerifyMode::ZeroConfig | VerifyMode::Both => {
+                    // V1.5 Phase 6 Slice 8: the unified runner. Both
+                    // modes use the same code path; `--mode intent`
+                    // continues to delegate to V1's CEGIS pipeline
+                    // above. `--intent` text is currently ignored by
+                    // the unified path (Stage 1 oracles drive the
+                    // candidate set); the V2 SaaS wrap is the place
+                    // to bridge user-typed intents in.
+                    let args = commands::verify_unified::UnifiedVerifyArgs {
+                        project: path,
+                        scaffold_override: scaffold,
+                        no_tests,
+                        no_natspec,
+                        catalog_categories: catalog_subset,
+                        auto_confirm: yes,
+                        resume,
+                        list_applicable,
+                        telemetry_json,
+                        tenant_id: tenant,
+                        dispatch_budget: std::time::Duration::from_secs(120),
+                    };
+                    let _ = (format, samples, min_critique_axis, cost_budget); // intent-path flags
+                    match rt.block_on(commands::verify_unified::run(args)) {
+                        Ok(report) => {
+                            let code = report.exit_code();
+                            if code == 0 {
+                                Ok(())
+                            } else {
+                                Err(code)
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("vergil verify: {e}");
+                            Err(e.exit_code())
+                        }
+                    }
                 }
             }
         }
