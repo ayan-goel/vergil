@@ -2,6 +2,7 @@ pub mod foundry;
 pub mod halmos;
 pub mod sandbox;
 pub mod signatures;
+pub mod test_parser;
 pub mod slither;
 pub mod smtchecker;
 pub mod solver;
