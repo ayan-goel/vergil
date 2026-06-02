@@ -174,8 +174,7 @@ impl Default for ClassifyConfig {
 }
 
 /// Phase 3 classifier entry point. Sync + no LLM dependency — pure
-/// static analysis (regex over source + solc storage layout). Slice 0
-/// ships an empty stub; Slices 1-4 add per-primitive detection logic.
+/// static analysis (regex over source + solc storage layout).
 ///
 /// `source` is the joined Solidity source text (per-file content
 /// concatenated with newline separators — same shape as the Phase 1
@@ -183,12 +182,114 @@ impl Default for ClassifyConfig {
 /// `layouts` is the per-contract solc storage layout, one entry per
 /// `<file>:<ContractName>`.
 pub fn classify(
-    _source: &str,
-    _layouts: &[StorageLayout],
+    source: &str,
+    layouts: &[StorageLayout],
     _cfg: &ClassifyConfig,
 ) -> PrimitiveClassification {
-    // Slice 0 — empty stub. Slices 1-4 populate per-primitive matchers.
-    PrimitiveClassification::default()
+    let mut matches = Vec::new();
+    matches.extend(classify_tokens(source, layouts));
+    PrimitiveClassification { matches }
+}
+
+// ─── Classifier 1: Token primitives (ERC20 / ERC721 / ERC1155) ───────
+
+/// Token-primitive classifier. Reuses
+/// `vergil_solidity::signatures::detect_interfaces` so the Phase 1 +
+/// Phase 6 interface-detection logic stays the source of truth — Phase
+/// 3 only re-shapes its output into the [`PrimitiveMatch`] vocabulary.
+/// Confidence 0.95 per detected token interface.
+///
+/// **ERC4626 is intentionally NOT a token primitive** — vault is a
+/// vault first (per SPEC §3.3 + Phase 1's `detect_primitives`
+/// vault-supersession). The Vault classifier (Slice 2) handles ERC4626
+/// contracts; the ERC20 share-token aspect stays in the `interfaces`
+/// vec via `detect_interfaces`.
+pub fn classify_tokens(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    use vergil_solidity::signatures::detect_interfaces;
+    let mut interface_signals: Vec<&'static str> = Vec::new();
+    let mut detected: std::collections::BTreeSet<String> =
+        detect_interfaces(source).into_iter().collect();
+    if !detected.is_empty() {
+        interface_signals.push("detect_interfaces match");
+    }
+
+    // Supplemental detection — mirrors Phase 1's `sorted_interfaces` in
+    // `vergil_core::fingerprint`. `detect_interfaces` only inspects
+    // explicit function declarations; storage-shape patterns like
+    // `mapping(address => uint256) public allowance` (which solc
+    // auto-getters into a function) are invisible. Surface them here
+    // so the classifier matches Phase 1's behavior on the reference
+    // contracts.
+    let has_public_allowance = source.contains("public allowance");
+    let has_public_balanceof = source.contains("public balanceOf")
+        || source.contains("public balances")
+        || source.contains("balanceOf[");
+    let has_function_transfer = source.contains("function transfer(");
+    let has_function_transferfrom = source.contains("function transferFrom(");
+    let has_erc4626_shape = source.contains("convertToShares")
+        || source.contains("convertToAssets")
+        || (source.contains("totalAssets") && source.contains("totalShares"));
+    let has_erc721_shape = source.contains("ownerOf")
+        && (source.contains("safeTransferFrom") || source.contains("setApprovalForAll"));
+    let has_erc1155_shape =
+        source.contains("safeBatchTransferFrom") && source.contains("balanceOfBatch");
+
+    if has_function_transfer
+        && has_function_transferfrom
+        && has_public_allowance
+        && !has_erc721_shape
+    {
+        detected.insert("ERC20".to_string());
+        interface_signals.push("public allowance + transfer + transferFrom");
+    }
+    if has_public_balanceof && has_function_transfer && has_public_allowance && !has_erc721_shape {
+        detected.insert("ERC20".to_string());
+    }
+    if has_erc721_shape {
+        detected.insert("ERC721".to_string());
+    }
+    if has_erc1155_shape {
+        detected.insert("ERC1155".to_string());
+        interface_signals.push("safeBatchTransferFrom + balanceOfBatch");
+    }
+    if has_erc4626_shape {
+        detected.insert("ERC4626".to_string());
+    }
+
+    let mut out = Vec::new();
+    // ERC4626 is intentionally NOT a token primitive — vault is a
+    // vault first (per SPEC §3.3 + Phase 1's `detect_primitives`
+    // vault-supersession). Suppress the token match so multi-match
+    // doesn't double-bill an ERC-4626 vault as both vault AND
+    // token-erc20. The Vault classifier (Slice 2) owns this contract.
+    if detected.contains("ERC4626") {
+        return out;
+    }
+    let extra: Vec<String> = interface_signals.iter().map(|s| s.to_string()).collect();
+    if detected.contains("ERC20") {
+        let mut signals = vec!["ERC20 interface".to_string()];
+        signals.extend(extra.iter().cloned());
+        out.push(PrimitiveMatch {
+            primitive: Primitive::TokenErc20,
+            confidence: 0.95,
+            signals,
+        });
+    }
+    if detected.contains("ERC721") {
+        out.push(PrimitiveMatch {
+            primitive: Primitive::TokenErc721,
+            confidence: 0.95,
+            signals: vec!["ERC721 interface (ownerOf + approval surface)".into()],
+        });
+    }
+    if detected.contains("ERC1155") {
+        out.push(PrimitiveMatch {
+            primitive: Primitive::TokenErc1155,
+            confidence: 0.95,
+            signals: vec!["safeBatchTransferFrom + balanceOfBatch present".into()],
+        });
+    }
+    out
 }
 
 #[cfg(test)]
@@ -275,6 +376,106 @@ mod tests {
         assert!(above.contains(&Primitive::TokenErc20));
         assert!(above.contains(&Primitive::AccessControlledGeneric));
         assert!(!above.contains(&Primitive::Amm), "0.5 must be excluded at threshold 0.6");
+    }
+
+    // ─── Token classifiers (S1) ──────────────────────────────────────
+
+    fn fixture(name: &str) -> String {
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/classify")
+            .join(name);
+        std::fs::read_to_string(&p)
+            .unwrap_or_else(|e| panic!("read {}: {e}", p.display()))
+    }
+
+    fn examples_root() -> std::path::PathBuf {
+        let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.pop(); // crates/vergil-properties
+        p.pop(); // crates
+        p.push("examples");
+        p
+    }
+
+    fn example_source(relative_path: &str) -> String {
+        let p = examples_root().join(relative_path);
+        std::fs::read_to_string(&p)
+            .unwrap_or_else(|e| panic!("read {}: {e}", p.display()))
+    }
+
+    #[test]
+    fn classify_tokens_erc20_emits_high_confidence_match() {
+        let src = example_source("erc20/src/Token.sol");
+        let matches = classify_tokens(&src, &[]);
+        let erc20 = matches.iter().find(|m| m.primitive == Primitive::TokenErc20);
+        assert!(erc20.is_some(), "expected TokenErc20 match: {matches:#?}");
+        let m = erc20.unwrap();
+        assert!((m.confidence - 0.95).abs() < 1e-3);
+        assert!(m.signals[0].contains("ERC20"), "signal: {}", m.signals[0]);
+        // Must NOT carry ERC721 / ERC1155.
+        assert!(matches
+            .iter()
+            .all(|m| m.primitive != Primitive::TokenErc721
+                && m.primitive != Primitive::TokenErc1155));
+    }
+
+    #[test]
+    fn classify_tokens_erc721_emits_match_and_not_erc20() {
+        let src = example_source("erc721/src/ERC721.sol");
+        let matches = classify_tokens(&src, &[]);
+        assert!(matches.iter().any(|m| m.primitive == Primitive::TokenErc721));
+        // The Phase 1 stragglers' root cause: ERC721 must NOT also
+        // carry an ERC20 token primitive. Pinned by SPEC §3.3 and
+        // notes/phase4-a1-stragglers-diagnosis.md.
+        assert!(
+            !matches.iter().any(|m| m.primitive == Primitive::TokenErc20),
+            "ERC721 leaked TokenErc20: {matches:#?}"
+        );
+    }
+
+    #[test]
+    fn classify_tokens_erc1155_emits_via_batch_signatures() {
+        let src = fixture("erc1155_minimal.sol");
+        let matches = classify_tokens(&src, &[]);
+        let erc1155 = matches.iter().find(|m| m.primitive == Primitive::TokenErc1155);
+        assert!(
+            erc1155.is_some(),
+            "expected TokenErc1155 match on safeBatchTransferFrom + balanceOfBatch: {matches:#?}"
+        );
+        assert!((erc1155.unwrap().confidence - 0.95).abs() < 1e-3);
+    }
+
+    #[test]
+    fn classify_tokens_utility_lib_emits_no_match() {
+        let src = fixture("utility_lib.sol");
+        let matches = classify_tokens(&src, &[]);
+        assert!(
+            matches.is_empty(),
+            "utility lib should not classify as a token: {matches:#?}"
+        );
+    }
+
+    #[test]
+    fn classify_tokens_erc4626_suppresses_token_match() {
+        // Vault classifier (Slice 2) owns ERC-4626; token classifier
+        // must NOT double-bill a vault as TokenErc20.
+        let src = example_source("vault-4626/src/ERC4626.sol");
+        let matches = classify_tokens(&src, &[]);
+        assert!(
+            matches.is_empty(),
+            "ERC4626 contract must not produce token primitives: {matches:#?}"
+        );
+    }
+
+    #[test]
+    fn classify_returns_token_matches_via_aggregator() {
+        // End-to-end through `classify()` confirms the aggregator wires
+        // the token classifier into the public output.
+        let src = example_source("erc20/src/Token.sol");
+        let cfg = ClassifyConfig::default();
+        let report = classify(&src, &[], &cfg);
+        assert_eq!(report.top().map(|m| m.primitive), Some(Primitive::TokenErc20));
+        let above: Vec<_> = report.above(0.6).map(|m| m.primitive).collect();
+        assert!(above.contains(&Primitive::TokenErc20));
     }
 
     #[test]
