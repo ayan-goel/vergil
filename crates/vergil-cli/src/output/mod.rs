@@ -1,6 +1,7 @@
 pub mod layout;
 pub mod markdown;
 pub mod text;
+pub mod verdict;
 
 use serde::Serialize;
 use vergil_core::portfolio::{PortfolioResult, Verdict};
