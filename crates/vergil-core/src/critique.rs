@@ -750,6 +750,146 @@ mod tests {
         assert!(outcome.kept[0].0.intent_text.is_some());
     }
 
+    // ─── V1.5 Phase 6 CP-A: catalog candidates pass through critique ──
+
+    fn attack_catalog_candidate() -> SpecCandidate {
+        // Mirrors the shape catalog_intent::extract_from_catalog
+        // produces — a Halmos check_ rendered from a template's
+        // negation_property fed through V1 SYNTHESIZE.
+        SpecCandidate {
+            name: "check_reentrancy_cei".to_string(),
+            halmos: "function check_reentrancy_cei(uint256 amount) public { uint256 c0 = token.counter(); try token.action(amount) {} catch {} assert(token.counter() == c0 + 1); }".to_string(),
+            smtchecker: String::new(),
+            template_ref: Some("reentrancy-single-function-cei".to_string()),
+            intent_satisfied: true,
+            source: Source::AttackCatalog,
+            intent_text: Some(
+                "For every external call, all state effects precede the call (CEI).".to_string(),
+            ),
+        }
+    }
+
+    #[test]
+    fn render_attack_catalog_source_says_axis_does_not_apply() {
+        // The catalog's negation_property IS the source — there's
+        // nothing for the LLM to paraphrase against (no test body, no
+        // doc comment); the axis must read "does not apply, score 1.0".
+        // Mirrors Phase 4's UserIntent treatment but for the catalog
+        // oracle Slice 3 introduced.
+        let c = attack_catalog_candidate();
+        let out = render("attack-catalog", &c, None, 0.5).unwrap();
+        assert!(out.contains("attack_catalog"), "source_kind missing in prompt");
+        assert!(
+            out.contains("does not apply"),
+            "AttackCatalog should opt out of restate_the_source"
+        );
+        assert!(out.contains("1.0"));
+    }
+
+    #[tokio::test]
+    async fn catalog_candidate_with_good_invariant_is_accepted() {
+        // Critique pass on a real-ish catalog-derived candidate. The
+        // critic returns a high score on every axis; the
+        // restate_the_source axis is at 1.0 (the catalog source path
+        // doesn't penalize it). Confirms the catalog oracle threads
+        // through critique unchanged from Phase 4's plumbing.
+        let tmp = tempfile::tempdir().unwrap();
+        let cfg = CritiqueConfig::for_tests();
+        let candidate = attack_catalog_candidate();
+        let req = build_critique_request(&candidate, "reentrancy CEI", &cfg);
+        write_structured_fixture(
+            tmp.path(),
+            &req,
+            serde_json::json!({
+                "verdict": "accept",
+                "scores": {
+                    "vacuity": 0.9,
+                    "body_independence": 0.9,
+                    "testability": 0.9,
+                    "restate_the_source": 1.0
+                },
+                "rationale": "State counter invariant survives external call — sound CEI check."
+            }),
+        );
+        let critic = Critic::new(
+            Arc::new(MockProvider::new(tmp.path())),
+            ProviderId::Anthropic,
+            cfg,
+        );
+        let results = critic
+            .critique_all(&[candidate.clone()], "reentrancy CEI", None)
+            .await;
+        let outcome = critic.filter_accepted(vec![candidate], results);
+        assert_eq!(outcome.kept.len(), 1, "well-formed catalog candidate must be accepted");
+        assert_eq!(outcome.kept[0].0.source, Source::AttackCatalog);
+        assert_eq!(
+            outcome.kept[0].0.template_ref.as_deref(),
+            Some("reentrancy-single-function-cei")
+        );
+    }
+
+    #[tokio::test]
+    async fn cp_a_three_oracle_pipeline_routes_each_source_through_critique() {
+        // CP-A acceptance: hand-feed one candidate from each of the
+        // three Phase-6 Stage-1 oracles (catalog, tests, NatSpec) to
+        // critique_all and confirm well-formed ones survive while the
+        // literal restatements are dropped.
+        let tmp = tempfile::tempdir().unwrap();
+        let cfg = CritiqueConfig::for_tests();
+        let catalog = attack_catalog_candidate();
+        let tests_ok = tests_derived_candidate(false);
+        let tests_bad = tests_derived_candidate(true);
+        let natspec_ok = natspec_derived_candidate(false);
+        let natspec_bad = natspec_derived_candidate(true);
+        for (c, accept, rs_score) in [
+            (&catalog, true, 1.0),
+            (&tests_ok, true, 0.9),
+            (&tests_bad, false, 0.2),
+            (&natspec_ok, true, 0.9),
+            (&natspec_bad, false, 0.1),
+        ] {
+            let req = build_critique_request(c, "pipeline", &cfg);
+            write_structured_fixture(
+                tmp.path(),
+                &req,
+                serde_json::json!({
+                    "verdict": if accept { "accept" } else { "reject" },
+                    "scores": {
+                        "vacuity": if accept { 0.9 } else { 0.3 },
+                        "body_independence": if accept { 0.9 } else { 0.3 },
+                        "testability": if accept { 0.9 } else { 0.3 },
+                        "restate_the_source": rs_score,
+                    },
+                    "rationale": "pipeline check"
+                }),
+            );
+        }
+        let candidates = vec![
+            catalog.clone(),
+            tests_ok.clone(),
+            tests_bad.clone(),
+            natspec_ok.clone(),
+            natspec_bad.clone(),
+        ];
+        let critic = Critic::new(
+            Arc::new(MockProvider::new(tmp.path())),
+            ProviderId::Anthropic,
+            cfg,
+        );
+        let results = critic.critique_all(&candidates, "pipeline", None).await;
+        assert_eq!(results.len(), 5);
+        let outcome = critic.filter_accepted(candidates, results);
+        // 3 well-formed survive (catalog + tests_ok + natspec_ok),
+        // 2 restatements drop.
+        assert_eq!(outcome.kept.len(), 3, "expected 3 kept: catalog + tests_ok + natspec_ok");
+        assert_eq!(outcome.dropped.len(), 2, "expected 2 dropped: tests_bad + natspec_bad");
+        // Source provenance survives.
+        let kept_sources: Vec<Source> = outcome.kept.iter().map(|(c, _)| c.source).collect();
+        assert!(kept_sources.contains(&Source::AttackCatalog));
+        assert!(kept_sources.contains(&Source::Tests));
+        assert!(kept_sources.contains(&Source::NatSpec));
+    }
+
     #[test]
     fn restate_the_source_serde_default_keeps_v1_cassettes_compatible() {
         // A V1 cassette that returns only 3 axes must still deserialize —
