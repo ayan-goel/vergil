@@ -228,7 +228,18 @@ fn main() -> ExitCode {
                     return ExitCode::from(3);
                 }
             };
-            match mode {
+            // V1.5 Phase 6 default flip: `--mode` defaults to `both`
+            // (Stage-1 oracles + V1 intent). When the user explicitly
+            // passes `--properties <yaml>`, that's an unambiguous opt-in
+            // to the V1 properties.yaml path which doesn't need LLM
+            // providers. Route to `intent` mode so the keyless
+            // properties.yaml workflow keeps working post-Phase 6.
+            let effective_mode = if properties.is_some() && mode == VerifyMode::Both {
+                VerifyMode::Intent
+            } else {
+                mode
+            };
+            match effective_mode {
                 VerifyMode::Intent => {
                     if list_applicable {
                         eprintln!(
