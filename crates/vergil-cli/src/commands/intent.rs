@@ -24,7 +24,9 @@ use vergil_core::critique::{Critic, CritiqueConfig};
 use vergil_core::diagnosis::{DiagnosisConfig, Diagnostician};
 use vergil_core::portfolio::{dispatch, PortfolioConfig, Verdict};
 use vergil_core::refinement::{RefinementConfig, Refiner};
-use vergil_core::synthesis::{RetrievedHint, Source as CoreSource, SpecCandidate, StaticAnalysisSummary};
+use vergil_core::synthesis::{
+    RetrievedHint, Source as CoreSource, SpecCandidate, StaticAnalysisSummary,
+};
 use vergil_core::telemetry::TelemetrySink;
 use vergil_llm::anthropic::AnthropicClient;
 use vergil_llm::openai::OpenAiClient;

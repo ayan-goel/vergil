@@ -40,15 +40,21 @@ pub struct NatSpecBlock {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NatSpecTarget {
-    Contract { name: String },
+    Contract {
+        name: String,
+    },
     /// Includes free functions and modifiers; the LLM treats them
     /// uniformly. Constructor / receive / fallback are skipped (they
     /// rarely carry useful intent for property extraction).
-    Function { name: String },
+    Function {
+        name: String,
+    },
     /// A storage variable. NatSpec on these is rare but real (e.g.,
     /// `/// @invariant totalSupply equals sum of balances` above a
     /// `uint256 public totalSupply` slot).
-    Storage { name: String },
+    Storage {
+        name: String,
+    },
 }
 
 /// Byte-offset span of the doc-comment block in the original source.
@@ -98,7 +104,9 @@ pub fn parse_natspec_dir(
     project_root: &Path,
 ) -> Result<Vec<(PathBuf, NatSpecBlock)>, NatSpecParserError> {
     if !project_root.is_dir() {
-        return Err(NatSpecParserError::NotADirectory(project_root.to_path_buf()));
+        return Err(NatSpecParserError::NotADirectory(
+            project_root.to_path_buf(),
+        ));
     }
     let src_dir = project_root.join("src");
     let mut files = Vec::new();
@@ -163,10 +171,7 @@ fn find_declaration_sites(source: &str) -> Vec<DeclarationSite> {
         if is_token_start(&blanked, abs) {
             let after = abs + "function ".len();
             if let Some(name) = read_ident(&blanked, after) {
-                if name != "constructor"
-                    && name != "receive"
-                    && name != "fallback"
-                {
+                if name != "constructor" && name != "receive" && name != "fallback" {
                     out.push(DeclarationSite {
                         start: abs,
                         target: NatSpecTarget::Function { name },
@@ -395,10 +400,7 @@ fn extract_block_above(source: &str, site: &DeclarationSite) -> Option<NatSpecBl
     let mut collected_start = head.len();
     let mut line_end = head.len();
     while line_end > 0 {
-        let line_start = head[..line_end]
-            .rfind('\n')
-            .map(|p| p + 1)
-            .unwrap_or(0);
+        let line_start = head[..line_end].rfind('\n').map(|p| p + 1).unwrap_or(0);
         let line = head[line_start..line_end].trim_end_matches('\r');
         let trimmed_line = line.trim_start();
         if trimmed_line.starts_with("///") {
@@ -665,22 +667,14 @@ fn strip_comments(source: &str) -> String {
     let mut out = vec![0u8; bytes.len()];
     let mut i = 0;
     while i < bytes.len() {
-        if i + 2 < bytes.len()
-            && bytes[i] == b'/'
-            && bytes[i + 1] == b'/'
-            && bytes[i + 2] != b'/'
-        {
+        if i + 2 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'/' && bytes[i + 2] != b'/' {
             while i < bytes.len() && bytes[i] != b'\n' {
                 out[i] = b' ';
                 i += 1;
             }
             continue;
         }
-        if i + 2 < bytes.len()
-            && bytes[i] == b'/'
-            && bytes[i + 1] == b'*'
-            && bytes[i + 2] != b'*'
-        {
+        if i + 2 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' && bytes[i + 2] != b'*' {
             out[i] = b' ';
             out[i + 1] = b' ';
             i += 2;
@@ -884,10 +878,13 @@ mod tests {
             }
         "#};
         let blocks = parse_natspec(src);
-        let ts = blocks.iter().find(|b| {
-            matches!(&b.target, NatSpecTarget::Storage { name } if name == "totalSupply")
-        });
-        assert!(ts.is_some(), "totalSupply storage block missing: {blocks:?}");
+        let ts = blocks.iter().find(
+            |b| matches!(&b.target, NatSpecTarget::Storage { name } if name == "totalSupply"),
+        );
+        assert!(
+            ts.is_some(),
+            "totalSupply storage block missing: {blocks:?}"
+        );
         let ts = ts.unwrap();
         assert_eq!(ts.invariant.len(), 1);
         assert!(ts.invariant[0].contains("sum(balanceOf"));

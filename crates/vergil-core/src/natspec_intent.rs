@@ -112,9 +112,7 @@ async fn extract_one(
     let prompt = match render_prompt(block, cfg) {
         Ok(p) => p,
         Err(e) => {
-            tracing::warn!(
-                "natspec_to_property: prompt render failed for {kind}/{name}: {e}"
-            );
+            tracing::warn!("natspec_to_property: prompt render failed for {kind}/{name}: {e}");
             return Vec::new();
         }
     };
@@ -570,22 +568,16 @@ mod tests {
         });
         assert_eq!(k, "contract");
         assert_eq!(n, "Vault");
-        let (k, _) = target_kind_and_name(&NatSpecTarget::Function {
-            name: "f".into(),
-        });
+        let (k, _) = target_kind_and_name(&NatSpecTarget::Function { name: "f".into() });
         assert_eq!(k, "function");
-        let (k, _) = target_kind_and_name(&NatSpecTarget::Storage {
-            name: "s".into(),
-        });
+        let (k, _) = target_kind_and_name(&NatSpecTarget::Storage { name: "s".into() });
         assert_eq!(k, "storage");
     }
 
     #[test]
     fn render_prompt_inlines_all_tag_categories() {
         let block = NatSpecBlock {
-            target: NatSpecTarget::Contract {
-                name: "C".into(),
-            },
+            target: NatSpecTarget::Contract { name: "C".into() },
             notice: Some("notice text".into()),
             dev: vec!["dev line one".into()],
             invariant: vec!["invariant one".into()],

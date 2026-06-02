@@ -30,7 +30,15 @@ fn workspace_root() -> &'static Path {
 
 fn vergil(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO"))
-        .args(["run", "-p", "vergil-cli", "--bin", "vergil", "--quiet", "--"])
+        .args([
+            "run",
+            "-p",
+            "vergil-cli",
+            "--bin",
+            "vergil",
+            "--quiet",
+            "--",
+        ])
         .args(args)
         .current_dir(workspace_root())
         .output()
@@ -136,19 +144,22 @@ fn vergil_prove_succeeds_on_phase6_artifact_with_tier_source() {
     // Construct a synthetic Phase-6-shaped artifact in a tempdir and
     // run vergil prove. The artifact must deserialize with the new
     // fields and prove must succeed.
-    use vergil_proof::schema::{
-        sha256_hex, ManifestValidationStatus, VerifiedProperty,
-    };
+    use vergil_proof::schema::{sha256_hex, ManifestValidationStatus, VerifiedProperty};
     let tmp = tempfile::tempdir().unwrap();
     let project = tmp.path().to_path_buf();
     std::fs::create_dir_all(project.join("src")).unwrap();
-    std::fs::write(project.join("src/Demo.sol"), b"// SPDX-License-Identifier: MIT\ncontract Demo {}\n").unwrap();
+    std::fs::write(
+        project.join("src/Demo.sol"),
+        b"// SPDX-License-Identifier: MIT\ncontract Demo {}\n",
+    )
+    .unwrap();
     std::fs::write(project.join("foundry.toml"), b"[profile.default]\n").unwrap();
 
     let mut artifact = skeleton_v1_proof(&project);
     // Swap in a Phase-6-style property.
     artifact.source_files[0].path = "src/Demo.sol".into();
-    artifact.source_files[0].sha256 = sha256_hex(b"// SPDX-License-Identifier: MIT\ncontract Demo {}\n");
+    artifact.source_files[0].sha256 =
+        sha256_hex(b"// SPDX-License-Identifier: MIT\ncontract Demo {}\n");
     artifact.verified_properties = vec![
         VerifiedProperty {
             name: "check_phase6_catalog".into(),
@@ -210,9 +221,7 @@ fn vergil_prove_succeeds_on_phase6_artifact_with_tier_source() {
 fn phase6_proof_json_serialize_preserves_wire_format_for_source_and_tier() {
     // Lock the wire format. snake_case enum strings — V2 billing and
     // SaaS UI both depend on these.
-    use vergil_proof::schema::{
-        sha256_hex, ManifestValidationStatus, VerifiedProperty,
-    };
+    use vergil_proof::schema::{sha256_hex, ManifestValidationStatus, VerifiedProperty};
     let p = VerifiedProperty {
         name: "check_x".into(),
         backend: "halmos".into(),

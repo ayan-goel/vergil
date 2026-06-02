@@ -20,9 +20,17 @@ fn workspace_root() -> &'static Path {
 
 fn vergil(args: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(env!("CARGO"));
-    cmd.args(["run", "-p", "vergil-cli", "--bin", "vergil", "--quiet", "--"])
-        .args(args)
-        .current_dir(workspace_root());
+    cmd.args([
+        "run",
+        "-p",
+        "vergil-cli",
+        "--bin",
+        "vergil",
+        "--quiet",
+        "--",
+    ])
+    .args(args)
+    .current_dir(workspace_root());
     cmd.output().expect("cargo run vergil")
 }
 
@@ -43,11 +51,7 @@ fn catalog_self_test_runs_against_erc20_example() {
         project.join("foundry.toml").is_file(),
         "examples/erc20 must exist as a Foundry project for this test to run"
     );
-    let out = vergil(&[
-        "catalog",
-        "self-test",
-        project.to_str().expect("utf8 path"),
-    ]);
+    let out = vergil(&["catalog", "self-test", project.to_str().expect("utf8 path")]);
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
     // Output must include the activation summary, matching the Phase-1

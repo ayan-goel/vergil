@@ -737,7 +737,11 @@ mod tests {
         let mut inputs = empty_inputs("/p");
         inputs.properties = vec![
             verified("check_a", Source::Tests, Tier::ZeroConfig),
-            frontier_unknown("check_b", "lending-solvency-frontier", "treat oracle as opaque"),
+            frontier_unknown(
+                "check_b",
+                "lending-solvency-frontier",
+                "treat oracle as opaque",
+            ),
         ];
         let out = format_verdict(inputs);
         assert_eq!(out.headline, Headline::Incomplete);
@@ -786,16 +790,14 @@ mod tests {
         // additional invariants" section between Refuted and Not-checked.
         let mut inputs = empty_inputs("/p");
         inputs.phase5_structural_pending = false;
-        inputs.low_confidence_structural = vec![
-            LowConfidenceStructuralSummary {
-                miner: "invariant-constants".into(),
-                description: "totalSupply written only in constructor; \
+        inputs.low_confidence_structural = vec![LowConfidenceStructuralSummary {
+            miner: "invariant-constants".into(),
+            description: "totalSupply written only in constructor; \
                     value depends on constructor arg — verify invariance manually"
-                    .into(),
-                confidence: "0.55".into(),
-                fn_or_var: Some("totalSupply".into()),
-            },
-        ];
+                .into(),
+            confidence: "0.55".into(),
+            fn_or_var: Some("totalSupply".into()),
+        }];
         let report = format_verdict(inputs).report_md();
         assert!(
             report.contains("## Suggested additional invariants (1)"),
@@ -828,14 +830,21 @@ mod tests {
         // candidates themselves appear in §1 Proven / §2 Refuted.
         let mut inputs = empty_inputs("/p");
         inputs.phase5_structural_pending = false;
-        inputs.properties = vec![verified("check_invariant_DECIMALS", Source::Structural, Tier::ZeroConfig)];
+        inputs.properties = vec![verified(
+            "check_invariant_DECIMALS",
+            Source::Structural,
+            Tier::ZeroConfig,
+        )];
         let report = format_verdict(inputs).report_md();
         assert!(
             !report.contains("Structural mining (Phase 5)"),
             "placeholder must disappear once oracle emits: {report}"
         );
         // Verify the property does appear under Proven.
-        assert!(report.contains("source: structural"), "missing structural property: {report}");
+        assert!(
+            report.contains("source: structural"),
+            "missing structural property: {report}"
+        );
     }
 
     #[test]

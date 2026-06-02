@@ -144,9 +144,11 @@ impl PrimitiveClassification {
     /// Top-confidence match (the most likely primitive). `None` when
     /// the classifier had no signals to act on.
     pub fn top(&self) -> Option<&PrimitiveMatch> {
-        self.matches
-            .iter()
-            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap_or(std::cmp::Ordering::Equal))
+        self.matches.iter().max_by(|a, b| {
+            a.confidence
+                .partial_cmp(&b.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Iterate matches at or above `threshold`. The catalog activation
@@ -154,7 +156,9 @@ impl PrimitiveClassification {
     /// `fingerprint_to_facts`); below-threshold matches go to the
     /// verdict's "Suggested classification" section.
     pub fn above(&self, threshold: f32) -> impl Iterator<Item = &PrimitiveMatch> {
-        self.matches.iter().filter(move |m| m.confidence >= threshold)
+        self.matches
+            .iter()
+            .filter(move |m| m.confidence >= threshold)
     }
 }
 
@@ -169,7 +173,9 @@ pub struct ClassifyConfig {
 
 impl Default for ClassifyConfig {
     fn default() -> Self {
-        Self { min_confidence: 0.6 }
+        Self {
+            min_confidence: 0.6,
+        }
     }
 }
 
@@ -258,7 +264,8 @@ pub fn classify_tokens(source: &str, _layouts: &[StorageLayout]) -> Vec<Primitiv
     // Minimal-ERC20 fallback: tokens that don't carry allowance /
     // transferFrom (capped or pausable minimal-bench fixtures) still
     // qualify if they expose `transfer + balanceOf + totalSupply`.
-    let has_totalsupply = source.contains("public totalSupply") || source.contains("totalSupply()")
+    let has_totalsupply = source.contains("public totalSupply")
+        || source.contains("totalSupply()")
         || source.contains("uint256 public totalSupply");
     if has_function_transfer && has_public_balanceof && has_totalsupply && !has_erc721_shape {
         detected.insert("ERC20".to_string());
@@ -469,7 +476,12 @@ fn has_function_starting_with(source: &str, prefix: &str) -> bool {
 fn has_reserves_storage(source: &str) -> bool {
     // Look for state-var declarations with the canonical names.
     for name in [
-        "reserve0", "reserve1", "reserveX", "reserveY", "reserves0", "reserves1",
+        "reserve0",
+        "reserve1",
+        "reserveX",
+        "reserveY",
+        "reserves0",
+        "reserves1",
     ] {
         // Quick check: any uint declaration referencing the name.
         if source.contains(name) {
@@ -493,7 +505,9 @@ fn contains_pair_contract(source: &str) -> bool {
     while let Some(rel) = source[i..].find("contract ") {
         let start = i + rel + "contract ".len();
         let rest = &source[start..];
-        let end = rest.find(|c: char| c == ' ' || c == '{').unwrap_or(rest.len());
+        let end = rest
+            .find(|c: char| c == ' ' || c == '{')
+            .unwrap_or(rest.len());
         let name = &rest[..end];
         if name.ends_with("Pair") && name.len() > "Pair".len() {
             return true;
@@ -550,7 +564,11 @@ pub fn classify_lending(source: &str, _layouts: &[StorageLayout]) -> Vec<Primiti
 pub fn classify_vesting(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
     let mut signals: Vec<String> = Vec::new();
     // Inheritance — OZ VestingWallet family.
-    for parent in ["VestingWallet", "VestingWalletCliff", "VestingWalletUpgradeable"] {
+    for parent in [
+        "VestingWallet",
+        "VestingWalletCliff",
+        "VestingWalletUpgradeable",
+    ] {
         if has_inheritance_of(source, parent) {
             signals.push(format!("inherits {parent}"));
             // Inheritance alone is a strong signal — promote to high
@@ -636,8 +654,8 @@ pub fn classify_governance(source: &str, _layouts: &[StorageLayout]) -> Vec<Prim
     }
     let propose = has_function_starting_with(source, "propose");
     let cast_vote = source.contains("castVote") || source.contains("function vote(");
-    let queue_or_exec =
-        has_function_starting_with(source, "queue") || has_function_starting_with(source, "execute");
+    let queue_or_exec = has_function_starting_with(source, "queue")
+        || has_function_starting_with(source, "execute");
     if propose {
         signals.push("propose() surface".into());
     }
@@ -664,14 +682,11 @@ pub fn classify_staking(source: &str, _layouts: &[StorageLayout]) -> Vec<Primiti
     if has_function_starting_with(source, "stake") {
         signals.push("stake() surface".into());
     }
-    if has_function_starting_with(source, "unstake")
-        || source.contains("function withdraw(uint256")
+    if has_function_starting_with(source, "unstake") || source.contains("function withdraw(uint256")
     {
         signals.push("unstake() / withdraw() surface".into());
     }
-    if source.contains("rewards")
-        || source.contains("Rewards")
-        || source.contains("rewardPerToken")
+    if source.contains("rewards") || source.contains("Rewards") || source.contains("rewardPerToken")
     {
         signals.push("rewards state / function".into());
     }
@@ -867,7 +882,12 @@ mod tests {
     #[test]
     fn primitive_from_id_round_trips() {
         for p in Primitive::all() {
-            assert_eq!(Primitive::from_id(p.id()), Some(p), "round-trip for {:?}", p);
+            assert_eq!(
+                Primitive::from_id(p.id()),
+                Some(p),
+                "round-trip for {:?}",
+                p
+            );
         }
         assert_eq!(Primitive::from_id("not-a-primitive"), None);
         assert_eq!(Primitive::from_id(""), None);
@@ -913,7 +933,10 @@ mod tests {
         let above: Vec<_> = c.above(0.6).map(|m| m.primitive).collect();
         assert!(above.contains(&Primitive::TokenErc20));
         assert!(above.contains(&Primitive::AccessControlledGeneric));
-        assert!(!above.contains(&Primitive::Amm), "0.5 must be excluded at threshold 0.6");
+        assert!(
+            !above.contains(&Primitive::Amm),
+            "0.5 must be excluded at threshold 0.6"
+        );
     }
 
     // ─── Token classifiers (S1) ──────────────────────────────────────
@@ -922,8 +945,7 @@ mod tests {
         let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/classify")
             .join(name);
-        std::fs::read_to_string(&p)
-            .unwrap_or_else(|e| panic!("read {}: {e}", p.display()))
+        std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()))
     }
 
     fn examples_root() -> std::path::PathBuf {
@@ -936,31 +958,33 @@ mod tests {
 
     fn example_source(relative_path: &str) -> String {
         let p = examples_root().join(relative_path);
-        std::fs::read_to_string(&p)
-            .unwrap_or_else(|e| panic!("read {}: {e}", p.display()))
+        std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()))
     }
 
     #[test]
     fn classify_tokens_erc20_emits_high_confidence_match() {
         let src = example_source("erc20/src/Token.sol");
         let matches = classify_tokens(&src, &[]);
-        let erc20 = matches.iter().find(|m| m.primitive == Primitive::TokenErc20);
+        let erc20 = matches
+            .iter()
+            .find(|m| m.primitive == Primitive::TokenErc20);
         assert!(erc20.is_some(), "expected TokenErc20 match: {matches:#?}");
         let m = erc20.unwrap();
         assert!((m.confidence - 0.95).abs() < 1e-3);
         assert!(m.signals[0].contains("ERC20"), "signal: {}", m.signals[0]);
         // Must NOT carry ERC721 / ERC1155.
-        assert!(matches
-            .iter()
-            .all(|m| m.primitive != Primitive::TokenErc721
-                && m.primitive != Primitive::TokenErc1155));
+        assert!(matches.iter().all(
+            |m| m.primitive != Primitive::TokenErc721 && m.primitive != Primitive::TokenErc1155
+        ));
     }
 
     #[test]
     fn classify_tokens_erc721_emits_match_and_not_erc20() {
         let src = example_source("erc721/src/ERC721.sol");
         let matches = classify_tokens(&src, &[]);
-        assert!(matches.iter().any(|m| m.primitive == Primitive::TokenErc721));
+        assert!(matches
+            .iter()
+            .any(|m| m.primitive == Primitive::TokenErc721));
         // The Phase 1 stragglers' root cause: ERC721 must NOT also
         // carry an ERC20 token primitive. Pinned by SPEC §3.3 and
         // notes/phase4-a1-stragglers-diagnosis.md.
@@ -974,7 +998,9 @@ mod tests {
     fn classify_tokens_erc1155_emits_via_batch_signatures() {
         let src = fixture("erc1155_minimal.sol");
         let matches = classify_tokens(&src, &[]);
-        let erc1155 = matches.iter().find(|m| m.primitive == Primitive::TokenErc1155);
+        let erc1155 = matches
+            .iter()
+            .find(|m| m.primitive == Primitive::TokenErc1155);
         assert!(
             erc1155.is_some(),
             "expected TokenErc1155 match on safeBatchTransferFrom + balanceOfBatch: {matches:#?}"
@@ -1011,7 +1037,10 @@ mod tests {
         let src = example_source("erc20/src/Token.sol");
         let cfg = ClassifyConfig::default();
         let report = classify(&src, &[], &cfg);
-        assert_eq!(report.top().map(|m| m.primitive), Some(Primitive::TokenErc20));
+        assert_eq!(
+            report.top().map(|m| m.primitive),
+            Some(Primitive::TokenErc20)
+        );
         let above: Vec<_> = report.above(0.6).map(|m| m.primitive).collect();
         assert!(above.contains(&Primitive::TokenErc20));
     }
@@ -1046,7 +1075,11 @@ mod tests {
         assert_eq!(matches.len(), 1);
         let m = &matches[0];
         assert_eq!(m.primitive, Primitive::Vault);
-        assert!((m.confidence - 0.70).abs() < 1e-3, "expected 0.70, got {}", m.confidence);
+        assert!(
+            (m.confidence - 0.70).abs() < 1e-3,
+            "expected 0.70, got {}",
+            m.confidence
+        );
         assert_eq!(m.signals.len(), 1);
     }
 
@@ -1054,7 +1087,10 @@ mod tests {
     fn classify_vault_no_match_on_erc20() {
         let src = example_source("erc20/src/Token.sol");
         let matches = classify_vault(&src, &[]);
-        assert!(matches.is_empty(), "ERC20 should not classify as vault: {matches:#?}");
+        assert!(
+            matches.is_empty(),
+            "ERC20 should not classify as vault: {matches:#?}"
+        );
     }
 
     #[test]
@@ -1094,16 +1130,28 @@ mod tests {
     fn classify_amm_high_confidence_on_examples_amm() {
         let src = example_source("amm-constant-product/src/AMM.sol");
         let matches = classify_amm(&src, &[]);
-        let amm = matches.iter().find(|m| m.primitive == Primitive::Amm).expect("amm");
-        assert!((amm.confidence - 0.90).abs() < 1e-3, "expected 0.90, got {}", amm.confidence);
-        assert!(amm.signals.len() >= 2, "expected 2+ signals: {:#?}", amm.signals);
+        let amm = matches
+            .iter()
+            .find(|m| m.primitive == Primitive::Amm)
+            .expect("amm");
+        assert!(
+            (amm.confidence - 0.90).abs() < 1e-3,
+            "expected 0.90, got {}",
+            amm.confidence
+        );
+        assert!(
+            amm.signals.len() >= 2,
+            "expected 2+ signals: {:#?}",
+            amm.signals
+        );
     }
 
     #[test]
     fn classify_amm_low_confidence_on_single_signal() {
         // A contract with `function swap()` only — no reserves, no Pair
         // name — should land at 0.65 (below threshold; surfaced only).
-        let src = "contract X { function swap(uint256 x) external returns (uint256) { return x; } }";
+        let src =
+            "contract X { function swap(uint256 x) external returns (uint256) { return x; } }";
         let matches = classify_amm(src, &[]);
         assert_eq!(matches.len(), 1);
         assert!((matches[0].confidence - 0.65).abs() < 1e-3);
@@ -1113,7 +1161,10 @@ mod tests {
     fn classify_amm_no_match_on_erc20() {
         let src = example_source("erc20/src/Token.sol");
         let matches = classify_amm(&src, &[]);
-        assert!(matches.is_empty(), "ERC20 should not classify as AMM: {matches:#?}");
+        assert!(
+            matches.is_empty(),
+            "ERC20 should not classify as AMM: {matches:#?}"
+        );
     }
 
     #[test]
@@ -1124,7 +1175,11 @@ mod tests {
             .iter()
             .find(|m| m.primitive == Primitive::LendingMarket)
             .expect("lending");
-        assert!((lend.confidence - 0.90).abs() < 1e-3, "got {}", lend.confidence);
+        assert!(
+            (lend.confidence - 0.90).abs() < 1e-3,
+            "got {}",
+            lend.confidence
+        );
         assert_eq!(lend.signals.len(), 3);
     }
 
@@ -1141,14 +1196,20 @@ mod tests {
         // Lone `borrow()` is too noisy (flash-loan callers); don't emit.
         let src = "contract X { function borrow(uint256 n) external {} }";
         let matches = classify_lending(src, &[]);
-        assert!(matches.is_empty(), "expected no lending match: {matches:#?}");
+        assert!(
+            matches.is_empty(),
+            "expected no lending match: {matches:#?}"
+        );
     }
 
     #[test]
     fn classify_lending_no_match_on_erc20() {
         let src = example_source("erc20/src/Token.sol");
         let matches = classify_lending(&src, &[]);
-        assert!(matches.is_empty(), "ERC20 should not classify as lending: {matches:#?}");
+        assert!(
+            matches.is_empty(),
+            "ERC20 should not classify as lending: {matches:#?}"
+        );
     }
 
     // ─── Long-tail classifiers (S4) ──────────────────────────────────

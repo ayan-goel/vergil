@@ -35,7 +35,15 @@ fn workspace_root() -> &'static Path {
 
 fn vergil(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO"))
-        .args(["run", "-p", "vergil-cli", "--bin", "vergil", "--quiet", "--"])
+        .args([
+            "run",
+            "-p",
+            "vergil-cli",
+            "--bin",
+            "vergil",
+            "--quiet",
+            "--",
+        ])
         .args(args)
         .current_dir(workspace_root())
         .output()
@@ -250,8 +258,9 @@ fn fixture_erc20_broken() -> StratifiedInputs {
                 tier: Tier::ZeroConfig,
                 verdict: PropertyVerdict::Refuted {
                     backend: "halmos".into(),
-                    cex_file: "vergil-out/counterexamples/Cex_check_unauthorized_transferFrom.t.sol"
-                        .into(),
+                    cex_file:
+                        "vergil-out/counterexamples/Cex_check_unauthorized_transferFrom.t.sol"
+                            .into(),
                     trace_summary: "attacker transfers tokens they do not own".into(),
                 },
                 template_ref: Some("access-missing-modifier-state-change".into()),
@@ -375,6 +384,8 @@ fn fixture_proof_json_round_trips_after_verdict_format() {
     assert!(parsed["properties"].is_array());
     assert!(parsed["skipped_templates"].is_array());
     assert!(parsed["document_only_templates"].is_array());
-    assert!(parsed["reproduce"].as_str().unwrap().contains("vergil prove"));
+    assert!(parsed["reproduce"]
+        .as_str()
+        .unwrap()
+        .contains("vergil prove"));
 }
-

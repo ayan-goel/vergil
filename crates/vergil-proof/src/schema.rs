@@ -384,7 +384,10 @@ mod tests {
 
     #[test]
     fn tier_enum_round_trips_every_variant() {
-        let cases = [(Tier::ZeroConfig, "\"zero-config\""), (Tier::Intent, "\"intent\"")];
+        let cases = [
+            (Tier::ZeroConfig, "\"zero-config\""),
+            (Tier::Intent, "\"intent\""),
+        ];
         for (variant, wire) in cases {
             let s = serde_json::to_string(&variant).unwrap();
             assert_eq!(s, wire, "Tier::{variant:?} should serialize as {wire}");

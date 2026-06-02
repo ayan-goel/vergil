@@ -498,7 +498,10 @@ mod tests {
 
     #[test]
     fn sanitize_name_lowercases_and_replaces_non_alphanum() {
-        assert_eq!(sanitize_name("TransferPreserves Supply"), "transferpreserves_supply");
+        assert_eq!(
+            sanitize_name("TransferPreserves Supply"),
+            "transferpreserves_supply"
+        );
         assert_eq!(sanitize_name(""), "intent");
         assert_eq!(sanitize_name("___"), "intent");
         assert_eq!(sanitize_name("ok_name_42"), "ok_name_42");
@@ -511,7 +514,9 @@ mod tests {
                 lhs: "x".into(),
                 rhs: "y".into(),
             },
-            Assertion::True { expr: "a > 0".into() },
+            Assertion::True {
+                expr: "a > 0".into(),
+            },
             Assertion::ExpectRevert,
             Assertion::HalmosAssert {
                 expr: "a == b".into(),
@@ -531,8 +536,7 @@ mod tests {
 
     #[test]
     fn parse_response_extracts_array_from_prose() {
-        let body =
-            r#"Here you go:
+        let body = r#"Here you go:
             [{"name":"x","intent_text":"y","rationale":"z"}]
             That's it."#;
         let v = parse_response(body);

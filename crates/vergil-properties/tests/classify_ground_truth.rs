@@ -55,10 +55,9 @@ fn solc_available() -> bool {
 
 fn load_ground_truth() -> GroundTruth {
     let path = workspace_root().join("vergilbench/primitives-ground-truth.yaml");
-    let body = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    serde_yaml::from_str(&body)
-        .unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
+    let body =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    serde_yaml::from_str(&body).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
 }
 
 fn load_sources(project: &Path) -> String {
@@ -164,7 +163,11 @@ async fn ground_truth_accuracy() {
         total += 1;
     }
 
-    let pct = if total > 0 { (correct as f32 / total as f32) * 100.0 } else { 0.0 };
+    let pct = if total > 0 {
+        (correct as f32 / total as f32) * 100.0
+    } else {
+        0.0
+    };
     eprintln!("classify_ground_truth: {correct}/{total} correct ({pct:.1}%)");
     if !misses.is_empty() {
         eprintln!("--- misses ---");

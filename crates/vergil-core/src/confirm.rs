@@ -135,10 +135,7 @@ impl ConfirmState {
     }
 
     pub fn decided_ids(&self) -> std::collections::BTreeSet<String> {
-        self.decisions
-            .iter()
-            .map(|d| d.intent_id.clone())
-            .collect()
+        self.decisions.iter().map(|d| d.intent_id.clone()).collect()
     }
 
     pub fn undecided(&self) -> impl Iterator<Item = &ProposedIntent> {
@@ -153,8 +150,7 @@ impl ConfirmState {
     pub fn confirmed_intents(&self) -> Vec<(ProposedIntent, Decision)> {
         let mut out = Vec::new();
         for d in &self.decisions {
-            let Some(intent) = self.proposed_intents.iter().find(|i| i.id == d.intent_id)
-            else {
+            let Some(intent) = self.proposed_intents.iter().find(|i| i.id == d.intent_id) else {
                 continue;
             };
             match &d.decision {
@@ -240,9 +236,7 @@ pub enum GateMode<'a> {
     /// `--yes`: auto-confirm every intent. No prompts, no I/O.
     AutoYes,
     /// Interactive TTY: per-intent prompt via the supplied prompter.
-    Tty {
-        prompter: &'a mut dyn TtyPrompter,
-    },
+    Tty { prompter: &'a mut dyn TtyPrompter },
     /// Non-TTY: JSON I/O for agent callers. Reads JSON decisions
     /// from `reader`, writes JSON prompts to `writer`.
     Json {
@@ -449,8 +443,7 @@ mod tests {
             sample_intent("c", Source::NatSpec),
         ];
         let state = ConfirmState::new("run-1".into(), intents, now());
-        let final_state =
-            run_gate(&path, state, GateMode::AutoYes, now()).expect("auto-yes gate");
+        let final_state = run_gate(&path, state, GateMode::AutoYes, now()).expect("auto-yes gate");
         assert_eq!(final_state.status, ConfirmStatus::Complete);
         assert_eq!(final_state.decisions.len(), 3);
         for d in &final_state.decisions {
@@ -484,8 +477,7 @@ mod tests {
         let resumed = resume_or_new(&path, "run-x", intents, now()).unwrap();
         assert_eq!(resumed.decisions.len(), 1);
         assert_eq!(resumed.status, ConfirmStatus::InProgress);
-        let final_state =
-            run_gate(&path, resumed, GateMode::AutoYes, now()).expect("resume gate");
+        let final_state = run_gate(&path, resumed, GateMode::AutoYes, now()).expect("resume gate");
         assert_eq!(final_state.decisions.len(), 3);
         // The pre-existing decision for `a` must still be Confirm.
         let a = final_state
@@ -714,8 +706,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("state.json");
         let state = ConfirmState::new("run-1".into(), Vec::new(), now());
-        let final_state =
-            run_gate(&path, state, GateMode::AutoYes, now()).expect("empty gate");
+        let final_state = run_gate(&path, state, GateMode::AutoYes, now()).expect("empty gate");
         assert_eq!(final_state.status, ConfirmStatus::Complete);
         assert!(final_state.decisions.is_empty());
         assert!(final_state.confirmed_intents().is_empty());
@@ -735,7 +726,10 @@ mod tests {
         );
         save_state(&path, &state).unwrap();
         let tmp_file = path.with_extension("json.tmp");
-        assert!(!tmp_file.exists(), ".tmp file must not survive a successful save");
+        assert!(
+            !tmp_file.exists(),
+            ".tmp file must not survive a successful save"
+        );
         assert!(path.is_file());
     }
 }

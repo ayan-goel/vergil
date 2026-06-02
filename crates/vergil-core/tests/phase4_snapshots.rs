@@ -37,9 +37,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use vergil_core::natspec_intent::{
-    extract_intent_candidates_from_natspec, NatSpecIntentConfig,
-};
+use vergil_core::natspec_intent::{extract_intent_candidates_from_natspec, NatSpecIntentConfig};
 use vergil_core::tests_intent::{extract_intent_candidates, TestsIntentConfig};
 use vergil_llm::{
     Completion, CompletionRequest, EmbedRequest, Embedding, LlmError, LlmProvider, ProviderId,
@@ -212,14 +210,11 @@ async fn each_reference_contract_meets_intent_floor() {
             }
         };
 
-        let tests_intents = extract_intent_candidates(&parsed_tests, &tests_cfg, provider.clone())
-            .await;
-        let natspec_intents = extract_intent_candidates_from_natspec(
-            &parsed_natspec,
-            &natspec_cfg,
-            provider.clone(),
-        )
-        .await;
+        let tests_intents =
+            extract_intent_candidates(&parsed_tests, &tests_cfg, provider.clone()).await;
+        let natspec_intents =
+            extract_intent_candidates_from_natspec(&parsed_natspec, &natspec_cfg, provider.clone())
+                .await;
 
         eprintln!(
             "[{}] parsed: {} tests + {} natspec blocks → intents: {} tests + {} natspec",
@@ -295,7 +290,8 @@ async fn tests_and_natspec_extractions_carry_distinct_source_labels() {
         .map(|(_p, b)| b)
         .collect::<Vec<_>>();
 
-    let tests_intents = extract_intent_candidates(&parsed_tests, &tests_cfg, provider.clone()).await;
+    let tests_intents =
+        extract_intent_candidates(&parsed_tests, &tests_cfg, provider.clone()).await;
     let natspec_intents =
         extract_intent_candidates_from_natspec(&parsed_natspec, &natspec_cfg, provider).await;
 

@@ -94,9 +94,9 @@ impl StructuralCandidate {
     pub fn into_spec_candidate(self) -> SpecCandidate {
         let mut spec = self.spec;
         spec.source = Source::Structural;
-        let template_ref = spec.template_ref.unwrap_or_else(|| {
-            format!("structural:{}:{:.2}", self.miner.id(), self.confidence)
-        });
+        let template_ref = spec
+            .template_ref
+            .unwrap_or_else(|| format!("structural:{}:{:.2}", self.miner.id(), self.confidence));
         spec.template_ref = Some(template_ref);
         spec
     }
@@ -153,7 +153,9 @@ pub struct StructuralConfig {
 
 impl Default for StructuralConfig {
     fn default() -> Self {
-        Self { min_confidence: 0.6 }
+        Self {
+            min_confidence: 0.6,
+        }
     }
 }
 
@@ -447,8 +449,7 @@ fn ident_of(s: &str) -> Option<String> {
     if s.is_empty() {
         return None;
     }
-    if s.chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         && !s.chars().next().unwrap().is_ascii_digit()
     {
         Some(s.to_string())
@@ -612,10 +613,7 @@ fn is_simple_literal(s: &str) -> bool {
     }
     // `1 ether`, `100 wei`, `1e18` (already covered above).
     if let Some((num, unit)) = s.split_once(' ') {
-        let num_ok = num
-            .trim()
-            .chars()
-            .all(|c| c.is_ascii_digit() || c == '_');
+        let num_ok = num.trim().chars().all(|c| c.is_ascii_digit() || c == '_');
         let unit_ok = matches!(
             unit.trim(),
             "wei" | "gwei" | "ether" | "seconds" | "minutes" | "hours" | "days" | "weeks"
@@ -823,7 +821,10 @@ pub fn mine_monotonicity(
                     continue;
                 }
                 // Any overwrite disqualifies.
-                if post_ctor.iter().any(|(_, p)| *p == WritePolarity::Overwrite) {
+                if post_ctor
+                    .iter()
+                    .any(|(_, p)| *p == WritePolarity::Overwrite)
+                {
                     continue;
                 }
                 let all_inc = post_ctor
@@ -835,12 +836,18 @@ pub fn mine_monotonicity(
                 if !all_inc && !all_dec {
                     continue;
                 }
-                let direction = if all_inc { Direction::Inc } else { Direction::Dec };
+                let direction = if all_inc {
+                    Direction::Inc
+                } else {
+                    Direction::Dec
+                };
                 // Build a per-writer Halmos candidate.
                 let writer_names: std::collections::BTreeSet<&str> =
                     post_ctor.iter().map(|(w, _)| w.as_str()).collect();
                 for writer in writer_names {
-                    let Some(sig) = signature_for(source, writer) else { continue };
+                    let Some(sig) = signature_for(source, writer) else {
+                        continue;
+                    };
                     if !is_externally_callable(&sig) {
                         continue;
                     }
@@ -987,7 +994,9 @@ fn signature_for<'a>(
     source: &'a str,
     fn_name: &str,
 ) -> Option<vergil_solidity::signatures::FunctionSignature> {
-    extract_signatures(source).into_iter().find(|s| s.name == fn_name)
+    extract_signatures(source)
+        .into_iter()
+        .find(|s| s.name == fn_name)
 }
 
 fn is_externally_callable(sig: &vergil_solidity::signatures::FunctionSignature) -> bool {
@@ -1045,7 +1054,10 @@ fn make_monotonic_candidate(
     );
     StructuralCandidate {
         spec: SpecCandidate {
-            name: format!("check_monotonic_{var_name}_{}_via_{writer}", direction.label()),
+            name: format!(
+                "check_monotonic_{var_name}_{}_via_{writer}",
+                direction.label()
+            ),
             halmos,
             smtchecker: String::new(),
             template_ref: None,
@@ -1143,9 +1155,11 @@ fn intersect_modifiers(source: &str, fn_names: &[String]) -> Vec<String> {
     }
     let mut iter = fn_names.iter();
     let first = iter.next().unwrap();
-    let mut acc: std::collections::BTreeSet<String> = modifiers_of(first, source).into_iter().collect();
+    let mut acc: std::collections::BTreeSet<String> =
+        modifiers_of(first, source).into_iter().collect();
     for name in iter {
-        let m: std::collections::BTreeSet<String> = modifiers_of(name, source).into_iter().collect();
+        let m: std::collections::BTreeSet<String> =
+            modifiers_of(name, source).into_iter().collect();
         acc = acc.intersection(&m).cloned().collect();
         if acc.is_empty() {
             break;
@@ -1216,9 +1230,18 @@ fn match_paren_in_str(s: &str, open_idx: usize) -> Option<usize> {
 
 fn parse_modifier_list(s: &str) -> Vec<String> {
     let reserved: std::collections::HashSet<&str> = [
-        "external", "public", "internal", "private",
-        "view", "pure", "payable", "nonpayable", "constant",
-        "virtual", "override", "returns",
+        "external",
+        "public",
+        "internal",
+        "private",
+        "view",
+        "pure",
+        "payable",
+        "nonpayable",
+        "constant",
+        "virtual",
+        "override",
+        "returns",
     ]
     .iter()
     .copied()
@@ -1327,9 +1350,13 @@ pub fn mine_conservation(
             if !is_externally_callable(&sig) {
                 continue;
             }
-            let Some(body) = body_for(&sig.name, source) else { continue };
+            let Some(body) = body_for(&sig.name, source) else {
+                continue;
+            };
             for pair in find_conservation_pairs(body) {
-                high.push(make_conservation_candidate(&sig.name, &sig.args, &pair, path));
+                high.push(make_conservation_candidate(
+                    &sig.name, &sig.args, &pair, path,
+                ));
             }
         }
     }
@@ -1565,7 +1592,9 @@ pub fn mine_two_step(
                         if f1 == f2 {
                             continue;
                         }
-                        let Some(sig) = signature_for(source, f2) else { continue };
+                        let Some(sig) = signature_for(source, f2) else {
+                            continue;
+                        };
                         if !is_externally_callable(&sig) {
                             continue;
                         }
@@ -1707,9 +1736,7 @@ fn make_two_step_candidate(
             template_ref: None,
             intent_satisfied: false,
             source: Source::Structural,
-            intent_text: Some(format!(
-                "{f2} requires {f1} first (via gate `{gate}`)"
-            )),
+            intent_text: Some(format!("{f2} requires {f1} first (via gate `{gate}`)")),
         },
         confidence: 0.65,
         miner: StructuralMiner::TwoStep,
@@ -1816,9 +1843,7 @@ mod tests {
     fn dummy_spec(name: &str) -> SpecCandidate {
         SpecCandidate {
             name: name.into(),
-            halmos: format!(
-                "function {name}() public {{ assert(true); }}"
-            ),
+            halmos: format!("function {name}() public {{ assert(true); }}"),
             smtchecker: String::new(),
             template_ref: None,
             intent_satisfied: false,
@@ -1829,7 +1854,10 @@ mod tests {
 
     #[test]
     fn miner_ids_are_stable_kebab_case() {
-        assert_eq!(StructuralMiner::InvariantConstants.id(), "invariant-constants");
+        assert_eq!(
+            StructuralMiner::InvariantConstants.id(),
+            "invariant-constants"
+        );
         assert_eq!(StructuralMiner::Monotonicity.id(), "monotonicity");
         assert_eq!(StructuralMiner::AccessPolicy.id(), "access-policy");
         assert_eq!(StructuralMiner::Conservation.id(), "conservation");
@@ -1891,12 +1919,8 @@ mod tests {
 
     #[test]
     fn low_confidence_finding_format() {
-        let f = LowConfidenceFinding::new(
-            StructuralMiner::TwoStep,
-            "F2 requires F1",
-            0.55,
-        )
-        .with_target("commit_reveal");
+        let f = LowConfidenceFinding::new(StructuralMiner::TwoStep, "F2 requires F1", 0.55)
+            .with_target("commit_reveal");
         assert_eq!(f.confidence, "0.55");
         assert_eq!(f.fn_or_var.as_deref(), Some("commit_reveal"));
     }
@@ -1907,8 +1931,8 @@ mod tests {
         let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/structural")
             .join(name);
-        let src = std::fs::read_to_string(&p)
-            .unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
+        let src =
+            std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
         (p, src)
     }
 
@@ -2048,11 +2072,15 @@ mod tests {
         )];
         let cfg = StructuralConfig::default();
         let report = extract_from_structural(&[(path, src)], &layouts, &cfg);
-        assert!(report.candidates.len() >= 2, "candidates: {:?}", report.candidates);
-        // miner_counts populated only for high-confidence emissions.
         assert!(
-            report.miner_counts.contains_key(&StructuralMiner::InvariantConstants)
+            report.candidates.len() >= 2,
+            "candidates: {:?}",
+            report.candidates
         );
+        // miner_counts populated only for high-confidence emissions.
+        assert!(report
+            .miner_counts
+            .contains_key(&StructuralMiner::InvariantConstants));
         // All candidates carry Source::Structural with a structural-
         // family template_ref. (The fixture also yields a monotonicity
         // candidate for `counter` via bump(), so the aggregator output
@@ -2060,22 +2088,16 @@ mod tests {
         for c in &report.candidates {
             assert_eq!(c.source, Source::Structural);
             let t = c.template_ref.as_deref().unwrap_or("");
-            assert!(
-                t.starts_with("structural:"),
-                "template_ref drift: {t}"
-            );
+            assert!(t.starts_with("structural:"), "template_ref drift: {t}");
         }
         // At least one invariant-constants candidate must be present
         // (name and symbol via Tier B).
         assert!(
-            report
-                .candidates
-                .iter()
-                .any(|c| c
-                    .template_ref
-                    .as_deref()
-                    .unwrap_or("")
-                    .starts_with("structural:invariant-constants:")),
+            report.candidates.iter().any(|c| c
+                .template_ref
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("structural:invariant-constants:")),
             "missing invariant-constants candidate: {:?}",
             report.candidates
         );
@@ -2182,7 +2204,10 @@ mod tests {
     fn forward_arg_names_handles_locations() {
         assert_eq!(forward_arg_names("()"), "");
         assert_eq!(forward_arg_names("(uint256 n)"), "n");
-        assert_eq!(forward_arg_names("(address to, uint256 amount)"), "to, amount");
+        assert_eq!(
+            forward_arg_names("(address to, uint256 amount)"),
+            "to, amount"
+        );
         assert_eq!(
             forward_arg_names("(bytes calldata data)"),
             "data",
@@ -2339,12 +2364,18 @@ mod tests {
         let want = high
             .iter()
             .find(|c| c.spec.name == "check_two_step_reveal_requires_commit");
-        assert!(want.is_some(), "missing reveal-requires-commit: {:#?}", high);
+        assert!(
+            want.is_some(),
+            "missing reveal-requires-commit: {:#?}",
+            high
+        );
         let c = want.unwrap();
         assert_eq!(c.miner, StructuralMiner::TwoStep);
         assert!((c.confidence - 0.65).abs() < 1e-3);
         assert!(
-            c.spec.halmos.contains("try token.reveal(value) { assert(false); }"),
+            c.spec
+                .halmos
+                .contains("try token.reveal(value) { assert(false); }"),
             "halmos shape drift: {}",
             c.spec.halmos
         );
@@ -2369,10 +2400,19 @@ mod tests {
 
     #[test]
     fn body_requires_gate_handles_require_and_negated_if() {
-        assert!(body_requires_gate("require(committed, \"x\");", "committed"));
-        assert!(body_requires_gate("require(committed == true);", "committed"));
+        assert!(body_requires_gate(
+            "require(committed, \"x\");",
+            "committed"
+        ));
+        assert!(body_requires_gate(
+            "require(committed == true);",
+            "committed"
+        ));
         assert!(body_requires_gate("if (!committed) revert();", "committed"));
-        assert!(body_requires_gate("if (committed == false) { revert(); }", "committed"));
+        assert!(body_requires_gate(
+            "if (committed == false) { revert(); }",
+            "committed"
+        ));
         assert!(!body_requires_gate("require(true);", "committed"));
         assert!(!body_requires_gate("if (other) revert();", "committed"));
     }

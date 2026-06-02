@@ -531,7 +531,8 @@ mod tests {
                 "check_transfer_preserves_supply".to_string()
             },
             halmos: if literal {
-                "function check_alice_has_100() public { assert(token.balanceOf(0xA11ce) == 100); }".to_string()
+                "function check_alice_has_100() public { assert(token.balanceOf(0xA11ce) == 100); }"
+                    .to_string()
             } else {
                 "function check_transfer_preserves_supply(address to, uint256 amount) public { uint256 t0 = token.totalSupply(); try token.transfer(to, amount) {} catch {} assert(token.totalSupply() == t0); }".to_string()
             },
@@ -539,13 +540,12 @@ mod tests {
             template_ref: None,
             intent_satisfied: true,
             source: Source::Tests,
-            intent_text: Some(
-                if literal {
-                    "alice has 100 tokens after transfer".to_string()
-                } else {
-                    "Transferring any amount between any two addresses preserves totalSupply.".to_string()
-                },
-            ),
+            intent_text: Some(if literal {
+                "alice has 100 tokens after transfer".to_string()
+            } else {
+                "Transferring any amount between any two addresses preserves totalSupply."
+                    .to_string()
+            }),
         }
     }
 
@@ -557,7 +557,8 @@ mod tests {
                 "check_transfer_state_invariant".to_string()
             },
             halmos: if paraphrase {
-                "function check_transfer_runs() public { token.transfer(bob, 1); assert(true); }".to_string()
+                "function check_transfer_runs() public { token.transfer(bob, 1); assert(true); }"
+                    .to_string()
             } else {
                 "function check_transfer_state_invariant(address to, uint256 amount) public { uint256 t0 = token.totalSupply(); try token.transfer(to, amount) {} catch {} assert(token.totalSupply() == t0); }".to_string()
             },
@@ -565,13 +566,11 @@ mod tests {
             template_ref: None,
             intent_satisfied: true,
             source: Source::NatSpec,
-            intent_text: Some(
-                if paraphrase {
-                    "Transfers tokens between accounts.".to_string()
-                } else {
-                    "Any successful transfer preserves the contract's totalSupply.".to_string()
-                },
-            ),
+            intent_text: Some(if paraphrase {
+                "Transfers tokens between accounts.".to_string()
+            } else {
+                "Any successful transfer preserves the contract's totalSupply.".to_string()
+            }),
         }
     }
 
@@ -675,14 +674,19 @@ mod tests {
             ProviderId::Anthropic,
             cfg,
         );
-        let results = critic.critique_all(&[candidate.clone()], "ERC-20 transfer", None).await;
+        let results = critic
+            .critique_all(&[candidate.clone()], "ERC-20 transfer", None)
+            .await;
         assert_eq!(results.len(), 1);
         let result = &results[0];
         assert!(result.scores.restate_the_source < 0.5);
         let outcome = critic.filter_accepted(vec![candidate], results);
         assert_eq!(outcome.kept.len(), 0);
         assert_eq!(outcome.dropped.len(), 1);
-        assert!(outcome.dropped[0].1.rationale.contains("restate-the-source"));
+        assert!(outcome.dropped[0]
+            .1
+            .rationale
+            .contains("restate-the-source"));
     }
 
     #[tokio::test]
@@ -710,7 +714,9 @@ mod tests {
             ProviderId::Anthropic,
             cfg,
         );
-        let results = critic.critique_all(&[candidate.clone()], "ERC-20 docs", None).await;
+        let results = critic
+            .critique_all(&[candidate.clone()], "ERC-20 docs", None)
+            .await;
         let outcome = critic.filter_accepted(vec![candidate], results);
         assert_eq!(outcome.kept.len(), 0);
         assert_eq!(outcome.dropped.len(), 1);
@@ -741,7 +747,9 @@ mod tests {
             ProviderId::Anthropic,
             cfg,
         );
-        let results = critic.critique_all(&[candidate.clone()], "ERC-20 transfer", None).await;
+        let results = critic
+            .critique_all(&[candidate.clone()], "ERC-20 transfer", None)
+            .await;
         let outcome = critic.filter_accepted(vec![candidate], results);
         assert_eq!(outcome.kept.len(), 1);
         assert_eq!(outcome.dropped.len(), 0);
@@ -778,7 +786,10 @@ mod tests {
         // oracle Slice 3 introduced.
         let c = attack_catalog_candidate();
         let out = render("attack-catalog", &c, None, 0.5).unwrap();
-        assert!(out.contains("attack_catalog"), "source_kind missing in prompt");
+        assert!(
+            out.contains("attack_catalog"),
+            "source_kind missing in prompt"
+        );
         assert!(
             out.contains("does not apply"),
             "AttackCatalog should opt out of restate_the_source"
@@ -820,7 +831,11 @@ mod tests {
             .critique_all(&[candidate.clone()], "reentrancy CEI", None)
             .await;
         let outcome = critic.filter_accepted(vec![candidate], results);
-        assert_eq!(outcome.kept.len(), 1, "well-formed catalog candidate must be accepted");
+        assert_eq!(
+            outcome.kept.len(),
+            1,
+            "well-formed catalog candidate must be accepted"
+        );
         assert_eq!(outcome.kept[0].0.source, Source::AttackCatalog);
         assert_eq!(
             outcome.kept[0].0.template_ref.as_deref(),
@@ -881,8 +896,16 @@ mod tests {
         let outcome = critic.filter_accepted(candidates, results);
         // 3 well-formed survive (catalog + tests_ok + natspec_ok),
         // 2 restatements drop.
-        assert_eq!(outcome.kept.len(), 3, "expected 3 kept: catalog + tests_ok + natspec_ok");
-        assert_eq!(outcome.dropped.len(), 2, "expected 2 dropped: tests_bad + natspec_bad");
+        assert_eq!(
+            outcome.kept.len(),
+            3,
+            "expected 3 kept: catalog + tests_ok + natspec_ok"
+        );
+        assert_eq!(
+            outcome.dropped.len(),
+            2,
+            "expected 2 dropped: tests_bad + natspec_bad"
+        );
         // Source provenance survives.
         let kept_sources: Vec<Source> = outcome.kept.iter().map(|(c, _)| c.source).collect();
         assert!(kept_sources.contains(&Source::AttackCatalog));

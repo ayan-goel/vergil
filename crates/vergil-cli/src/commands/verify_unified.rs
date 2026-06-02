@@ -41,32 +41,26 @@ use std::time::Duration;
 
 use chrono::Utc;
 
-use vergil_core::catalog_intent::{
-    extract_from_catalog, CatalogIntentConfig, CatalogIntentReport,
-};
+use vergil_core::catalog_intent::{extract_from_catalog, CatalogIntentConfig, CatalogIntentReport};
 use vergil_core::cegis::{VerifierDispatcher, VerifierVerdict};
 use vergil_core::confirm::{
     resume_or_new, run_gate, ConfirmState, ConfirmStatus, Decision, GateMode, ProposedIntent,
 };
 use vergil_core::critique::{Critic, CritiqueConfig, CritiqueResult};
 use vergil_core::fingerprint::{fingerprint, Fingerprint};
-use vergil_core::natspec_intent::{
-    extract_from_natspec, NatSpecIntentConfig, NatSpecIntentReport,
-};
-use vergil_core::structural::{
-    extract_from_structural, StructuralConfig, StructuralReport,
-};
+use vergil_core::natspec_intent::{extract_from_natspec, NatSpecIntentConfig, NatSpecIntentReport};
+use vergil_core::structural::{extract_from_structural, StructuralConfig, StructuralReport};
 use vergil_core::synthesis::{
     RetrievedHint, Source as CoreSource, SpecCandidate, StaticAnalysisSummary, SynthesisConfig,
 };
 use vergil_core::telemetry::{JsonlSink, NullSink, TelemetrySink};
 use vergil_core::tests_intent::{extract_from_tests, TestsIntentConfig, TestsIntentReport};
 use vergil_llm::ProviderId;
-use vergil_properties::{activate, ActivationResult, AttackCatalog, SmtStatus, StaticFacts};
 use vergil_proof::schema::{
-    Cost, ProofArtifact, QualityMetrics, RunMeta, Source as ProofSource, SourceFile, Tier,
-    ToolchainVersions, VerifiedProperty, ManifestValidationStatus, sha256_hex,
+    sha256_hex, Cost, ManifestValidationStatus, ProofArtifact, QualityMetrics, RunMeta,
+    Source as ProofSource, SourceFile, Tier, ToolchainVersions, VerifiedProperty,
 };
+use vergil_properties::{activate, ActivationResult, AttackCatalog, SmtStatus, StaticFacts};
 use vergil_solidity::natspec::parse_natspec_dir;
 use vergil_solidity::test_parser::parse_tests;
 
@@ -234,13 +228,17 @@ pub async fn run(args: UnifiedVerifyArgs) -> Result<RunReport, UnifiedVerifyErro
             }
         },
     };
-    let critic_provider_id = providers.critic_provider_id.unwrap_or(ProviderId::Anthropic);
+    let critic_provider_id = providers
+        .critic_provider_id
+        .unwrap_or(ProviderId::Anthropic);
     let critic = Critic::new(critic_provider, critic_provider_id, critique_cfg);
     let candidates = stage1.candidates.clone();
     let critique_results = if candidates.is_empty() {
         Vec::new()
     } else {
-        critic.critique_all(&candidates, "Phase 6 stratified verification", None).await
+        critic
+            .critique_all(&candidates, "Phase 6 stratified verification", None)
+            .await
     };
     let critique_outcome = critic.filter_accepted(candidates, critique_results);
 
@@ -285,16 +283,14 @@ pub async fn run(args: UnifiedVerifyArgs) -> Result<RunReport, UnifiedVerifyErro
     let confirmed: Vec<(ProposedIntent, Decision)> = final_state.confirmed_intents();
 
     // ─── Stage 3 — dispatch confirmed candidates ─────────────────────
-    let scaffold = crate::commands::verify::resolve_scaffold(
-        &project,
-        args.scaffold_override.as_deref(),
-    )
-    .map_err(UnifiedVerifyError::Scaffold)?;
+    let scaffold =
+        crate::commands::verify::resolve_scaffold(&project, args.scaffold_override.as_deref())
+            .map_err(UnifiedVerifyError::Scaffold)?;
 
     let telemetry: Arc<dyn TelemetrySink> = match &args.telemetry_json {
-        Some(p) => Arc::new(
-            JsonlSink::open(p).map_err(|e| UnifiedVerifyError::Telemetry(format!("{e}")))?,
-        ),
+        Some(p) => {
+            Arc::new(JsonlSink::open(p).map_err(|e| UnifiedVerifyError::Telemetry(format!("{e}")))?)
+        }
         None => Arc::new(NullSink),
     };
     let cex_sink = CexSink::new(&project, telemetry.clone(), &args.tenant_id, &run_id);
@@ -397,8 +393,8 @@ pub async fn run(args: UnifiedVerifyArgs) -> Result<RunReport, UnifiedVerifyErro
     // carries the stratified output.
     let proof = build_proof_artifact(&project, &outcomes, &verdict_out.headline)?;
     let proof_path = layout::top_level_proof_json(&project);
-    let mut proof_json = serde_json::to_value(&proof)
-        .map_err(|e| UnifiedVerifyError::Serialize(format!("{e}")))?;
+    let mut proof_json =
+        serde_json::to_value(&proof).map_err(|e| UnifiedVerifyError::Serialize(format!("{e}")))?;
     if let serde_json::Value::Object(map) = &mut proof_json {
         map.insert("verdict".into(), verdict_out.proof_json());
     }
@@ -493,7 +489,10 @@ async fn run_stage1(
         return Ok(out);
     }
     let synthesizer = providers.synthesizer.clone().unwrap();
-    let extractor = providers.extractor.clone().unwrap_or_else(|| synthesizer.clone());
+    let extractor = providers
+        .extractor
+        .clone()
+        .unwrap_or_else(|| synthesizer.clone());
     // Phase 6 cost-controlled synthesis: samples=1 (V1 default is 16 for
     // CEGIS but Phase 6 fans out across many candidates instead, so the
     // budget per-candidate is tight). Catalog_intent additionally
@@ -556,7 +555,16 @@ async fn run_stage1(
         let tests = tests_data.clone();
         async move {
             extract_from_tests(
-                &tests, &cfg, extractor, synthesizer, &synth, &methods, &sa, &[], &src, &scaf,
+                &tests,
+                &cfg,
+                extractor,
+                synthesizer,
+                &synth,
+                &methods,
+                &sa,
+                &[],
+                &src,
+                &scaf,
             )
             .await
         }
@@ -582,7 +590,16 @@ async fn run_stage1(
         let blocks = ns_data.clone();
         async move {
             extract_from_natspec(
-                &blocks, &cfg, extractor, synthesizer, &synth, &methods, &sa, &[], &src, &scaf,
+                &blocks,
+                &cfg,
+                extractor,
+                synthesizer,
+                &synth,
+                &methods,
+                &sa,
+                &[],
+                &src,
+                &scaf,
             )
             .await
         }
@@ -595,10 +612,8 @@ async fn run_stage1(
     // miner runs against whatever succeeded.
     let structural_cfg = StructuralConfig::default();
     let structural_sources = load_structural_sources(&fp.contract_sources);
-    let structural_source_paths: Vec<PathBuf> = structural_sources
-        .iter()
-        .map(|(p, _)| p.clone())
-        .collect();
+    let structural_source_paths: Vec<PathBuf> =
+        structural_sources.iter().map(|(p, _)| p.clone()).collect();
     let struct_fut = async move {
         let layouts = load_storage_layouts(&structural_source_paths).await;
         Ok::<_, vergil_core::synthesis::SynthesisError>(extract_from_structural(
@@ -608,8 +623,7 @@ async fn run_stage1(
         ))
     };
 
-    let (cat_r, test_r, ns_r, struct_r) =
-        tokio::join!(cat_fut, test_fut, ns_fut, struct_fut);
+    let (cat_r, test_r, ns_r, struct_r) = tokio::join!(cat_fut, test_fut, ns_fut, struct_fut);
 
     if !activation.templates.is_empty() {
         match cat_r {
@@ -663,8 +677,8 @@ struct ProviderHandles {
 
 impl ProviderHandles {
     fn from_env() -> Result<Self, String> {
-        let bundle = crate::commands::intent::build_providers_from_env(None)
-            .map_err(|e| format!("{e}"))?;
+        let bundle =
+            crate::commands::intent::build_providers_from_env(None).map_err(|e| format!("{e}"))?;
         Ok(Self {
             synthesizer: Some(bundle.synthesizer.clone()),
             critic: Some(bundle.critic.clone()),
@@ -721,8 +735,7 @@ fn fingerprint_to_facts(fp: &Fingerprint) -> StaticFacts {
 }
 
 fn filter_activation_by_category(activation: &mut ActivationResult<'_>, categories: &[String]) {
-    let keep: std::collections::BTreeSet<&str> =
-        categories.iter().map(|s| s.as_str()).collect();
+    let keep: std::collections::BTreeSet<&str> = categories.iter().map(|s| s.as_str()).collect();
     let (kept, dropped): (Vec<_>, Vec<_>) = activation
         .templates
         .drain(..)
@@ -731,17 +744,12 @@ fn filter_activation_by_category(activation: &mut ActivationResult<'_>, categori
     for d in dropped {
         activation.skipped.push(vergil_properties::SkippedTemplate {
             id: d.manifest.id.clone(),
-            reason: format!(
-                "category {} not in --catalog-subset",
-                d.manifest.category
-            ),
+            reason: format!("category {} not in --catalog-subset", d.manifest.category),
         });
     }
 }
 
-fn collect_document_only_templates(
-    activation: &ActivationResult<'_>,
-) -> Vec<DocumentOnlyTemplate> {
+fn collect_document_only_templates(activation: &ActivationResult<'_>) -> Vec<DocumentOnlyTemplate> {
     activation
         .templates
         .iter()
@@ -757,8 +765,22 @@ fn print_list_applicable(fp: &Fingerprint, activation: &ActivationResult<'_>) {
     println!("# vergil verify --list-applicable");
     println!();
     println!("Project: {}", fp.project_root.display());
-    println!("Interfaces: {}", if fp.interfaces.is_empty() { "(none)".to_string() } else { fp.interfaces.join(", ") });
-    println!("Primitives: {}", if fp.primitives.is_empty() { "(none)".to_string() } else { fp.primitives.join(", ") });
+    println!(
+        "Interfaces: {}",
+        if fp.interfaces.is_empty() {
+            "(none)".to_string()
+        } else {
+            fp.interfaces.join(", ")
+        }
+    );
+    println!(
+        "Primitives: {}",
+        if fp.primitives.is_empty() {
+            "(none)".to_string()
+        } else {
+            fp.primitives.join(", ")
+        }
+    );
     println!(
         "Oracles available: tests={} natspec={} readme={}",
         fp.available_oracles.tests,
@@ -766,9 +788,15 @@ fn print_list_applicable(fp: &Fingerprint, activation: &ActivationResult<'_>) {
         fp.available_oracles.readme.is_some(),
     );
     println!();
-    println!("Activated attack-catalog templates ({}):", activation.templates.len());
+    println!(
+        "Activated attack-catalog templates ({}):",
+        activation.templates.len()
+    );
     for t in &activation.templates {
-        println!("  - {}  [{}]  {}", t.manifest.id, t.manifest.category, t.manifest.name);
+        println!(
+            "  - {}  [{}]  {}",
+            t.manifest.id, t.manifest.category, t.manifest.name
+        );
     }
     println!();
     println!("Skipped templates ({}):", activation.skipped.len());
@@ -942,7 +970,9 @@ fn project_primitive_classification(fp: &Fingerprint) -> Option<PrimitiveClassif
 /// V1.5 Phase 5 Slice 6 — project Phase-5 `LowConfidenceFinding`s into
 /// the verdict layer's `LowConfidenceStructuralSummary` shape. Empty
 /// when the oracle didn't run or had no below-threshold findings.
-fn low_confidence_structural_summaries(stage1: &Stage1Outputs) -> Vec<LowConfidenceStructuralSummary> {
+fn low_confidence_structural_summaries(
+    stage1: &Stage1Outputs,
+) -> Vec<LowConfidenceStructuralSummary> {
     let Some(r) = stage1.structural.as_ref() else {
         return Vec::new();
     };
@@ -975,16 +1005,17 @@ fn load_structural_sources(paths: &[PathBuf]) -> Vec<(PathBuf, String)> {
 /// and collect every resulting layout. Per-file failures (missing solc,
 /// pragma mismatch, parser error) are logged and skipped — the miner
 /// runs against whatever succeeded. V1.5 Phase 5 Slice 1.
-async fn load_storage_layouts(
-    paths: &[PathBuf],
-) -> Vec<vergil_solidity::storage::StorageLayout> {
+async fn load_storage_layouts(paths: &[PathBuf]) -> Vec<vergil_solidity::storage::StorageLayout> {
     use vergil_solidity::storage::{run_simple, StorageResult};
     let mut out = Vec::new();
     for p in paths {
         match run_simple(p, std::time::Duration::from_secs(30)).await {
             StorageResult::Ok(mut layouts) => out.append(&mut layouts),
             StorageResult::Error(e) => {
-                tracing::warn!("structural: solc storage-layout failed for {}: {e}", p.display());
+                tracing::warn!(
+                    "structural: solc storage-layout failed for {}: {e}",
+                    p.display()
+                );
             }
         }
     }
@@ -1006,9 +1037,10 @@ fn render_simple_cex(property: &str, message: &str) -> String {
 fn locate_templates_dir() -> Option<PathBuf> {
     let mf = option_env!("CARGO_MANIFEST_DIR")?;
     let p = PathBuf::from(mf);
-    let candidate = p.parent()?.parent()?.join(
-        "crates/vergil-properties/templates/attacks",
-    );
+    let candidate = p
+        .parent()?
+        .parent()?
+        .join("crates/vergil-properties/templates/attacks");
     if candidate.is_dir() {
         return Some(candidate);
     }
@@ -1207,7 +1239,10 @@ mod tests {
         let report = run(args).await.expect("list-applicable runs without LLM");
         match report {
             RunReport::ListApplicable { activated, .. } => {
-                assert!(activated > 0, "erc20 should activate at least one catalog template");
+                assert!(
+                    activated > 0,
+                    "erc20 should activate at least one catalog template"
+                );
             }
             _ => panic!("expected ListApplicable variant"),
         }

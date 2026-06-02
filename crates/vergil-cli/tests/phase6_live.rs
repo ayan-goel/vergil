@@ -93,8 +93,7 @@ fn clean_vergil_out(project: &Path) {
 
 fn read_proof_json(project: &Path) -> serde_json::Value {
     let p = project.join("vergil-out/proof.json");
-    let body = std::fs::read_to_string(&p)
-        .unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
+    let body = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
     serde_json::from_str(&body).unwrap_or_else(|e| panic!("parse {}: {e}", p.display()))
 }
 
@@ -108,15 +107,14 @@ fn erc20_broken_verifies_to_refuted_with_catalog_cex() {
     let project = workspace_root().join("examples/erc20-broken");
     clean_vergil_out(&project);
     let started = std::time::Instant::now();
-    let out = vergil(&[
-        "verify",
-        project.to_str().expect("utf8 path"),
-        "--yes",
-    ]);
+    let out = vergil(&["verify", project.to_str().expect("utf8 path"), "--yes"]);
     let elapsed = started.elapsed();
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
-    eprintln!("phase6_live[erc20-broken]: wall_clock={:.1}s", elapsed.as_secs_f64());
+    eprintln!(
+        "phase6_live[erc20-broken]: wall_clock={:.1}s",
+        elapsed.as_secs_f64()
+    );
     eprintln!("phase6_live[erc20-broken] stdout:\n{stdout}");
     eprintln!("phase6_live[erc20-broken] stderr:\n{stderr}");
 
@@ -146,9 +144,9 @@ fn erc20_broken_verifies_to_refuted_with_catalog_cex() {
     // catch the transferFrom-allowance-skip is data-side work
     // outside Phase 6's plumbing scope.
     let properties = verdict["properties"].as_array().expect("properties array");
-    let zc_cex = properties.iter().find(|p| {
-        p["tier"] == "zero-config" && p["verdict"]["kind"] == "refuted"
-    });
+    let zc_cex = properties
+        .iter()
+        .find(|p| p["tier"] == "zero-config" && p["verdict"]["kind"] == "refuted");
     assert!(
         zc_cex.is_some(),
         "no zero-config Refuted property in verdict — Stage 1 oracles \
@@ -170,16 +168,15 @@ fn erc20_broken_verifies_to_refuted_with_catalog_cex() {
                 .any(|e| e.file_name().to_string_lossy().starts_with("Cex_"))
         })
         .unwrap_or(false);
-    assert!(
-        has_cex_file,
-        "no Cex_*.t.sol file at {}",
-        cex_dir.display()
-    );
+    assert!(has_cex_file, "no Cex_*.t.sol file at {}", cex_dir.display());
 
     // "Not checked" section is populated (Phase 5 + skipped templates).
-    let report = std::fs::read_to_string(project.join("vergil-out/report.md"))
-        .expect("read report.md");
-    assert!(report.contains("## Not checked"), "report missing Not-checked section");
+    let report =
+        std::fs::read_to_string(project.join("vergil-out/report.md")).expect("read report.md");
+    assert!(
+        report.contains("## Not checked"),
+        "report missing Not-checked section"
+    );
     assert!(
         report.contains("Structural mining (Phase 5)")
             || report.contains("attack-catalog templates skipped")
@@ -199,15 +196,14 @@ fn erc20_clean_verifies_to_verified_in_scope_with_yes() {
     let project = workspace_root().join("examples/erc20");
     clean_vergil_out(&project);
     let started = std::time::Instant::now();
-    let out = vergil(&[
-        "verify",
-        project.to_str().expect("utf8 path"),
-        "--yes",
-    ]);
+    let out = vergil(&["verify", project.to_str().expect("utf8 path"), "--yes"]);
     let elapsed = started.elapsed();
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
-    eprintln!("phase6_live[erc20]: wall_clock={:.1}s", elapsed.as_secs_f64());
+    eprintln!(
+        "phase6_live[erc20]: wall_clock={:.1}s",
+        elapsed.as_secs_f64()
+    );
     eprintln!("phase6_live[erc20] stdout:\n{stdout}");
     eprintln!("phase6_live[erc20] stderr:\n{stderr}");
 
@@ -241,11 +237,7 @@ fn vergil_prove_re_verifies_phase6_proof_json() {
     // proof.json. If the verify test was skipped or run in isolation,
     // re-do a quick verify first.
     if !project.join("vergil-out/proof.json").is_file() {
-        let _ = vergil(&[
-            "verify",
-            project.to_str().expect("utf8 path"),
-            "--yes",
-        ]);
+        let _ = vergil(&["verify", project.to_str().expect("utf8 path"), "--yes"]);
     }
     let proof_path = project.join("vergil-out/proof.json");
     if !proof_path.is_file() {

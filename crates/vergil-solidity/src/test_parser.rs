@@ -247,10 +247,7 @@ fn collect_sol_files(dir: &Path, into: &mut Vec<PathBuf>) -> Result<(), TestPars
     Ok(())
 }
 
-fn collect_sol_files_shallow(
-    dir: &Path,
-    into: &mut Vec<PathBuf>,
-) -> Result<(), TestParserError> {
+fn collect_sol_files_shallow(dir: &Path, into: &mut Vec<PathBuf>) -> Result<(), TestParserError> {
     let entries = std::fs::read_dir(dir).map_err(|e| TestParserError::Io {
         path: dir.to_path_buf(),
         source: e,
@@ -490,10 +487,7 @@ fn extract_leading_doc_comment(source: &str, fn_start: usize) -> Option<String> 
     let mut collected: Vec<String> = Vec::new();
     let mut line_end = head.len();
     while line_end > 0 {
-        let line_start = head[..line_end]
-            .rfind('\n')
-            .map(|p| p + 1)
-            .unwrap_or(0);
+        let line_start = head[..line_end].rfind('\n').map(|p| p + 1).unwrap_or(0);
         let line = head[line_start..line_end].trim_end_matches('\r');
         let trimmed = line.trim_start();
         if trimmed.starts_with("///") {
@@ -703,7 +697,9 @@ mod tests {
 
         let t2 = &tests[2];
         assert_eq!(t2.assertions.len(), 2);
-        assert!(matches!(&t2.assertions[0], Assertion::True { expr } if expr.contains("balanceOf")));
+        assert!(
+            matches!(&t2.assertions[0], Assertion::True { expr } if expr.contains("balanceOf"))
+        );
         assert!(matches!(&t2.assertions[1], Assertion::False { expr } if expr.contains("paused")));
     }
 
@@ -924,16 +920,8 @@ mod tests {
         let tests = parse_tests_from_source(src);
         assert_eq!(tests.len(), 4, "expected 4 check_ functions; got {tests:?}");
         for t in &tests {
-            assert!(
-                t.name.starts_with("check_"),
-                "unexpected name {}",
-                t.name
-            );
-            assert!(
-                t.doc_comment.is_some(),
-                "{} missing doc comment",
-                t.name
-            );
+            assert!(t.name.starts_with("check_"), "unexpected name {}", t.name);
+            assert!(t.doc_comment.is_some(), "{} missing doc comment", t.name);
             assert!(
                 t.assertions
                     .iter()

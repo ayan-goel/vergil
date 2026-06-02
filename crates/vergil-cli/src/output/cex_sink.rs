@@ -232,7 +232,10 @@ mod tests {
         let recorder = Arc::new(RecordingSink::default());
         let sink = make_sink(tmp.path(), recorder.clone());
         let path = sink.emit(sample_record("check_y")).unwrap();
-        assert!(path.exists(), "cex file must be on disk before emit returns");
+        assert!(
+            path.exists(),
+            "cex file must be on disk before emit returns"
+        );
         assert_eq!(
             recorder.events.lock().unwrap().len(),
             1,

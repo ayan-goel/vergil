@@ -39,9 +39,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use vergil_core::natspec_intent::{
-    extract_intent_candidates_from_natspec, NatSpecIntentConfig,
-};
+use vergil_core::natspec_intent::{extract_intent_candidates_from_natspec, NatSpecIntentConfig};
 use vergil_core::tests_intent::{extract_intent_candidates, TestsIntentConfig};
 use vergil_llm::anthropic::AnthropicClient;
 use vergil_llm::LlmProvider;
@@ -132,12 +130,9 @@ async fn vault_4626_meets_spec_11_4_extraction_floor() {
 
     let tests_intents =
         extract_intent_candidates(&parsed_tests, &tests_cfg, provider.clone()).await;
-    let natspec_intents = extract_intent_candidates_from_natspec(
-        &parsed_natspec,
-        &natspec_cfg,
-        provider.clone(),
-    )
-    .await;
+    let natspec_intents =
+        extract_intent_candidates_from_natspec(&parsed_natspec, &natspec_cfg, provider.clone())
+            .await;
 
     let elapsed = started.elapsed();
 

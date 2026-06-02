@@ -113,10 +113,7 @@ async fn erc20_mines_at_least_five_high_confidence_structural_candidates() {
     }
     let project = workspace_root().join("examples/erc20");
     let sources = load_sources(&project);
-    let layouts = load_layouts(
-        &sources.iter().map(|(p, _)| p.clone()).collect::<Vec<_>>(),
-    )
-    .await;
+    let layouts = load_layouts(&sources.iter().map(|(p, _)| p.clone()).collect::<Vec<_>>()).await;
     let report = extract_from_structural(&sources, &layouts, &StructuralConfig::default());
 
     // Detailed breakdown for operator visibility.
@@ -176,10 +173,7 @@ async fn erc20_broken_structural_mining_is_sound() {
     }
     let project = workspace_root().join("examples/erc20-broken");
     let sources = load_sources(&project);
-    let layouts = load_layouts(
-        &sources.iter().map(|(p, _)| p.clone()).collect::<Vec<_>>(),
-    )
-    .await;
+    let layouts = load_layouts(&sources.iter().map(|(p, _)| p.clone()).collect::<Vec<_>>()).await;
     let report = extract_from_structural(&sources, &layouts, &StructuralConfig::default());
     eprintln!(
         "phase5_exit[erc20-broken]: {} high-confidence candidates",
@@ -209,10 +203,7 @@ async fn structural_mining_is_deterministic_across_runs() {
     }
     let project = workspace_root().join("examples/erc20");
     let sources = load_sources(&project);
-    let layouts = load_layouts(
-        &sources.iter().map(|(p, _)| p.clone()).collect::<Vec<_>>(),
-    )
-    .await;
+    let layouts = load_layouts(&sources.iter().map(|(p, _)| p.clone()).collect::<Vec<_>>()).await;
     let r1 = extract_from_structural(&sources, &layouts, &StructuralConfig::default());
     let r2 = extract_from_structural(&sources, &layouts, &StructuralConfig::default());
     // SpecCandidate doesn't impl Eq directly (LowConfidenceFinding does),

@@ -65,7 +65,10 @@ fn layout_helper_paths_match_spec_3_8_exactly() {
         top_level_proof_json(&project),
         PathBuf::from("/p/vergil-out/proof.json")
     );
-    assert_eq!(report_md(&project), PathBuf::from("/p/vergil-out/report.md"));
+    assert_eq!(
+        report_md(&project),
+        PathBuf::from("/p/vergil-out/report.md")
+    );
     assert_eq!(
         counterexamples_dir(&project),
         PathBuf::from("/p/vergil-out/counterexamples")
@@ -81,8 +84,6 @@ fn layout_helper_paths_match_spec_3_8_exactly() {
     );
     assert_eq!(
         attack_catalog_per_template_proof(&project, "reentrancy-cei"),
-        PathBuf::from(
-            "/p/vergil-out/zero-config/attack-catalog/reentrancy-cei.proof.json"
-        )
+        PathBuf::from("/p/vergil-out/zero-config/attack-catalog/reentrancy-cei.proof.json")
     );
 }

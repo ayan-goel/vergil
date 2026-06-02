@@ -106,9 +106,9 @@ pub enum FingerprintError {
 /// project, unreadable files) — empty oracles / empty interfaces /
 /// empty primitives are valid Fingerprint states.
 pub fn fingerprint(project_root: &Path) -> Result<Fingerprint, FingerprintError> {
-    let project_root = project_root.canonicalize().map_err(|_| {
-        FingerprintError::NotAProject(project_root.to_path_buf())
-    })?;
+    let project_root = project_root
+        .canonicalize()
+        .map_err(|_| FingerprintError::NotAProject(project_root.to_path_buf()))?;
     if !project_root.is_dir() || !project_root.join("foundry.toml").is_file() {
         return Err(FingerprintError::NotAProject(project_root));
     }
@@ -368,7 +368,10 @@ mod tests {
             "expected primitives=[token-erc20], got {:?}",
             fp.primitives
         );
-        assert!(fp.available_oracles.tests, "erc20 has test/Properties.t.sol");
+        assert!(
+            fp.available_oracles.tests,
+            "erc20 has test/Properties.t.sol"
+        );
         assert!(
             !fp.contract_sources.is_empty(),
             "expected at least one .sol source"
