@@ -191,6 +191,13 @@ pub fn classify(
     matches.extend(classify_vault(source, layouts));
     matches.extend(classify_amm(source, layouts));
     matches.extend(classify_lending(source, layouts));
+    matches.extend(classify_vesting(source, layouts));
+    matches.extend(classify_airdrop(source, layouts));
+    matches.extend(classify_governance(source, layouts));
+    matches.extend(classify_staking(source, layouts));
+    matches.extend(classify_bridge(source, layouts));
+    matches.extend(classify_oracle(source, layouts));
+    matches.extend(classify_access_controlled_generic(source, &matches));
     PrimitiveClassification { matches }
 }
 
@@ -459,6 +466,204 @@ pub fn classify_lending(source: &str, _layouts: &[StorageLayout]) -> Vec<Primiti
     vec![PrimitiveMatch {
         primitive: Primitive::LendingMarket,
         confidence,
+        signals,
+    }]
+}
+
+// ─── Classifier 5: Long-tail primitives ──────────────────────────────
+
+/// Vesting classifier. Signals: `release()` + (`beneficiary()` or
+/// `releaseTime`). Confidence 0.75 for the signal pair; below
+/// threshold otherwise.
+pub fn classify_vesting(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+    if has_function_starting_with(source, "release") {
+        signals.push("release() surface".into());
+    }
+    let beneficiary_signal = source.contains("beneficiary()")
+        || source.contains("function beneficiary")
+        || source.contains(" beneficiary")
+        || source.contains("releaseTime")
+        || source.contains("releasable")
+        || source.contains("vestingSchedule");
+    if beneficiary_signal {
+        signals.push("vesting state (beneficiary / releaseTime / releasable)".into());
+    }
+    if signals.len() < 2 {
+        return Vec::new();
+    }
+    vec![PrimitiveMatch {
+        primitive: Primitive::Vesting,
+        confidence: 0.75,
+        signals,
+    }]
+}
+
+/// Airdrop classifier. Signals: `claim()` + (`merkleRoot` storage or
+/// `claimed[address]` mapping). Confidence 0.75.
+pub fn classify_airdrop(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+    if has_function_starting_with(source, "claim") {
+        signals.push("claim() surface".into());
+    }
+    if source.contains("merkleRoot")
+        || source.contains("merkle_root")
+        || source.contains("MerkleProof")
+    {
+        signals.push("merkleRoot / MerkleProof".into());
+    } else if source.contains("claimed[") || source.contains("hasClaimed[") {
+        signals.push("claimed[address] mapping".into());
+    }
+    if signals.len() < 2 {
+        return Vec::new();
+    }
+    vec![PrimitiveMatch {
+        primitive: Primitive::Airdrop,
+        confidence: 0.75,
+        signals,
+    }]
+}
+
+/// Governance classifier. Signals: `propose() + (queue|execute) +
+/// castVote` OR `Governor` inheritance. Confidence 0.75.
+pub fn classify_governance(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+    if has_inheritance_of(source, "Governor") || has_inheritance_of(source, "GovernorBravo") {
+        signals.push("inherits Governor".into());
+    }
+    let propose = has_function_starting_with(source, "propose");
+    let cast_vote = source.contains("castVote") || source.contains("function vote(");
+    let queue_or_exec =
+        has_function_starting_with(source, "queue") || has_function_starting_with(source, "execute");
+    if propose {
+        signals.push("propose() surface".into());
+    }
+    if cast_vote {
+        signals.push("castVote / vote() surface".into());
+    }
+    if queue_or_exec {
+        signals.push("queue() / execute() surface".into());
+    }
+    if signals.len() < 2 {
+        return Vec::new();
+    }
+    vec![PrimitiveMatch {
+        primitive: Primitive::Governance,
+        confidence: 0.75,
+        signals,
+    }]
+}
+
+/// Staking classifier. Signals: `stake()` + (`unstake` or `withdraw`)
+/// + `rewards` (storage or function name). Confidence 0.75.
+pub fn classify_staking(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+    if has_function_starting_with(source, "stake") {
+        signals.push("stake() surface".into());
+    }
+    if has_function_starting_with(source, "unstake")
+        || source.contains("function withdraw(uint256")
+    {
+        signals.push("unstake() / withdraw() surface".into());
+    }
+    if source.contains("rewards")
+        || source.contains("Rewards")
+        || source.contains("rewardPerToken")
+    {
+        signals.push("rewards state / function".into());
+    }
+    if signals.len() < 2 {
+        return Vec::new();
+    }
+    vec![PrimitiveMatch {
+        primitive: Primitive::Staking,
+        confidence: 0.75,
+        signals,
+    }]
+}
+
+/// Bridge classifier. Signals: `deposit + finalizeDeposit` (L1) OR
+/// `claimWithdrawal` (L2). Confidence 0.75.
+pub fn classify_bridge(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+    let deposit = has_function_starting_with(source, "deposit");
+    let finalize = source.contains("finalizeDeposit") || source.contains("finalizeWithdrawal");
+    let claim_w = source.contains("claimWithdrawal") || source.contains("proveWithdrawal");
+    if deposit && finalize {
+        signals.push("deposit + finalize* (L1 bridge)".into());
+    }
+    if claim_w {
+        signals.push("claimWithdrawal / proveWithdrawal (L2 bridge)".into());
+    }
+    if signals.is_empty() {
+        return Vec::new();
+    }
+    vec![PrimitiveMatch {
+        primitive: Primitive::Bridge,
+        confidence: 0.75,
+        signals,
+    }]
+}
+
+/// Oracle classifier. Signals: `latestAnswer() + decimals()`
+/// (Chainlink shape) OR `getPrice() + update()`. Confidence 0.75.
+pub fn classify_oracle(source: &str, _layouts: &[StorageLayout]) -> Vec<PrimitiveMatch> {
+    let mut signals: Vec<String> = Vec::new();
+    let chainlink = source.contains("latestAnswer") && source.contains("decimals()");
+    let custom = (source.contains("getPrice") || source.contains("function price"))
+        && (has_function_starting_with(source, "update") || source.contains("postPrice"));
+    if chainlink {
+        signals.push("latestAnswer() + decimals() (Chainlink shape)".into());
+    }
+    if custom {
+        signals.push("getPrice() + update() (custom oracle)".into());
+    }
+    if signals.is_empty() {
+        return Vec::new();
+    }
+    vec![PrimitiveMatch {
+        primitive: Primitive::Oracle,
+        confidence: 0.75,
+        signals,
+    }]
+}
+
+/// Access-controlled-generic catch-all. Fires when **no other primitive
+/// landed at confidence ≥0.6** AND a role-based modifier is present.
+/// Confidence 0.65 — surfaced but right at the activation boundary so
+/// it doesn't paper over a missed real-primitive classification.
+///
+/// The `existing` slice carries the matches the other classifiers
+/// produced so the catch-all can defer when a real primitive owns
+/// the contract.
+pub fn classify_access_controlled_generic(
+    source: &str,
+    existing: &[PrimitiveMatch],
+) -> Vec<PrimitiveMatch> {
+    // If any existing match is at or above the default threshold,
+    // defer — the contract already has a primary primitive.
+    if existing.iter().any(|m| m.confidence >= 0.6) {
+        return Vec::new();
+    }
+    let mut signals: Vec<String> = Vec::new();
+    if source.contains("onlyOwner") || source.contains("modifier onlyOwner") {
+        signals.push("onlyOwner modifier".into());
+    }
+    if source.contains("onlyRole(") {
+        signals.push("onlyRole(...) modifier".into());
+    }
+    if source.contains("hasRole(") {
+        signals.push("hasRole(...) check".into());
+    }
+    if source.contains("AccessControl") {
+        signals.push("AccessControl reference".into());
+    }
+    if signals.is_empty() {
+        return Vec::new();
+    }
+    vec![PrimitiveMatch {
+        primitive: Primitive::AccessControlledGeneric,
+        confidence: 0.65,
         signals,
     }]
 }
@@ -810,6 +1015,96 @@ mod tests {
         let src = example_source("erc20/src/Token.sol");
         let matches = classify_lending(&src, &[]);
         assert!(matches.is_empty(), "ERC20 should not classify as lending: {matches:#?}");
+    }
+
+    // ─── Long-tail classifiers (S4) ──────────────────────────────────
+
+    #[test]
+    fn classify_vesting_emits_on_fixture() {
+        let src = fixture("vesting.sol");
+        let matches = classify_vesting(&src, &[]);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].primitive, Primitive::Vesting);
+        assert!((matches[0].confidence - 0.75).abs() < 1e-3);
+    }
+
+    #[test]
+    fn classify_vesting_no_match_on_erc20() {
+        let src = example_source("erc20/src/Token.sol");
+        assert!(classify_vesting(&src, &[]).is_empty());
+    }
+
+    #[test]
+    fn classify_airdrop_emits_on_fixture() {
+        let src = fixture("airdrop.sol");
+        let matches = classify_airdrop(&src, &[]);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].primitive, Primitive::Airdrop);
+    }
+
+    #[test]
+    fn classify_governance_emits_on_fixture() {
+        let src = fixture("governance.sol");
+        let matches = classify_governance(&src, &[]);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].primitive, Primitive::Governance);
+        assert!(matches[0].signals.len() >= 2);
+    }
+
+    #[test]
+    fn classify_staking_emits_on_fixture() {
+        let src = fixture("staking.sol");
+        let matches = classify_staking(&src, &[]);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].primitive, Primitive::Staking);
+        assert!(matches[0].signals.len() >= 3);
+    }
+
+    #[test]
+    fn classify_bridge_emits_on_fixture() {
+        let src = fixture("bridge.sol");
+        let matches = classify_bridge(&src, &[]);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].primitive, Primitive::Bridge);
+    }
+
+    #[test]
+    fn classify_oracle_emits_on_fixture() {
+        let src = fixture("oracle.sol");
+        let matches = classify_oracle(&src, &[]);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].primitive, Primitive::Oracle);
+    }
+
+    #[test]
+    fn classify_access_controlled_fires_when_nothing_else_matched() {
+        let src = fixture("access_controlled.sol");
+        // Run via the full aggregator to confirm the catch-all only
+        // fires when no other primitive landed.
+        let report = classify(&src, &[], &ClassifyConfig::default());
+        let top = report.top().expect("expected top match");
+        assert_eq!(top.primitive, Primitive::AccessControlledGeneric);
+        assert!((top.confidence - 0.65).abs() < 1e-3);
+    }
+
+    #[test]
+    fn classify_access_controlled_defers_when_real_primitive_matched() {
+        // An ERC20 with onlyOwner — TokenErc20 wins; AccessControlledGeneric
+        // must NOT fire.
+        let src = example_source("erc20/src/Token.sol");
+        let report = classify(&src, &[], &ClassifyConfig::default());
+        assert!(report
+            .matches
+            .iter()
+            .all(|m| m.primitive != Primitive::AccessControlledGeneric));
+    }
+
+    #[test]
+    fn long_tail_single_signal_drops_below_threshold() {
+        // `function release()` alone (no beneficiary / releaseTime) →
+        // no vesting match.
+        let src = "contract X { function release() external {} }";
+        assert!(classify_vesting(src, &[]).is_empty());
     }
 
     #[test]
