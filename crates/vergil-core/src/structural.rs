@@ -192,6 +192,10 @@ pub fn extract_from_structural(
     all.extend(cs_high);
     low.extend(cs_low);
 
+    let (ts_high, ts_low) = mine_two_step(sources, layouts);
+    all.extend(ts_high);
+    low.extend(ts_low);
+
     split_by_confidence(all, low, cfg)
 }
 
@@ -1520,6 +1524,198 @@ fn make_conservation_candidate(
     }
 }
 
+// ─── Miner 5: Two-step pattern ───────────────────────────────────────
+
+/// Mine two-step-pattern candidates. For each (F1, F2) pair where F1
+/// writes state variable `gate` AND F2's body contains `require(gate,
+/// ...)` / `require(gate == ..., ...)` / `if (!gate) revert(...)`:
+/// emit one candidate at confidence 0.65 with intent_text "<F2> requires
+/// <F1> first via gate <gate>".
+///
+/// Halmos check exercises F2 in a fresh state (no prior F1 call) and
+/// asserts revert. Halmos symbolically initializes `token`'s storage;
+/// the property holds when the gate var defaults to a "needs F1"
+/// value (0/false for the canonical pattern).
+pub fn mine_two_step(
+    sources: &[(PathBuf, String)],
+    layouts: &[StorageLayout],
+) -> (Vec<StructuralCandidate>, Vec<LowConfidenceFinding>) {
+    let mut high: Vec<StructuralCandidate> = Vec::new();
+    let low: Vec<LowConfidenceFinding> = Vec::new();
+
+    for (path, source) in sources {
+        let file_layout: Vec<&StorageLayout> = layouts
+            .iter()
+            .filter(|l| layout_belongs_to(l, path))
+            .collect();
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for layout in &file_layout {
+            for entry in &layout.entries {
+                if !seen.insert(entry.label.as_str()) {
+                    continue;
+                }
+                if is_mapping_or_array_type(layout, &entry.type_id) {
+                    continue;
+                }
+                let gate = entry.label.as_str();
+                let writers = external_writers_of(source, gate);
+                let requirers = external_requirers_of(source, gate);
+                for f1 in &writers {
+                    for f2 in &requirers {
+                        if f1 == f2 {
+                            continue;
+                        }
+                        let Some(sig) = signature_for(source, f2) else { continue };
+                        if !is_externally_callable(&sig) {
+                            continue;
+                        }
+                        high.push(make_two_step_candidate(f1, f2, gate, &sig.args, path));
+                    }
+                }
+            }
+        }
+    }
+
+    (high, low)
+}
+
+/// Functions whose body references `gate` inside a `require` or
+/// negated-if revert pattern.
+fn external_requirers_of(source: &str, gate: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for sig in extract_signatures(source) {
+        if !is_externally_callable(&sig) {
+            continue;
+        }
+        if let Some(body) = body_for(&sig.name, source) {
+            if body_requires_gate(body, gate) {
+                out.push(sig.name.clone());
+            }
+        }
+    }
+    out
+}
+
+fn body_requires_gate(body: &str, gate: &str) -> bool {
+    let stripped = strip_comments(body);
+    // require(<gate>...) — gate may appear bare, equal-checked, or
+    // inverted via `!<gate>`.
+    if contains_require_with(&stripped, gate) {
+        return true;
+    }
+    if contains_if_negated_revert(&stripped, gate) {
+        return true;
+    }
+    false
+}
+
+fn contains_require_with(body: &str, gate: &str) -> bool {
+    let mut i = 0;
+    let bytes = body.as_bytes();
+    while i + "require(".len() < bytes.len() {
+        let rest = &body[i..];
+        let Some(rel) = rest.find("require(") else {
+            break;
+        };
+        let open = i + rel + "require(".len() - 1;
+        if let Some(close) = match_paren_in_str(body, open) {
+            let arg = &body[open + 1..close];
+            if mentions_gate(arg, gate) {
+                return true;
+            }
+            i = close + 1;
+        } else {
+            i = open + 1;
+        }
+    }
+    false
+}
+
+fn contains_if_negated_revert(body: &str, gate: &str) -> bool {
+    // `if (!gate)` or `if (gate == 0)` or `if (gate == false)` ... { ... revert ... }
+    let mut i = 0;
+    let bytes = body.as_bytes();
+    while i + "if (".len() < bytes.len() {
+        let rest = &body[i..];
+        let Some(rel) = rest.find("if (").or_else(|| rest.find("if(")) else {
+            break;
+        };
+        let abs = i + rel;
+        let open = abs + body[abs..].find('(').unwrap_or(0);
+        if let Some(close) = match_paren_in_str(body, open) {
+            let cond = body[open + 1..close].trim();
+            let mentions_negated = (cond.starts_with('!') && mentions_gate(&cond[1..], gate))
+                || (mentions_gate(cond, gate)
+                    && (cond.contains("== false") || cond.contains("== 0")));
+            if mentions_negated {
+                // Look for `revert` in the block / statement following
+                // the condition (within 200 chars).
+                let after = close + 1;
+                let end = body.len().min(after + 200);
+                let look = &body[after..end];
+                if look.contains("revert") {
+                    return true;
+                }
+            }
+            i = close + 1;
+        } else {
+            i = open + 1;
+        }
+    }
+    false
+}
+
+fn mentions_gate(expr: &str, gate: &str) -> bool {
+    let bytes = expr.as_bytes();
+    let n = gate.len();
+    let mut i = 0;
+    while i + n <= bytes.len() {
+        if &bytes[i..i + n] == gate.as_bytes() && is_word_boundary_at(expr, i, n) {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
+fn make_two_step_candidate(
+    f1: &str,
+    f2: &str,
+    gate: &str,
+    f2_args: &str,
+    _path: &std::path::Path,
+) -> StructuralCandidate {
+    let call_args = forward_arg_names(f2_args);
+    let halmos = format!(
+        "function check_two_step_{f2}_requires_{f1}{sig} public {{\n    \
+         // Property: {f2} must revert if {f1} (which writes the gate\n    \
+         // variable `{gate}`) hasn't been called yet. Halmos\n    \
+         // symbolically initializes `token` with the gate at its zero\n    \
+         // value; the call should revert.\n    \
+         try token.{f2}({call_args}) {{ assert(false); }} catch {{}}\n}}\n",
+        f1 = f1,
+        f2 = f2,
+        gate = gate,
+        sig = f2_args,
+        call_args = call_args,
+    );
+    StructuralCandidate {
+        spec: SpecCandidate {
+            name: format!("check_two_step_{f2}_requires_{f1}"),
+            halmos,
+            smtchecker: String::new(),
+            template_ref: None,
+            intent_satisfied: false,
+            source: Source::Structural,
+            intent_text: Some(format!(
+                "{f2} requires {f1} first (via gate `{gate}`)"
+            )),
+        },
+        confidence: 0.65,
+        miner: StructuralMiner::TwoStep,
+    }
+}
+
 // ─── shared helpers ──────────────────────────────────────────────────
 
 fn strip_comments(source: &str) -> String {
@@ -2127,6 +2323,58 @@ mod tests {
         let body = "balanceOf[a] -= amount; balanceOf[b] += other;";
         let pairs = find_conservation_pairs(body);
         assert!(pairs.is_empty(), "mismatched operands should not pair");
+    }
+
+    // ─── Two-step miner (S5) ─────────────────────────────────────────
+
+    #[test]
+    fn two_step_commit_reveal_emits_pair() {
+        let (path, src) = fixture("two_step_commit_reveal.sol");
+        let layouts = vec![mock_layout(
+            "TwoStepCommitReveal",
+            &[("committed", "t_bool"), ("revealed", "t_uint256")],
+            &path,
+        )];
+        let (high, _) = mine_two_step(&[(path, src)], &layouts);
+        let want = high
+            .iter()
+            .find(|c| c.spec.name == "check_two_step_reveal_requires_commit");
+        assert!(want.is_some(), "missing reveal-requires-commit: {:#?}", high);
+        let c = want.unwrap();
+        assert_eq!(c.miner, StructuralMiner::TwoStep);
+        assert!((c.confidence - 0.65).abs() < 1e-3);
+        assert!(
+            c.spec.halmos.contains("try token.reveal(value) { assert(false); }"),
+            "halmos shape drift: {}",
+            c.spec.halmos
+        );
+        let it = c.spec.intent_text.as_deref().unwrap_or("");
+        assert!(it.contains("committed"));
+        assert!(it.contains("commit"));
+    }
+
+    #[test]
+    fn two_step_negative_no_candidate_when_gates_dont_match() {
+        let (path, src) = fixture("two_step_negative.sol");
+        let layouts = vec![mock_layout(
+            "TwoStepNegative",
+            &[("a", "t_uint256"), ("b", "t_bool")],
+            &path,
+        )];
+        let (high, _) = mine_two_step(&[(path, src)], &layouts);
+        // setA writes `a`; useB requires `b`. The gate doesn't match
+        // any writer of `b` (there is none). No candidate.
+        assert!(high.is_empty(), "expected no candidate: {:#?}", high);
+    }
+
+    #[test]
+    fn body_requires_gate_handles_require_and_negated_if() {
+        assert!(body_requires_gate("require(committed, \"x\");", "committed"));
+        assert!(body_requires_gate("require(committed == true);", "committed"));
+        assert!(body_requires_gate("if (!committed) revert();", "committed"));
+        assert!(body_requires_gate("if (committed == false) { revert(); }", "committed"));
+        assert!(!body_requires_gate("require(true);", "committed"));
+        assert!(!body_requires_gate("if (other) revert();", "committed"));
     }
 
     fn mock_layout(
