@@ -1074,6 +1074,7 @@ mod tests {
                         vacuity: *vac,
                         body_independence: 0.5,
                         testability: 0.5,
+                        restate_the_source: 1.0,
                     },
                     rationale: String::new(),
                 }),
