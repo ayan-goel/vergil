@@ -814,6 +814,8 @@ mod tests {
             smtchecker: String::new(),
             template_ref: None,
             intent_satisfied: true,
+            source: vergil_core::synthesis::Source::UserIntent,
+            intent_text: None,
         };
         let s = d.render(&spec);
         assert!(s.contains("function check_x() public {}"));
@@ -833,6 +835,8 @@ mod tests {
             smtchecker: String::new(),
             template_ref: None,
             intent_satisfied: true,
+            source: vergil_core::synthesis::Source::UserIntent,
+            intent_text: None,
         };
         let s = d.render(&spec);
         assert!(s.contains("// the_check"));

@@ -5,3 +5,4 @@ pub mod portfolio;
 pub mod refinement;
 pub mod synthesis;
 pub mod telemetry;
+pub mod tests_intent;

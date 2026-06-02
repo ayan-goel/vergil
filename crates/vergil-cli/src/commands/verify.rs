@@ -1061,6 +1061,8 @@ mod tests {
                     smtchecker: String::new(),
                     template_ref: None,
                     intent_satisfied: true,
+                    source: vergil_core::synthesis::Source::UserIntent,
+                    intent_text: None,
                 },
                 critique: Some(CritiqueResult {
                     verdict: if *accept {

@@ -318,6 +318,8 @@ mod tests {
             smtchecker: String::new(),
             template_ref: None,
             intent_satisfied: true,
+            source: crate::synthesis::Source::UserIntent,
+            intent_text: None,
         }
     }
 

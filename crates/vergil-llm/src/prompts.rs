@@ -94,6 +94,7 @@ load_prompt!(DIAGNOSE, "prompts/diagnose.txt");
 load_prompt!(REPAIR_CODE, "prompts/repair_code.txt");
 load_prompt!(REFINE_SPEC, "prompts/refine_spec.txt");
 load_prompt!(DECOMPOSE, "prompts/decompose.txt");
+load_prompt!(TEST_TO_PROPERTY, "prompts/test_to_property.txt");
 
 pub static ALL: &[&Prompt] = &[
     &SYNTHESIZE,
@@ -102,6 +103,7 @@ pub static ALL: &[&Prompt] = &[
     &REPAIR_CODE,
     &REFINE_SPEC,
     &DECOMPOSE,
+    &TEST_TO_PROPERTY,
 ];
 
 #[cfg(test)]
@@ -113,8 +115,14 @@ mod tests {
     }
 
     #[test]
-    fn all_six_prompts_load() {
-        assert_eq!(ALL.len(), 6);
+    fn all_prompts_load() {
+        // 6 V1 prompts + 1 Phase 4 (TEST_TO_PROPERTY) + 1 Phase 4
+        // (NATSPEC_TO_PROPERTY, lands in Slice 4).
+        assert!(
+            ALL.len() >= 7,
+            "expected ≥7 prompts, got {}",
+            ALL.len()
+        );
         for p in ALL {
             assert!(!p.body.is_empty(), "prompt {} has empty body", p.name);
         }

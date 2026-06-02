@@ -54,6 +54,25 @@ impl SynthesisConfig {
     }
 }
 
+/// Origin of a [`SpecCandidate`] for the stratified verdict (SPEC §3.6).
+/// V1 candidates have no explicit source — they default to [`Source::UserIntent`]
+/// so existing proof artifacts deserialize cleanly (SPEC §13 open question 3).
+/// Phase 4 introduces the `Tests` and `NatSpec` variants (§3.4a/b);
+/// Phase 5 will add `Structural`; Phase 1/2's catalog activation uses
+/// `AttackCatalog`. The verdict formatter and the Phase 6 confirmation
+/// gate both read this tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Source {
+    #[default]
+    UserIntent,
+    AttackCatalog,
+    Conformance,
+    Tests,
+    NatSpec,
+    Structural,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpecCandidate {
     pub name: String,
@@ -64,6 +83,18 @@ pub struct SpecCandidate {
     pub template_ref: Option<String>,
     #[serde(default)]
     pub intent_satisfied: bool,
+    /// Provenance for the stratified verdict. Defaults to
+    /// [`Source::UserIntent`] so V1 artifacts deserialize unchanged.
+    #[serde(default)]
+    pub source: Source,
+    /// The plain-English intent statement this candidate was derived
+    /// from, when applicable. Populated by Phase 4's `tests_intent`
+    /// and `natspec_intent` pipelines so the report can show the user
+    /// which doc comment or test produced the candidate. `None` for
+    /// catalog-derived candidates (those carry [`Self::template_ref`]
+    /// instead).
+    #[serde(default)]
+    pub intent_text: Option<String>,
 }
 
 #[derive(Debug, Default)]
