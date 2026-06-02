@@ -42,3 +42,10 @@ tempfile = "3"
 
 [dev-dependencies]
 tempfile = "3"
+tracing-subscriber = { workspace = true }
+
+[features]
+# Opt-in: run integration tests that hit live LLM providers. Requires
+# VERGIL_ANTHROPIC_API_KEY (or ANTHROPIC_API_KEY) in the environment.
+# Off by default to avoid CI bills per SPEC §11 (manual-only CI).
+llm-live = ["vergil-core/llm-live", "vergil-llm/llm-live"]
