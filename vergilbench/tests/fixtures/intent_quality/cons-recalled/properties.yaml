@@ -1,0 +1,4 @@
+version: 1
+intent: "Transfers conserve balances and total supply across all callers."
+properties:
+  - name: check_transfer_preserves_supply

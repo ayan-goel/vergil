@@ -1,0 +1,5 @@
+version: 1
+intent: "Only the owner may mutate the counter; ownership transfer reassigns control."
+properties:
+  - name: check_only_owner_writes
+  - name: check_ownership_transferred

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "run_id": "fixture-structural",
+  "proposed_intents": [
+    {
+      "id": "structural:monotonicity:tokenId",
+      "source": "structural",
+      "intent_text": "tokenId increments by exactly one per mint",
+      "rationale": "Structural monotonicity miner: tokenId only seen with += 1.",
+      "confidence": 0.85,
+      "template_ref": "structural:monotonicity:0.85"
+    }
+  ],
+  "decisions": [],
+  "status": "complete",
+  "started_at": "2026-06-02T00:00:00Z",
+  "updated_at": "2026-06-02T00:00:00Z"
+}

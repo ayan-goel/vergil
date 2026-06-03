@@ -1,0 +1,4 @@
+version: 1
+intent: "Verify OZ ERC165: the contract reports support for the ERC-165 interface id and rejects the reserved invalid id 0xffffffff."
+properties:
+  - name: check_supports_165

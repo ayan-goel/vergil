@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "run_id": "fixture-access",
+  "proposed_intents": [
+    {
+      "id": "catalog:ownable-only-owner",
+      "source": "attack_catalog",
+      "intent_text": "only the owner may invoke a state-changing entrypoint",
+      "rationale": "Catalog template ownable-only-owner activated by classifier.",
+      "confidence": 0.92,
+      "template_ref": "ownable-only-owner"
+    }
+  ],
+  "decisions": [],
+  "status": "complete",
+  "started_at": "2026-06-02T00:00:00Z",
+  "updated_at": "2026-06-02T00:00:00Z"
+}

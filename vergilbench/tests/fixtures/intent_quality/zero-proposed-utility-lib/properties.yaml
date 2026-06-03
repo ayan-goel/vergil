@@ -1,0 +1,4 @@
+version: 1
+intent: "Verify OZ Base64: encoding empty input yields an empty string."
+properties:
+  - name: check_empty_encodes_empty

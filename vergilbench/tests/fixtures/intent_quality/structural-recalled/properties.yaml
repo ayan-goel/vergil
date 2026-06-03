@@ -1,0 +1,4 @@
+version: 1
+intent: "Auto-incrementing tokenId mint pattern: consecutive mints assign consecutive ids and ownership tracks the recipients."
+properties:
+  - name: check_consecutive_ids

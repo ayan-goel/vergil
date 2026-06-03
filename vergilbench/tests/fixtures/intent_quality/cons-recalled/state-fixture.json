@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "run_id": "fixture-cons",
+  "proposed_intents": [
+    {
+      "id": "tests:check_supply_unchanged",
+      "source": "tests",
+      "intent_text": "transfer preserves total supply across all callers",
+      "rationale": "Test asserts totalSupply unchanged before and after transfer.",
+      "confidence": 0.85,
+      "template_ref": null
+    },
+    {
+      "id": "natspec:transfer-docs",
+      "source": "nat_spec",
+      "intent_text": "decimals returns the configured precision",
+      "rationale": "Doc comment on decimals() function.",
+      "confidence": 0.7,
+      "template_ref": null
+    }
+  ],
+  "decisions": [],
+  "status": "complete",
+  "started_at": "2026-06-02T00:00:00Z",
+  "updated_at": "2026-06-02T00:00:00Z"
+}

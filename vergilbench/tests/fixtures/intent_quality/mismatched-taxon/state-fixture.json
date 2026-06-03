@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "run_id": "fixture-mismatched",
+  "proposed_intents": [
+    {
+      "id": "tests:check_conservation",
+      "source": "tests",
+      "intent_text": "transfers conserve balances exactly",
+      "rationale": "Test name suggests conservation.",
+      "confidence": 0.65,
+      "template_ref": null
+    }
+  ],
+  "decisions": [],
+  "status": "complete",
+  "started_at": "2026-06-02T00:00:00Z",
+  "updated_at": "2026-06-02T00:00:00Z"
+}
